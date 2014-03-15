@@ -20,6 +20,10 @@
 #include "status.hpp"
 
 #include <tox.h>
+#include <toxav.h>
+#include <DHT.h>
+#include <net_crypto.h>
+#include <network.h>
 
 #include <QObject>
 #include <QTimer>

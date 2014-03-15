@@ -238,6 +238,8 @@ void Core::start()
     uint8_t friendAddress[TOX_FRIEND_ADDRESS_SIZE];
     tox_get_address(tox, friendAddress);
 
+    // TODO server需要使用固定的地址
+    qDebug()<<"friend address:"<<CFriendAddress::toString(friendAddress);
     emit friendAddressGenerated(CFriendAddress::toString(friendAddress));
 
     
