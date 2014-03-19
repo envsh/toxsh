@@ -1,4 +1,4 @@
-add_executable(../bin/toxshd
+add_executable(toxshd
   main.cpp
   server.cpp
   commandhandler.cpp
@@ -8,6 +8,6 @@ add_executable(../bin/toxshd
   ../common/Settings/settings.cpp
 )
 
-qt5_use_modules(../bin/toxshd Core)
+qt5_use_modules(toxshd Core)
 
 

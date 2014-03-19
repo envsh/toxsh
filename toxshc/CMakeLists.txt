@@ -1,3 +1,3 @@
-add_executable(../bin/toxshc
+add_executable(toxshc
   main.cpp
 )
