@@ -1,3 +1,4 @@
+
 /*
     Copyright (C) 2013 by Maxim Biro <nurupo.contributions@gmail.com>
 
@@ -36,7 +37,7 @@ Core::~Core()
     }
 }
 
-void Core::onFriendRequest(uint8_t* cUserId, uint8_t* cMessage, uint16_t cMessageSize, void* core)
+void Core::onFriendRequest(Tox*/* tox*/, uint8_t* cUserId, uint8_t* cMessage, uint16_t cMessageSize, void* core)
 {
     qDebug()<<"new friend request"<<(char*)cUserId<<(char*)cMessage;
     emit static_cast<Core*>(core)->friendRequestRecieved(CUserId::toString(cUserId), CString::toString(cMessage, cMessageSize));
@@ -57,7 +58,7 @@ void Core::onStatusMessageChanged(Tox*/* tox*/, int friendId, uint8_t* cMessage,
     emit static_cast<Core*>(core)->friendStatusMessageChanged(friendId, CString::toString(cMessage, cMessageSize));
 }
 
-void Core::onUserStatusChanged(Tox*/* tox*/, int friendId, TOX_USERSTATUS userstatus, void* core)
+void Core::onUserStatusChanged(Tox*/* tox*/, int friendId, uint8_t userstatus, void* core)
 {
     Status status;
     QString str_status;
@@ -97,21 +98,12 @@ void Core::onAction(Tox*/* tox*/, int friendId, uint8_t *cMessage, uint16_t cMes
 void Core::acceptFriendRequest(const QString& userId)
 {
     int friendId = tox_add_friend_norequest(tox, CUserId(userId).data());
-    
-    /*
-    QString friendAddress = "042A97A253B0BE446DBDFA8F9A516313289C0D5869EEC3C47D2F6C9767F6C40B986838278DE8";
-    QString message = "iam accept";
-    CString cMessage(message);
-
-    int friendId = tox_add_friend(tox, CFriendAddress(friendAddress).data(), cMessage.data(), cMessage.size());
-    qDebug()<<friendId;
-    */
-
     if (friendId == -1) {
         emit failedToAddFriend(userId);
     } else {
         emit friendAdded(friendId, userId);
     }
+    qDebug()<<"added friend:"<<friendId<<userId;
 }
 
 void Core::requestFriendship(const QString& friendAddress, const QString& message)
@@ -191,7 +183,12 @@ void Core::setStatus(Status status)
             userstatus = TOX_USERSTATUS_INVALID;
             break;
     }
-    tox_set_user_status(tox, userstatus);
+
+    if (tox_set_user_status(tox, userstatus) == 0) {
+        emit statusSet(status);
+    } else {
+        emit failedToSetStatus(status);
+    }
 }
 
 void Core::bootstrapDht()
