@@ -21,4 +21,5 @@ link_libraries(-ltoxcore)
 
 add_subdirectory(toxshd)
 add_subdirectory(toxshc)
+add_subdirectory(webshd)
 

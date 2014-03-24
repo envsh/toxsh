@@ -97,6 +97,16 @@ void Core::onAction(Tox*/* tox*/, int friendId, uint8_t *cMessage, uint16_t cMes
 void Core::acceptFriendRequest(const QString& userId)
 {
     int friendId = tox_add_friend_norequest(tox, CUserId(userId).data());
+    
+    /*
+    QString friendAddress = "042A97A253B0BE446DBDFA8F9A516313289C0D5869EEC3C47D2F6C9767F6C40B986838278DE8";
+    QString message = "iam accept";
+    CString cMessage(message);
+
+    int friendId = tox_add_friend(tox, CFriendAddress(friendAddress).data(), cMessage.data(), cMessage.size());
+    qDebug()<<friendId;
+    */
+
     if (friendId == -1) {
         emit failedToAddFriend(userId);
     } else {
