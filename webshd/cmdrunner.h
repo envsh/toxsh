@@ -18,12 +18,15 @@ public:
     virtual void run();
 
 public slots:
-    void onNewCommand(QString cmd);
+    void onNewCommand(QJsonObject jcmd);
     void onThreadStarted();
 
 signals:
-    void stdoutReady(QString out);
-    void stderrReady(QString out);
+    void stdoutReady(QString out, QString cmdid);
+    void stderrReady(QString out, QString cmdid);
+
+private:
+    void runOne(QString cmdid);
 
 private:
     QProcess *m_sh = nullptr;
@@ -33,6 +36,8 @@ private:
     struct winsize m_win;
     struct termios m_tio;
     int m_chpid = -1;
+    QDateTime m_last_send_time = QDateTime::currentDateTime();
+    QQueue<QJsonObject> m_q_cmds;
 };
 
 #endif /* _CMDRUNNER_H_ */
