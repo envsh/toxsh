@@ -23,4 +23,5 @@ add_subdirectory(toxshd)
 add_subdirectory(toxshc)
 add_subdirectory(webshd)
 add_subdirectory(webshc)
+add_subdirectory(trohd)
 
