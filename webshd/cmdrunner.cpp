@@ -55,6 +55,7 @@ void CmdRunner::run()
     int rc;
 
     while (true) {
+        /*
         if (this->m_q_cmds.count() == 0) {
             sleep(1);
             continue;
@@ -63,6 +64,7 @@ void CmdRunner::run()
         jobj = this->m_q_cmds.dequeue();
         rc = ::write(m_fdm, jobj.value("cmd").toString().toLocal8Bit().data(), jobj.value("cmd").toString().length());
         assert(rc > 0);
+        */
 
         this->runOne(QString("%1").arg(jobj.value("id").toInt()));
     }
@@ -134,10 +136,15 @@ void CmdRunner::onNewCommand(QJsonObject jcmd)
 
     QString end_cmd = QString("ENDOFCMD%1").arg(time(NULL));
     QString cmd_suffix = " ; echo " + end_cmd + ",,,$PWD,,,$OLDPWD\n";
-    QString cmd = jcmd.value("cmd").toString() + cmd_suffix;
+    QString base64_cmd = QByteArray::fromBase64(jcmd.value("base64_cmd").toString().toLocal8Bit());
+    QString cmd = base64_cmd + cmd_suffix;
 
     jcmd.insert("cmd", QJsonValue(cmd));
     this->m_q_cmds.enqueue(jcmd);
+
+    QJsonObject jobj = this->m_q_cmds.dequeue();
+    int rc = ::write(m_fdm, jobj.value("cmd").toString().toLocal8Bit().data(), jobj.value("cmd").toString().length());
+    assert(rc > 0);
 
     // int rc = ::write(m_fdm, cmd.toLatin1().data(), cmd.length());
     // qDebug()<<rc;
