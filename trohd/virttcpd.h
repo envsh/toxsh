@@ -20,9 +20,11 @@ public slots:
     // void onClientError(QAbstractSocket::SocketError socketError);
     // void onClientHostFound();
     // void onClientStateChanged(QAbstractSocket::SocketState socketState);
+    void onPacketRecieved(QJsonObject jobj);
 
 signals:
     void newPacket(QByteArray pkt);
+    void realClientDisconnected();
 
 private:
     QTcpServer *m_tcpd = NULL;

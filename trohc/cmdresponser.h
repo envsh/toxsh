@@ -1,21 +1,22 @@
-#ifndef _CMDSENDER_H_
-#define _CMDSENDER_H_
+#ifndef _CMDRESPONSER_H_
+#define _CMDRESPONSER_H_
 
 #include <QtCore>
 #include <QtNetwork>
 
-class CmdSender : public QObject
+class CmdResponser : public QObject
 {
     Q_OBJECT;
 public:
-    CmdSender();
-    virtual ~CmdSender();
+    CmdResponser();
+    virtual ~CmdResponser();
     bool init();
-                           
+
+
 public slots:
     void onNewOutput(QString output, QString cmdid);
-    void onRequestFinished(QNetworkReply *reply);
     void onPacketRecieved(QByteArray pkt);
+    void onRequestFinished(QNetworkReply *reply);
 
 private:
     void sendRequest(QByteArray data);
@@ -27,4 +28,5 @@ private:
     bool  m_requesting = false;
 };
 
-#endif /* _CMDSENDER_H_ */
+
+#endif /* _CMDRESPONSER_H_ */

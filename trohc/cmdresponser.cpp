@@ -1,25 +1,25 @@
-#include "cmdsender.h"
+#include "cmdresponser.h"
 
-CmdSender::CmdSender()
+CmdResponser::CmdResponser()
     : QObject(0)
 {
     this->init();
 }
 
-CmdSender::~CmdSender()
+CmdResponser::~CmdResponser()
 {
 }
 
-bool CmdSender::init()
+bool CmdResponser::init()
 {
     if (!m_nam) {
         m_nam = new QNetworkAccessManager();
-        QObject::connect(m_nam, &QNetworkAccessManager::finished, this, &CmdSender::onRequestFinished);
+        QObject::connect(m_nam, &QNetworkAccessManager::finished, this, &CmdResponser::onRequestFinished);
     }
     return true;
 }
 
-void CmdSender::onNewOutput(QString output, QString cmdid)
+void CmdResponser::onNewOutput(QString output, QString cmdid)
 {
     QString url = "http://webtim.duapp.com/pmp/pmp.php";
     QNetworkRequest req(url);
@@ -45,7 +45,7 @@ void CmdSender::onNewOutput(QString output, QString cmdid)
     
 }
 
-void CmdSender::onRequestFinished(QNetworkReply *reply)
+void CmdResponser::onRequestFinished(QNetworkReply *reply)
 {
     // qDebug()<<reply->rawHeaderList()<<reply->error()<<reply->errorString();
     qDebug()<<"sent: "<<QUrl(reply->url()).query();
@@ -60,8 +60,9 @@ void CmdSender::onRequestFinished(QNetworkReply *reply)
     this->m_mutex.unlock();
 }
 
-void CmdSender::onPacketRecieved(QByteArray pkt)
+void CmdResponser::onPacketRecieved(QByteArray pkt)
 {
+
     QByteArray data = QByteArray("pkt=") + pkt.toHex().toPercentEncoding();
 
 
@@ -82,9 +83,9 @@ void CmdSender::onPacketRecieved(QByteArray pkt)
     this->m_mutex.unlock();
 }
 
-void CmdSender::sendRequest(QByteArray data)
+void CmdResponser::sendRequest(QByteArray data)
 {
-    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=cpush&len=%1").arg(data.length());
+    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=spush&len=%1").arg(data.length());
     QNetworkRequest req(url);
     req.setRawHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
     qDebug()<<"sending..."<<QUrl(url).query();

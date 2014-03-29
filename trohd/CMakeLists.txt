@@ -4,7 +4,7 @@ add_executable(trohd
   server.cpp
   virttcpd.cpp
 #  cmdrunner.cpp
-#  cmdprovider.cpp
+  cmdprovider.cpp
 #  cmdresponser.cpp
 )
 target_link_libraries(trohd -lutil -lreadline)

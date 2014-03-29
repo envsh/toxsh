@@ -3,9 +3,10 @@
 
 #include <QtCore>
 
-class VirtTcpD;
-class CmdSender;
+class CmdRunner;
 class CmdProvider;
+class CmdResponser;
+class VirtTcpC;
 
 class Server : public QObject
 {
@@ -24,10 +25,10 @@ signals:
     void newCommand(QJsonObject jcmd);
 
 private:
-    VirtTcpD *m_vtcpd = NULL;
-    CmdSender *m_sender = NULL;
+    CmdRunner *m_runner = NULL;
     CmdProvider *m_provider = NULL;
+    CmdResponser *m_responser = NULL;
+    VirtTcpC *m_vtcpc = NULL;
 };
-
 
 #endif /* _SERVER_H_ */
