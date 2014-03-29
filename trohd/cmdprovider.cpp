@@ -30,7 +30,11 @@ bool CmdProvider::connectToCometServer()
         QObject::connect(m_cmd_recv_comet_client, &QTcpSocket::readyRead, this, &CmdProvider::onCometClientReadyRead);
     }
 
-    m_cmd_recv_comet_client->connectToHost("127.0.0.1", 80);
+    // TODO: 解析一次DNS，多次使用的模式，更通用。
+    // home: 119.75.219.53
+    // other: 202.108.23.200
+    m_cmd_recv_comet_client->connectToHost("119.75.219.53", 80);
+    // m_cmd_recv_comet_client->connectToHost("127.0.0.1", 80);
 
     return true;
 }
