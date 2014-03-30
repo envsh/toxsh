@@ -65,6 +65,7 @@ void VirtTcpC::onPacketRecieved(QJsonObject jobj)
             this->connectToHost();
         }
         int rc = this->m_sock->write(pkt);
+        qDebug()<<"SBR -> SSHD: Write: "<<rc;
         assert(rc == pkt.length());
     }
 }
