@@ -43,9 +43,9 @@ void CmdProvider::onCometClientReadyRead()
 {
     QByteArray ba = m_cmd_recv_comet_client->readAll();
     if (this->m_type == CPT_CPULL) {
-        qDebug()<<"HCPS -> CBR:"<<ba.length();
+        qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes";
     } else {
-        qDebug()<<"HSPS -> SBR:"<<ba.length();
+        qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes";
     }
     this->parsePacket(QString(ba));
 }

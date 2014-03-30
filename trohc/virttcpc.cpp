@@ -59,11 +59,12 @@ void VirtTcpC::onPacketRecievedStream(QByteArray pkt)
 void VirtTcpC::onPacketRecieved(QJsonObject jobj)
 {
     int pkt_id = jobj.value("id").toInt();
+    QString str_pkt_id = pkt_id == 0 ? jobj.value("id").toString() : QString("%1").arg(pkt_id);
 
     QByteArray hex_pkt = jobj.value("pkt").toString().toLocal8Bit();
     QByteArray pkt = QByteArray::fromHex(hex_pkt);
 
-    qDebug()<<"SBR got pkt_id:"<<pkt_id<<pkt.length();
+    qDebug()<<"SBR got pkt_id:"<<str_pkt_id<<pkt.length()<<"Bytes";
 
     QByteArray ba = "realClientDisconnected-hoho";
     if (pkt == ba) {

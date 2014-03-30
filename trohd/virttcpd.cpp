@@ -57,11 +57,12 @@ void VirtTcpD::onClientError(QAbstractSocket::SocketError error)
 void VirtTcpD::onPacketRecieved(QJsonObject jobj)
 {
     int pkt_id = jobj.value("id").toInt();
+    QString str_pkt_id = pkt_id == 0 ? jobj.value("id").toString() : QString("%1").arg(pkt_id);
 
     QByteArray hex_pkt = jobj.value("pkt").toString().toLocal8Bit();
     QByteArray pkt = QByteArray::fromHex(hex_pkt);
 
-    qDebug()<<"CBR got pkt_id:"<<pkt_id<<pkt.length();
+    qDebug()<<"CBR got pkt_id:"<<str_pkt_id<<pkt.length()<<"Bytes";
 
     if (this->m_conns.size() > 0) {    
         QTcpSocket *sock = (this->m_conns.begin()).key();
