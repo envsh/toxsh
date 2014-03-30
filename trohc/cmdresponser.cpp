@@ -58,6 +58,8 @@ void CmdResponser::onRequestFinished(QNetworkReply *reply)
         this->sendRequest(data);
     }
     this->m_mutex.unlock();
+
+    reply->deleteLater();
 }
 
 void CmdResponser::onPacketRecieved(QByteArray pkt)

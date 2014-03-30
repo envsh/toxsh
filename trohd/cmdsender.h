@@ -25,6 +25,7 @@ private:
     QQueue<QByteArray> m_resps;
     QMutex m_mutex;
     bool  m_requesting = false;
+    QMap<QString, QString> m_hosts;
 };
 
 #endif /* _CMDSENDER_H_ */
