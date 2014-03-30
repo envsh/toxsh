@@ -3,7 +3,6 @@
 
 #include <QtCore>
 
-class CmdRunner;
 class CmdProvider;
 class CmdSender;
 class VirtTcpC;
@@ -25,7 +24,6 @@ signals:
     void newCommand(QJsonObject jcmd);
 
 private:
-    CmdRunner *m_runner = NULL;
     CmdProvider *m_provider = NULL;
     CmdSender *m_sender = NULL;
     VirtTcpC *m_vtcpc = NULL;

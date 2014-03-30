@@ -3,8 +3,8 @@
 
 #include "cmdprovider.h"
 
-CmdProvider::CmdProvider()
-    : QObject(0)
+CmdProvider::CmdProvider(int type)
+    : QObject(0), m_type(type)
 {
 
 }
@@ -14,7 +14,7 @@ CmdProvider::~CmdProvider()
 }
 
 
-bool CmdProvider::init()
+bool CmdProvider::init(int type)
 {
     this->connectToCometServer();
     return true;
@@ -49,10 +49,12 @@ void CmdProvider::onCometClientReadyRead()
 void CmdProvider::onCometClientConnected()
 {
     // http://webtim.duapp.com/phpcomet/coment.php?ct=s
-    QString hdr = "GET /phpcomet/rtcomet.php?ct=cpull HTTP/1.0\r\n"
-        "Host: webtim.duapp.com\r\n"
-        "Accept: */*\r\n"
-        "\r\n";
+    // QString hdr = "GET /phpcomet/rtcomet.php?ct=cpull HTTP/1.0\r\n"
+    QString hdr = QString("GET /phpcomet/rtcomet.php?ct=%1 HTTP/1.0\r\n"
+                          "Host: webtim.duapp.com\r\n"
+                          "Accept: */*\r\n"
+                          "\r\n")
+        .arg(this->m_type == CPT_CPULL ? "cpull" : "spull");
 
     int rc = m_cmd_recv_comet_client->write(hdr.toLatin1());
 }

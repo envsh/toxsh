@@ -3,8 +3,7 @@ include_directories("../libtroh")
 add_executable(trohc
   main.cpp
   server.cpp
-  cmdrunner.cpp
-  cmdprovider.cpp
+  ../libtroh/cmdprovider.cpp
   virttcpc.cpp
   ../libtroh/cmdsender.cpp
 )

@@ -9,10 +9,12 @@ class CmdProvider : public QObject
 {
     Q_OBJECT;
 public:
-    CmdProvider();
+    CmdProvider(int type);
     virtual ~CmdProvider();
     
-    bool init();
+    bool init(int type);
+
+    enum { CPT_UNKNOWN = 0, CPT_CPULL, CPT_SPULL};
 
 public slots:
     void onCometClientReadyRead();
@@ -32,6 +34,7 @@ private:
     void resetCometState();
 
 private:
+    int m_type = CPT_UNKNOWN;
     QTcpSocket *m_cmd_recv_comet_client = NULL;
 
     QString m_pkt_header;
