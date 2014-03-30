@@ -26,6 +26,8 @@ void VirtTcpD::onNewConnection()
 
     QObject::connect(sock, &QTcpSocket::disconnected, this, &VirtTcpD::onClientDisconnected);
     QObject::connect(sock, &QTcpSocket::readyRead, this, &VirtTcpD::onClientReadyRead);
+    QObject::connect(sock, SIGNAL(error(QAbstractSocket::SocketError)), 
+                     this, SLOT(onClientError(QAbstractSocket::SocketError)));
 }
 
 void VirtTcpD::onClientReadyRead()
@@ -42,9 +44,14 @@ void VirtTcpD::onClientDisconnected()
     this->m_conns.remove(sock);
     sock->deleteLater();
 
-    // emit realClientDisconnected();
     QByteArray ba = "realClientDisconnected-hoho";
     emit this->newPacket(ba);
+}
+
+void VirtTcpD::onClientError(QAbstractSocket::SocketError error)
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<error<<sock->errorString();
 }
 
 void VirtTcpD::onPacketRecieved(QJsonObject jobj)

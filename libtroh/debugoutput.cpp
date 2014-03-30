@@ -12,12 +12,17 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     int tid = syscall(__NR_gettid);
     QDateTime now = QDateTime::currentDateTime();
     QString time_str = now.toString("yyyy-MM-dd hh:mm:ss.zzz");
-    QStringList paths = QString(context.file).split('/');
-    paths.removeFirst(); paths.removeFirst();
-    QString hpath = paths.join('/');
 
-    fprintf(stderr, "[] (%s:%u) T(%u) %s - %s", hpath.toLocal8Bit().data(), context.line, tid,
-            context.function, msg.toLocal8Bit().constData());
+    QStringList tlist = QString(context.file).split('/');
+    QString hpath = tlist.takeAt(tlist.count() - 1);
+
+    QString mfunc = QString(context.function);
+    tlist = mfunc.split(' ');
+    tlist = tlist.takeAt(1).split('(');
+    mfunc = tlist.takeAt(0);
+
+    fprintf(stderr, "[] T(%u) %s:%u %s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
+            mfunc.toLocal8Bit().data(), msg.toLocal8Bit().constData());
     return;
 
     QByteArray localMsg = msg.toLocal8Bit();

@@ -17,7 +17,7 @@ public slots:
     void onClientReadyRead();
     // void onClientConnected();
     void onClientDisconnected();
-    // void onClientError(QAbstractSocket::SocketError socketError);
+    void onClientError(QAbstractSocket::SocketError socketError);
     // void onClientHostFound();
     // void onClientStateChanged(QAbstractSocket::SocketState socketState);
     void onPacketRecieved(QJsonObject jobj);

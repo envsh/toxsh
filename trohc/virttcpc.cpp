@@ -20,6 +20,8 @@ void VirtTcpC::init()
         this->m_sock = new QTcpSocket();
         QObject::connect(this->m_sock, &QTcpSocket::readyRead, this, &VirtTcpC::onClientReadyRead);
         QObject::connect(this->m_sock, &QTcpSocket::disconnected, this, &VirtTcpC::onClientDisconnected);
+        QObject::connect(this->m_sock, SIGNAL(error(QAbstractSocket::SocketError)), 
+                         this, SLOT(onClientError(QAbstractSocket::SocketError)));
     }
 }
 
@@ -41,6 +43,12 @@ void VirtTcpC::onClientDisconnected()
     qDebug()<<"real client disconnected";
     QByteArray ba = "realServerDisconnected-hoho";
     emit this->newPacket(ba);
+}
+
+void VirtTcpC::onClientError(QAbstractSocket::SocketError error)
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<error<<sock->errorString();
 }
 
 void VirtTcpC::onPacketRecievedStream(QByteArray pkt)

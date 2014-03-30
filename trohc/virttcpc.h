@@ -16,6 +16,7 @@ public:
 public slots:
     void onClientReadyRead();
     void onClientDisconnected();
+    void onClientError(QAbstractSocket::SocketError error);
     void onPacketRecievedStream(QByteArray pkt);
     void onPacketRecieved(QJsonObject jobj);
     

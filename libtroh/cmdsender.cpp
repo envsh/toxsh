@@ -45,6 +45,12 @@ void CmdSender::onNewOutput(QString output, QString cmdid)
     
 }
 
+void CmdSender::onNetworkError(QNetworkReply::NetworkError code)
+{
+    QNetworkReply *reply = (QNetworkReply*)(sender());
+    qDebug()<<code<<reply->errorString();
+}
+
 void CmdSender::onRequestFinished(QNetworkReply *reply)
 {
     // qDebug()<<reply->rawHeaderList()<<reply->error()<<reply->errorString();
@@ -95,5 +101,7 @@ void CmdSender::sendRequest(QByteArray data)
     req.setRawHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
     qDebug()<<"sending..."<<QUrl(url).query();
     QNetworkReply *rep = this->m_nam->post(req, data); // must toLocal8Bit()
+    QObject::connect(rep, SIGNAL(error(QNetworkReply::NetworkError)),
+                     this, SLOT(onNetworkError(QNetworkReply::NetworkError)));
 }
 

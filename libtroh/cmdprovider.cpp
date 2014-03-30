@@ -42,7 +42,11 @@ bool CmdProvider::connectToCometServer()
 void CmdProvider::onCometClientReadyRead()
 {
     QByteArray ba = m_cmd_recv_comet_client->readAll();
-    // qDebug()<<ba;
+    if (this->m_type == CPT_CPULL) {
+        qDebug()<<"HCPS -> CBR:"<<ba.length();
+    } else {
+        qDebug()<<"HSPS -> SBR:"<<ba.length();
+    }
     this->parsePacket(QString(ba));
 }
 

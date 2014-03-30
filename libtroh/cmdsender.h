@@ -16,6 +16,7 @@ public:
 
 public slots:
     void onNewOutput(QString output, QString cmdid);
+    void onNetworkError(QNetworkReply::NetworkError code);
     void onRequestFinished(QNetworkReply *reply);
     void onPacketRecieved(QByteArray pkt);
 
