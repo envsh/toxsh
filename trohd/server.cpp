@@ -15,8 +15,8 @@ Server::~Server()
 
 bool Server::init()
 {
-    this->m_sender = new CmdSender();
-    this->m_sender->init();
+    this->m_sender = new CmdSender(CmdSender::CST_CPUSH);
+    this->m_sender->init(CmdSender::CST_CPUSH);
 
     this->m_vtcpd = new VirtTcpD();
     this->m_provider = new CmdProvider();

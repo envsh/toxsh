@@ -5,7 +5,7 @@
 
 class CmdRunner;
 class CmdProvider;
-class CmdResponser;
+class CmdSender;
 class VirtTcpC;
 
 class Server : public QObject
@@ -27,7 +27,7 @@ signals:
 private:
     CmdRunner *m_runner = NULL;
     CmdProvider *m_provider = NULL;
-    CmdResponser *m_responser = NULL;
+    CmdSender *m_sender = NULL;
     VirtTcpC *m_vtcpc = NULL;
 };
 

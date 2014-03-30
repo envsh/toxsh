@@ -1,27 +1,29 @@
-#ifndef _CMDRESPONSER_H_
-#define _CMDRESPONSER_H_
+#ifndef _CMDSENDER_H_
+#define _CMDSENDER_H_
 
 #include <QtCore>
 #include <QtNetwork>
 
-class CmdResponser : public QObject
+class CmdSender : public QObject
 {
     Q_OBJECT;
 public:
-    CmdResponser();
-    virtual ~CmdResponser();
-    bool init();
+    CmdSender(int type);
+    virtual ~CmdSender();
+    bool init(int type);
 
+    enum {CST_UNKNOWN = 0, CST_CPUSH, CST_SPUSH };
 
 public slots:
     void onNewOutput(QString output, QString cmdid);
-    void onPacketRecieved(QByteArray pkt);
     void onRequestFinished(QNetworkReply *reply);
+    void onPacketRecieved(QByteArray pkt);
 
 private:
     void sendRequest(QByteArray data);
 
 private:
+    int m_type = CST_UNKNOWN;
     QNetworkAccessManager *m_nam = NULL;
     QQueue<QByteArray> m_resps;
     QMutex m_mutex;
@@ -29,5 +31,4 @@ private:
     QMap<QString, QString> m_hosts;
 };
 
-
-#endif /* _CMDRESPONSER_H_ */
+#endif /* _CMDSENDER_H_ */

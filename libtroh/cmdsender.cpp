@@ -1,25 +1,25 @@
-#include "cmdresponser.h"
+#include "cmdsender.h"
 
-CmdResponser::CmdResponser()
-    : QObject(0)
+CmdSender::CmdSender(int type)
+    : QObject(0), m_type(type)
 {
-    this->init();
+    this->init(type);
 }
 
-CmdResponser::~CmdResponser()
+CmdSender::~CmdSender()
 {
 }
 
-bool CmdResponser::init()
+bool CmdSender::init(int type)
 {
     if (!m_nam) {
         m_nam = new QNetworkAccessManager();
-        QObject::connect(m_nam, &QNetworkAccessManager::finished, this, &CmdResponser::onRequestFinished);
+        QObject::connect(m_nam, &QNetworkAccessManager::finished, this, &CmdSender::onRequestFinished);
     }
     return true;
 }
 
-void CmdResponser::onNewOutput(QString output, QString cmdid)
+void CmdSender::onNewOutput(QString output, QString cmdid)
 {
     QString url = "http://webtim.duapp.com/pmp/pmp.php";
     QNetworkRequest req(url);
@@ -45,7 +45,7 @@ void CmdResponser::onNewOutput(QString output, QString cmdid)
     
 }
 
-void CmdResponser::onRequestFinished(QNetworkReply *reply)
+void CmdSender::onRequestFinished(QNetworkReply *reply)
 {
     // qDebug()<<reply->rawHeaderList()<<reply->error()<<reply->errorString();
     qDebug()<<"sent: "<<QUrl(reply->url()).query();
@@ -62,9 +62,8 @@ void CmdResponser::onRequestFinished(QNetworkReply *reply)
     reply->deleteLater();
 }
 
-void CmdResponser::onPacketRecieved(QByteArray pkt)
+void CmdSender::onPacketRecieved(QByteArray pkt)
 {
-
     QByteArray data = QByteArray("pkt=") + pkt.toHex().toPercentEncoding();
 
 
@@ -85,9 +84,13 @@ void CmdResponser::onPacketRecieved(QByteArray pkt)
     this->m_mutex.unlock();
 }
 
-void CmdResponser::sendRequest(QByteArray data)
+void CmdSender::sendRequest(QByteArray data)
 {
-    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=spush&len=%1").arg(data.length());
+    // QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=cpush&len=%1").arg(data.length());
+    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=%1&len=%2")
+        .arg(this->m_type == CST_CPUSH ? "cpush" : "spush")
+        .arg(data.length());
+
     QNetworkRequest req(url);
     req.setRawHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
     qDebug()<<"sending..."<<QUrl(url).query();

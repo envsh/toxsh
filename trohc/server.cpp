@@ -2,7 +2,7 @@
 
 #include "cmdrunner.h"
 #include "cmdprovider.h"
-#include "cmdresponser.h"
+#include "cmdsender.h"
 #include "virttcpc.h"
 
 Server::Server()
@@ -18,13 +18,13 @@ bool Server::init()
 {
     m_vtcpc = new VirtTcpC();
     m_provider = new CmdProvider();
-    m_responser = new CmdResponser();
+    m_sender = new CmdSender(CmdSender::CST_SPUSH);
 
     QObject::connect(m_provider, &CmdProvider::newCommand, m_vtcpc, &VirtTcpC::onPacketRecieved);
-    QObject::connect(m_vtcpc, &VirtTcpC::newPacket, m_responser, &CmdResponser::onPacketRecieved);
+    QObject::connect(m_vtcpc, &VirtTcpC::newPacket, m_sender, &CmdSender::onPacketRecieved);
 
     // 注意这几个对象的初始化顺序
-    m_responser->init();
+    m_sender->init(CmdSender::CST_SPUSH);
     m_vtcpc->init();
     m_provider->init();
 
