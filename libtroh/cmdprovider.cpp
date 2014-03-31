@@ -45,16 +45,23 @@ void CmdProvider::onCometClientReadyRead()
 {
     QByteArray ba = m_cmd_recv_comet_client->readAll();
 
+    bool debug_output = true;
     QByteArray tmp;
     // debug
     if (ba.length() == 254) {
         // tmp = ba;
+        debug_output = false;
+        if (qrand() % 10 == 9) {
+            debug_output = true;
+        }
     }
     // debug
-    if (this->m_type == CPT_CPULL) {
-        qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
-    } else {
-        qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+    if (debug_output) {
+        if (this->m_type == CPT_CPULL) {
+            qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+        } else {
+            qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+        }
     }
 
     this->parsePacket(QString(ba));
@@ -84,7 +91,10 @@ void CmdProvider::onCometClientDisconnected()
 
 void CmdProvider::onCometClientError(QAbstractSocket::SocketError socketError)
 {
-    qDebug()<<socketError;
+    if (socketError == QAbstractSocket::RemoteHostClosedError) {
+    } else {
+        qDebug()<<socketError;
+    }
 }
 
 void CmdProvider::onCometClientHostFound()

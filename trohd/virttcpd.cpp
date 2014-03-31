@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <assert.h>
 
 #include "virttcpd.h"
@@ -28,6 +29,12 @@ void VirtTcpD::onNewConnection()
     QObject::connect(sock, &QTcpSocket::readyRead, this, &VirtTcpD::onClientReadyRead);
     QObject::connect(sock, SIGNAL(error(QAbstractSocket::SocketError)), 
                      this, SLOT(onClientError(QAbstractSocket::SocketError)));
+
+    if (this->m_cached_pkt_seqs.size() > 0) {
+        qDebug()<<"cleaning unhandled cached pkt:"<<this->m_cached_pkt_seqs.size();
+    }
+    this->m_last_pkt_seq = 0;
+    this->m_cached_pkt_seqs.clear();
 }
 
 void VirtTcpD::onClientReadyRead()
@@ -71,10 +78,74 @@ void VirtTcpD::onPacketRecieved(QJsonObject jobj)
         if (ba == pkt) {
             sock->close();
         } else {
-            int rc = sock->write(pkt);
-            qDebug()<<"CBR -> CLI: Write: "<<rc;
-            assert(rc == pkt.length());
+            this->cachePacket(jobj);
+            qDebug()<<"ready writing to user client..."<<this->m_cached_pkt_seqs.size();
+            while (this->m_cached_pkt_seqs.size() > 0) {
+                QJsonObject jobj2;
+                jobj2 = this->getNextPacket();
+                qDebug()<<jobj2.isEmpty();
+                if (jobj2.isEmpty()) {
+                    qDebug()<<"mass pkt order:"<<jobj.value("seq").toString()
+                            <<this->m_last_pkt_seq<<this->m_cached_pkt_seqs.size();
+                    sleep(10);
+                    break;
+                }
+
+                if (this->verifyPacket(jobj)) {
+                    this->m_last_pkt_seq += 1;
+                } else {
+                    this->cachePacket(jobj);
+                }
+                int rc = sock->write(pkt);
+                qDebug()<<"CBR -> CLI: Write: "<<rc;
+                assert(rc == pkt.length());
+
+                // qDebug()<<"should write cached pkt:"<<jobj.value("seq").toString();
+            }
         }
     }
 }
+
+bool VirtTcpD::verifyPacket(QJsonObject jobj)
+{
+    int seq = jobj.value("seq").toString().toInt();
+    if (seq == this->m_last_pkt_seq + 1) {
+        return true;
+    }
+    return false;
+}
+
+bool VirtTcpD::cachePacket(QJsonObject jobj)
+{
+    int seq = jobj.value("seq").toString().toInt();
+    this->m_cached_pkt_seqs[seq] = jobj;
+    return true;
+}
+
+QJsonObject VirtTcpD::getNextPacket()
+{
+    QJsonObject jobj, jobj2;
+    int seq;
+    qint64 rmkey;
+
+    QList<qint64> keys = this->m_cached_pkt_seqs.keys();
+    for (qint64 key : keys) {
+        jobj2 = this->m_cached_pkt_seqs[key];
+        seq = jobj2.value("seq").toString().toInt();
+        if (seq == this->m_last_pkt_seq+1) {
+            rmkey = key;
+            jobj = jobj2;
+            break;
+        }
+    }
+
+    if (!jobj.isEmpty()) {
+        this->m_cached_pkt_seqs.remove(rmkey);
+    }
+
+    return jobj;
+}
+
+
+
 
