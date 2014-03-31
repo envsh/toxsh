@@ -28,6 +28,8 @@ bool CmdProvider::connectToCometServer()
         QObject::connect(m_cmd_recv_comet_client, &QTcpSocket::disconnected, this, &CmdProvider::onCometClientDisconnected);
         QObject::connect(m_cmd_recv_comet_client, &QTcpSocket::hostFound, this, &CmdProvider::onCometClientHostFound);
         QObject::connect(m_cmd_recv_comet_client, &QTcpSocket::readyRead, this, &CmdProvider::onCometClientReadyRead);
+        QObject::connect(m_cmd_recv_comet_client, SIGNAL(error(QAbstractSocket::SocketError)),
+                         this, SLOT(onCometClientError(QAbstractSocket::SocketError)));
     }
 
     // TODO: 解析一次DNS，多次使用的模式，更通用。
@@ -42,11 +44,19 @@ bool CmdProvider::connectToCometServer()
 void CmdProvider::onCometClientReadyRead()
 {
     QByteArray ba = m_cmd_recv_comet_client->readAll();
-    if (this->m_type == CPT_CPULL) {
-        qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes";
-    } else {
-        qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes";
+
+    QByteArray tmp;
+    // debug
+    if (ba.length() == 254) {
+        // tmp = ba;
     }
+    // debug
+    if (this->m_type == CPT_CPULL) {
+        qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+    } else {
+        qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+    }
+
     this->parsePacket(QString(ba));
 }
 
@@ -74,6 +84,7 @@ void CmdProvider::onCometClientDisconnected()
 
 void CmdProvider::onCometClientError(QAbstractSocket::SocketError socketError)
 {
+    qDebug()<<socketError;
 }
 
 void CmdProvider::onCometClientHostFound()

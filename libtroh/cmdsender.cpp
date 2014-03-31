@@ -1,5 +1,8 @@
 #include "cmdsender.h"
 
+// static 
+qint64 CmdSender::m_pkt_seq = 10000 + qrand() % 10000;
+
 CmdSender::CmdSender(int type)
     : QObject(0), m_type(type)
 {
@@ -70,7 +73,8 @@ void CmdSender::onRequestFinished(QNetworkReply *reply)
 
 void CmdSender::onPacketRecieved(QByteArray pkt)
 {
-    QByteArray data = QByteArray("pkt=") + pkt.toHex().toPercentEncoding();
+    QByteArray data = QByteArray("pkt=") + pkt.toHex().toPercentEncoding()
+        + QByteArray("&seq=") + QString("%1").arg(this->m_pkt_seq++).toLocal8Bit();
 
 
     // qDebug()<<"post resp data:"<<data;
@@ -93,9 +97,10 @@ void CmdSender::onPacketRecieved(QByteArray pkt)
 void CmdSender::sendRequest(QByteArray data)
 {
     // QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=cpush&len=%1").arg(data.length());
-    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=%1&len=%2")
+    QString url = QString("http://webtim.duapp.com/phpcomet/rtcomet.php?ct=%1&len=%2&seq=%3")
         .arg(this->m_type == CST_CPUSH ? "cpush" : "spush")
-        .arg(data.length());
+        .arg(data.length())
+        .arg(this->m_pkt_seq);
 
     QNetworkRequest req(url);
     req.setRawHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");

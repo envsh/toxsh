@@ -30,6 +30,7 @@ private:
     QMutex m_mutex;
     bool  m_requesting = false;
     QMap<QString, QString> m_hosts;
+    static qint64 m_pkt_seq;// = 10000 + qrand() % 10000;
 };
 
 #endif /* _CMDSENDER_H_ */
