@@ -112,6 +112,7 @@ void CmdProvider::enqueuePacket(QString pkt_str)
     QJsonDocument jdoc = QJsonDocument::fromJson(pkt_str.toLocal8Bit());
     // qDebug()<<"pkt type:"<<jdoc.isArray()<<jdoc.isObject()<<jdoc.isEmpty();
     if (jdoc.isEmpty()) {
+        qDebug()<<"Error: Invalid pkt str.";
         return;
     }
 
@@ -147,7 +148,7 @@ void CmdProvider::parsePacket(QString str)
         // qDebug()<<"suffix end pos:"<<epos;
         // echo "pkt epos: {$epos}\n";exit;
         if (epos > 0) {
-            QString padded_cmd = this->m_pkt_buf.left(epos - pkt_suffix.length());
+            QString padded_cmd = this->m_pkt_buf.left(epos + pkt_suffix.length());
             QString jcmd = padded_cmd.trimmed();
             for (int i = jcmd.length()-1; i >= 0; i--) {
                 if (jcmd.at(i) == QChar('$')) continue;
