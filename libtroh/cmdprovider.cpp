@@ -56,6 +56,7 @@ void CmdProvider::onCometClientReadyRead()
         }
     }
     // debug
+    debug_output = false;
     if (debug_output) {
         if (this->m_type == CPT_CPULL) {
             qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
@@ -85,7 +86,6 @@ void CmdProvider::onCometClientDisconnected()
 {
     // qDebug()<<"comet connection done. try next.";
     this->resetCometState();
-    sleep(1);
     this->connectToCometServer();
 }
 

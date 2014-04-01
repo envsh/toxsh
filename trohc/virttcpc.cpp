@@ -34,7 +34,7 @@ void VirtTcpC::connectToHost()
 void VirtTcpC::onClientReadyRead()
 {
     QByteArray ba = this->m_sock->readAll();
-    qDebug()<<"baa:"<<ba.length();
+    // qDebug()<<"baa:"<<ba.length();
     emit this->newPacket(ba);
 }
 
@@ -43,6 +43,7 @@ void VirtTcpC::onClientDisconnected()
     qDebug()<<"real client disconnected";
     QByteArray ba = "realServerDisconnected-hoho";
     emit this->newPacket(ba);
+    emit this->resetSenderState();
 }
 
 void VirtTcpC::onClientError(QAbstractSocket::SocketError error)
