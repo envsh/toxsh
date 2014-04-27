@@ -45,16 +45,24 @@ void CmdProvider::onCometClientReadyRead()
 {
     QByteArray ba = m_cmd_recv_comet_client->readAll();
 
+    bool debug_output = true;
     QByteArray tmp;
     // debug
     if (ba.length() == 254) {
         // tmp = ba;
+        debug_output = false;
+        if (qrand() % 10 == 9) {
+            debug_output = true;
+        }
     }
     // debug
-    if (this->m_type == CPT_CPULL) {
-        qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
-    } else {
-        qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+    debug_output = false;
+    if (debug_output) {
+        if (this->m_type == CPT_CPULL) {
+            qDebug()<<"HCPS -> CBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+        } else {
+            qDebug()<<"HSPS -> SBR:"<<ba.length()<<"Bytes"<<","<<tmp;
+        }
     }
 
     this->parsePacket(QString(ba));
@@ -78,13 +86,15 @@ void CmdProvider::onCometClientDisconnected()
 {
     // qDebug()<<"comet connection done. try next.";
     this->resetCometState();
-    sleep(1);
     this->connectToCometServer();
 }
 
 void CmdProvider::onCometClientError(QAbstractSocket::SocketError socketError)
 {
-    qDebug()<<socketError;
+    if (socketError == QAbstractSocket::RemoteHostClosedError) {
+    } else {
+        qDebug()<<socketError;
+    }
 }
 
 void CmdProvider::onCometClientHostFound()
@@ -102,6 +112,7 @@ void CmdProvider::enqueuePacket(QString pkt_str)
     QJsonDocument jdoc = QJsonDocument::fromJson(pkt_str.toLocal8Bit());
     // qDebug()<<"pkt type:"<<jdoc.isArray()<<jdoc.isObject()<<jdoc.isEmpty();
     if (jdoc.isEmpty()) {
+        qDebug()<<"Error: Invalid pkt str.";
         return;
     }
 
@@ -137,7 +148,7 @@ void CmdProvider::parsePacket(QString str)
         // qDebug()<<"suffix end pos:"<<epos;
         // echo "pkt epos: {$epos}\n";exit;
         if (epos > 0) {
-            QString padded_cmd = this->m_pkt_buf.left(epos - pkt_suffix.length());
+            QString padded_cmd = this->m_pkt_buf.left(epos + pkt_suffix.length());
             QString jcmd = padded_cmd.trimmed();
             for (int i = jcmd.length()-1; i >= 0; i--) {
                 if (jcmd.at(i) == QChar('$')) continue;

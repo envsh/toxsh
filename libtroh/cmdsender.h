@@ -19,6 +19,7 @@ public slots:
     void onNetworkError(QNetworkReply::NetworkError code);
     void onRequestFinished(QNetworkReply *reply);
     void onPacketRecieved(QByteArray pkt);
+    void onResetState();
 
 private:
     void sendRequest(QByteArray data);

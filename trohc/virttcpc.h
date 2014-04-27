@@ -22,6 +22,7 @@ public slots:
     
 signals:
     void newPacket(QByteArray pkt);
+    void resetSenderState();
 
 private:
     QTcpSocket *m_sock = NULL;

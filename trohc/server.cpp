@@ -21,6 +21,7 @@ bool Server::init()
 
     QObject::connect(m_provider, &CmdProvider::newCommand, m_vtcpc, &VirtTcpC::onPacketRecieved);
     QObject::connect(m_vtcpc, &VirtTcpC::newPacket, m_sender, &CmdSender::onPacketRecieved);
+    QObject::connect(m_vtcpc, &VirtTcpC::resetSenderState, m_sender, &CmdSender::onResetState);
 
     // 注意这几个对象的初始化顺序
     m_sender->init(CmdSender::CST_SPUSH);
