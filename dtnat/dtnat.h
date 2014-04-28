@@ -47,6 +47,20 @@ private:
   非常全面的stun/turn实现，包括server和client。
   https://code.google.com/p/coturn/
   https://code.google.com/p/rfc5766-turn-server/
+
+  https://github.com/ckennelly/hole-punch
+
+  UDP multihole punching
+
+  Maybe this link could be useful for someone:
+
+  http://www.goto.info...ei-apan-v10.pdf
+
+  it describes an idea of "multihole punching" which should be able to connect two peers who are both behind symmetric NAT, it needs two servers with public IP address to work though.
+
+  I believe that this could be beneficial to developers and it fits into this thread. If this is already used, then please let us know.
+
+
  */
 
 #endif /* _DTNAT_H_ */
