@@ -27,9 +27,25 @@ void DtNat::test()
     QObject::connect(msock, &QUdpSocket::readyRead, this, &DtNat::onReadyRead);
     msock->bind(QHostAddress::AnyIPv4, 7755);
 
-    QHostAddress addr("66.228.45.110");// ("numb.viagenie.ca");
+    // QHostAddress addr("66.228.45.110");// ("numb.viagenie.ca"); // OK
     // QHostAddress addr("numb.viagenie.ca");
     // QHostAddress addr("192.168.1.103");
+    // QHostAddress addr("77.72.174.163"); // stun.voxgratia.org // XXX,低版本协议rfc3889
+    // QHostAddress addr(""); // stun.voxalot.com        //xxx,低版本协议rfc3889
+    // QHostAddress addr("77.72.174.161"); // stun.voipbuster.com // xxx,低版本协议rfc3889
+    // QHostAddress addr("217.10.68.152"); // stun.sipgate.net //xxx,低版本协议rfc3889
+    // QHostAddress addr("132.177.123.6"); // stunserver.org // xxx,低版本协议rfc3889
+    // QHostAddress addr("77.72.174.167"); // stun.ekiga.net
+    // QHostAddress addr("193.28.184.4"); // stun.ipshka.com
+    // QHostAddress addr("198.27.81.168"); // stun.callwithus.com
+    // QHostAddress addr("82.129.27.63"); // xxx,低版本协议rfc3889
+    // QHostAddress addr("113.32.111.127"); // xxx,低版本协议rfc3889
+    // QHostAddress addr("216.93.246.16"); // xxx
+    QHostAddress addr("175.41.167.79"); //  stun.vline.com  // OKKKKK
+    // QHostAddress addr("217.10.68.152"); // stun.faktortel.com.au // xxx,低版本协议rfc3889
+
+    // 210.78.137.42:58701, 210.78.137.42:58765
+
     quint16 port = 3478;
 
     // msock->connectToHost("numb.viagenie.ca", port);
@@ -103,6 +119,12 @@ void DtNat::onReadyRead()
                                 &sender, &senderPort);
 
         qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+        for (int i = 0; i < datagram.length(); i ++) {
+            fprintf(stderr, "%c", datagram.at(i));
+        }
+        fprintf(stderr, "]\n");
+
         this->processResponse(datagram);
         // processTheDatagram(datagram);
     }

@@ -48,6 +48,13 @@ private:
   https://code.google.com/p/coturn/
   https://code.google.com/p/rfc5766-turn-server/
 
+  http://www.bford.info/pub/net/p2pnat/
+
+  how Skype gets through firewalls 
+     http://makezine.com/2007/06/01/udp-hole-punching-how-skype-ge/
+     http://www.h-online.com/security/features/How-Skype-Co-get-round-firewalls-747197.html 比较初级的，简单。
+
+
   https://github.com/ckennelly/hole-punch
 
   UDP multihole punching

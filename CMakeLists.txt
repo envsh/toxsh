@@ -18,7 +18,7 @@ find_package(Qt5Core)
 include_directories("/serv/stow/ptox/include" "/serv/stow/ptox/include/tox"
   "./common")
 link_directories("/serv/stow/ptox/lib")
-link_libraries(-ltoxcore)
+#link_libraries(-ltoxcore)
 
 
 add_subdirectory(toxshd)
@@ -28,3 +28,5 @@ add_subdirectory(webshc)
 add_subdirectory(trohd)
 add_subdirectory(trohc)
 add_subdirectory(dtnat)
+add_subdirectory(nathlp)
+
