@@ -138,37 +138,49 @@ HlpPeer *find_peer(HlpContext *pctx, int tfd)
 
 void state_processor(HlpCmd *pcmd, HlpContext *pctx)
 {
-    HlpPeer *peer, *from_peer;
+    HlpPeer *to_peer = NULL, *from_peer = NULL;
     struct sockaddr_in sa;
     int rc;
+    char buff[128] = {0};
 
     if (pcmd->cmd == "register") {
         if (pctx->m_peers.count(pcmd->from) > 0) {
-            peer = pctx->m_peers[pcmd->from];
+            from_peer = pctx->m_peers[pcmd->from];
         } else {
-            peer = new HlpPeer;
-            peer->name = pcmd->from;
-            peer->ip_addr = pctx->curr_addr;
-            peer->ip_port = pctx->curr_port;
+            from_peer = new HlpPeer;
+            from_peer->name = pcmd->from;
+            from_peer->ip_addr = pctx->curr_addr;
+            from_peer->ip_port = pctx->curr_port;
         }
-        peer->mtime = time(NULL);
-        pctx->m_peers[pcmd->from] = peer;
-	memcpy(&peer->usa, &pctx->curr_sa, sizeof(struct sockaddr_in));
+        from_peer->mtime = time(NULL);
+        pctx->m_peers[pcmd->from] = from_peer;
+        memcpy(&from_peer->usa, &pctx->curr_sa, sizeof(struct sockaddr_in));
         std::cout<<pctx->curr_msg<<std::endl;
-    } else if (pcmd->cmd == "chat1") {
-        if (pctx->m_peers.count(pcmd->to) > 0) {
-            peer = pctx->m_peers[pcmd->to];
-	    from_peer = pctx->m_peers[pcmd->from];
 
+    } else if (pcmd->cmd == "punch_relay") {
+        if (pctx->m_peers.count(pcmd->to) > 0) {
+            to_peer = pctx->m_peers[pcmd->to];
+            from_peer = pctx->m_peers[pcmd->from];
+        
+            assert(to_peer != NULL);
+            assert(from_peer != NULL);
+        
             // sendto();
-            // rc = nh_sendto(pctx->m_ufd, pctx->curr_msg, peer->ip_addr, peer->ip_port);
-            // rc = nh_sendto(pctx->m_ufd, "chat1_punch;from;to;ip:port", pctx->curr_addr, pctx->curr_port);
-	    char *resp_str = "chat1_punch;from;to;ip:port";
-	    rc = write(from_peer->cli_fd, resp_str, strlen(resp_str));
-	    rc = write(peer->cli_fd, resp_str, strlen(resp_str));
+            snprintf(buff, sizeof(buff)-1, "punch_info;%s;%s;%s:%d",
+                     pcmd->from.c_str(), pcmd->to.c_str(), pctx->curr_addr.c_str(), pctx->curr_port);
+            char *resp_str = buff; // "punch_info;from;to;ip:port";
+            rc = write(to_peer->cli_fd, resp_str, strlen(resp_str));
+            
+            memset(buff, 0, sizeof(buff));
+            snprintf(buff, sizeof(buff)-1, "punch_info;%s;%s;%s:%d",
+                     pcmd->from.c_str(), pcmd->to.c_str(), to_peer->ip_addr.c_str(), to_peer->ip_port);
+            rc = write(from_peer->cli_fd, resp_str, strlen(resp_str));
         } else {
             std::cout<<"error to peer not found:"<<pcmd->to<<std::endl;
         }
+        
+    } else if (pcmd->cmd == "punch_ok") {
+        // punch oked, 
     } else {
         std::cout<<"error unknown cmd:"<<pcmd->cmd<<std::endl;
     }
