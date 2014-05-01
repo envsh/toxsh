@@ -158,9 +158,14 @@ void state_processor(HlpCmd *pcmd, HlpContext *pctx)
     } else if (pcmd->cmd == "chat1") {
         if (pctx->m_peers.count(pcmd->to) > 0) {
             peer = pctx->m_peers[pcmd->to];
+	    from_peer = pctx->m_peers[pcmd->from];
+
             // sendto();
-            rc = nh_sendto(pctx->m_ufd, pctx->curr_msg, peer->ip_addr, peer->ip_port);
-            rc = nh_sendto(pctx->m_ufd, "chat1_punch;from;to;ip:port", pctx->curr_addr, pctx->curr_port);
+            // rc = nh_sendto(pctx->m_ufd, pctx->curr_msg, peer->ip_addr, peer->ip_port);
+            // rc = nh_sendto(pctx->m_ufd, "chat1_punch;from;to;ip:port", pctx->curr_addr, pctx->curr_port);
+	    char *resp_str = "chat1_punch;from;to;ip:port";
+	    rc = write(from_peer->cli_fd, resp_str, strlen(resp_str));
+	    rc = write(peer->cli_fd, resp_str, strlen(resp_str));
         } else {
             std::cout<<"error to peer not found:"<<pcmd->to<<std::endl;
         }
