@@ -29,9 +29,10 @@ class DtNat : public QObject
 {
     Q_OBJECT;
 public:
-    DtNat();
+    DtNat(const char *name);
     ~DtNat();
 
+    void init();
     void test();
     void processResponse(QByteArray resp);
 
@@ -39,8 +40,19 @@ public slots:
     void onReadyRead();
     void onConnected();
 
+    void onRegChannelConnected();
+    void onRegChannelReadyRead();
+    void onRegChannelBytesWritten(qint64 bytes);
+
+    void onNotifyChannelConnected();
+    void onNotifyChannelReadyRead();
+
 private:
+    QString m_name;
+    bool m_is_server = false;
     QUdpSocket *msock = NULL;
+    QUdpSocket *m_reg_sock = NULL;
+    QTcpSocket *m_notify_sock = NULL;
 };
 
 /*

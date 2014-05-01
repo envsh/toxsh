@@ -10,14 +10,42 @@
 
 #include "dtnat.h"
 
-DtNat::DtNat()
+#define NH_SERVER_ADDR "81.4.106.67"
+#define NH_SERVER_PORT 7890
+
+
+DtNat::DtNat(const char *name)
     : QObject(0)
 {
-    
+    m_name = name;
+    if (m_name == "server") {
+        m_is_server = true;
+    }
 }
 
 DtNat::~DtNat()
 {
+}
+
+void DtNat::init()
+{
+    m_reg_sock = new QUdpSocket();
+    QObject::connect(m_reg_sock, &QUdpSocket::connected, this, &DtNat::onRegChannelConnected);
+    QObject::connect(m_reg_sock, &QUdpSocket::readyRead, this, &DtNat::onRegChannelReadyRead);
+    QObject::connect(m_reg_sock, &QUdpSocket::bytesWritten, this, &DtNat::onRegChannelBytesWritten);
+    m_reg_sock->bind(QHostAddress::AnyIPv4, 7766);
+
+    m_notify_sock = new QTcpSocket();
+    QObject::connect(m_notify_sock, &QTcpSocket::connected, this, &DtNat::onNotifyChannelConnected);
+    QObject::connect(m_notify_sock, &QTcpSocket::readyRead, this, &DtNat::onNotifyChannelReadyRead);
+
+    // m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
+
+    QString reg_str = QString("register;%1;hh;cc").arg(m_name);
+    QHostAddress serv_addr(NH_SERVER_ADDR);
+    m_reg_sock->writeDatagram(reg_str.toLatin1().data(), reg_str.length(), serv_addr, NH_SERVER_PORT);
+
+    
 }
 
 void DtNat::test()
@@ -186,6 +214,96 @@ void DtNat::processResponse(QByteArray resp)
         }
     } else {
         printf("The response is not a STUN message\n");
+    }
+}
+
+void DtNat::onRegChannelConnected()
+{
+    qDebug()<<sender();
+}
+
+void DtNat::onRegChannelReadyRead()
+{
+    QUdpSocket *sock = (QUdpSocket *)(sender());
+    QByteArray ba;
+    char buff[256] = {0};
+    QHostAddress peer_addr;
+    quint16 peer_port;
+
+    sock->readDatagram(buff, sizeof(buff), &peer_addr, &peer_port);
+    qDebug()<<sender()<<buff<<peer_addr<<peer_port;
+
+    QString cmd, from, to, value;
+    QString ip;
+    quint16 port;
+
+    QList<QByteArray> elems = QByteArray(buff).split(';');
+    cmd = elems.at(0);
+    from = elems.at(1);
+    to = elems.at(2);
+    value = elems.at(3);
+
+    if (cmd == "punch_do") {
+        qDebug()<<"haha, hole punch okkkkk,"<<peer_addr<<peer_port;
+    }
+}
+
+void DtNat::onRegChannelBytesWritten(qint64 bytes)
+{
+    qDebug()<<sender()<<bytes;
+    
+    if (m_notify_sock->state() != QAbstractSocket::SocketState::ConnectedState) {
+        m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
+    }
+}
+
+void DtNat::onNotifyChannelConnected()
+{
+    qDebug()<<sender();
+
+    if (m_is_server) {
+        
+    } else {
+        QString cmd_str = "punch_relay;client;server;dd";
+        m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(NH_SERVER_ADDR), NH_SERVER_PORT);
+
+    }
+}
+
+void DtNat::onNotifyChannelReadyRead()
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    QByteArray ba = sock->readAll();
+    qDebug()<<sender()<<ba<<"\n";
+    int pnum = 256;
+    QString cmd, from, to, value;
+    QString ip;
+    quint16 port;
+
+    QList<QByteArray> elems = ba.split(';');
+    cmd = elems.at(0);
+    from = elems.at(1);
+    to = elems.at(2);
+    value = elems.at(3);
+
+    
+    if (cmd == "punch_info") {
+        QList<QString> elems2 = value.split(':');
+        ip = elems2.at(0);
+        qDebug()<<"peer addr:"<<elems2;
+        port = elems2.at(1).toUShort();
+        QString cmd_str = QString("punch_do;client;server;%1").arg(qrand());
+
+        for (quint16 nport = port + 1; nport < port + 1 + pnum; nport ++) {
+            m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(ip), nport);
+        }
+
+    }    
+
+    if (m_is_server) {
+        
+    } else {
+
     }
 }
 
