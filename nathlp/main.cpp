@@ -35,20 +35,26 @@ public:
     std::string ip_addr;
     unsigned short ip_port;
     int cli_fd;
-  struct event *cli_ev = NULL;
+    struct event *cli_ev = NULL;
     time_t mtime;
-  struct sockaddr usa;
-  struct sockaddr tsa;
+    struct sockaddr usa;
+    struct sockaddr usa2;
+    struct sockaddr usa3;
+    struct sockaddr tsa;
 };
 
 class HlpContext 
 {
 public:
     int m_ufd;
+    int m_ufd2;
+    int m_ufd3;
     int m_tfd;
     std::map<std::string, HlpPeer*> m_peers;
     struct event_base *m_evb = NULL;
     struct event *m_uevt = NULL;
+    struct event *m_uevt2 = NULL;
+    struct event *m_uevt3 = NULL;
     struct event *m_tevt = NULL; 
     std::string curr_addr;
     unsigned short curr_port;
@@ -143,7 +149,7 @@ void state_processor(HlpCmd *pcmd, HlpContext *pctx)
     int rc;
     char buff[128] = {0};
 
-    if (pcmd->cmd == "register") {
+    if (pcmd->cmd == "register1" || pcmd->cmd == "register2" || pcmd->cmd == "register3") {
         if (pctx->m_peers.count(pcmd->from) > 0) {
             from_peer = pctx->m_peers[pcmd->from];
         } else {
@@ -154,8 +160,15 @@ void state_processor(HlpCmd *pcmd, HlpContext *pctx)
         }
         from_peer->mtime = time(NULL);
         pctx->m_peers[pcmd->from] = from_peer;
-        memcpy(&from_peer->usa, &pctx->curr_sa, sizeof(struct sockaddr_in));
-        std::cout<<pctx->curr_msg<<std::endl;
+        
+        if (pcmd->cmd == "register1") {
+            memcpy(&from_peer->usa, &pctx->curr_sa, sizeof(struct sockaddr_in));
+        } else if (pcmd->cmd == "register2") {
+            memcpy(&from_peer->usa2, &pctx->curr_sa, sizeof(struct sockaddr_in));
+        } else if (pcmd->cmd == "register3") {
+            memcpy(&from_peer->usa3, &pctx->curr_sa, sizeof(struct sockaddr_in));
+        }
+        std::cout<<"curr msg:"<<pctx->curr_msg<<std::endl;
 
     } else if (pcmd->cmd == "punch_relay") {
         if (pctx->m_peers.count(pcmd->to) > 0) {
@@ -228,9 +241,8 @@ void cb_func(evutil_socket_t fd, short what, void *args)
     std::map<std::string, std::string> m_peers;
 
     if (m_peers.count(hc.to) > 0) {
-        
     } else {
-        std::cout<<"to peer not found:"<<hc.to<<std::endl;
+        // std::cout<<"to peer not found:"<<hc.to<<std::endl;
     }
 
 }
@@ -267,29 +279,29 @@ void cb_func_tcp(evutil_socket_t fd, short what, void *args)
     HlpContext *pctx = (HlpContext*)args;
     char buff[128] = {0};
 
-  printf("fd=%d, what=%d\n", fd, what);
-  int cli_fd = ::accept(fd, (struct sockaddr*)&sa, &slen);
-  printf("fd=%d, what=%d, clifd=%d\n", fd, what, cli_fd);
+    printf("fd=%d, what=%d\n", fd, what);
+    int cli_fd = ::accept(fd, (struct sockaddr*)&sa, &slen);
+    printf("fd=%d, what=%d, clifd=%d\n", fd, what, cli_fd);
 
-  inet_ntop(AF_INET, &sa.sin_addr.s_addr, buff, sizeof(buff));
+    inet_ntop(AF_INET, &sa.sin_addr.s_addr, buff, sizeof(buff));
 
-  peer = find_peer(pctx, (struct sockaddr*)&sa);
-  if (peer == NULL) {
-    printf("can not find tcp conn's peer data, %s\n", buff);
-  } else {
-    peer->cli_fd = cli_fd;
-    memcpy(&peer->tsa, &sa, sizeof(sa));
+    peer = find_peer(pctx, (struct sockaddr*)&sa);
+    if (peer == NULL) {
+        printf("can not find tcp conn's peer data, %s\n", buff);
+    } else {
+        peer->cli_fd = cli_fd;
+        memcpy(&peer->tsa, &sa, sizeof(sa));
 
-    // 
-    peer->cli_ev = event_new(pctx->m_evb, cli_fd, EV_READ | EV_PERSIST, cb_func_tcp_read, pctx);
-    event_add(peer->cli_ev, NULL);
-  }
+        // 
+        peer->cli_ev = event_new(pctx->m_evb, cli_fd, EV_READ | EV_PERSIST, cb_func_tcp_read, pctx);
+        event_add(peer->cli_ev, NULL);
+    }
 }
 
 int main(int argc, char **argv)
 {
     struct event_base *heb = NULL;
-    struct event *hev = NULL, *hev2 = NULL;
+    struct event *hev = NULL, *hev2 = NULL, *hev3 = NULL, *htev = NULL;
     struct timeval five_seconds = {2, 0};
     int iret;
     HlpContext hctx;
@@ -312,13 +324,24 @@ int main(int argc, char **argv)
     iret = ::bind(fd, (struct sockaddr*)&saddr, sizeof(struct sockaddr));
     printf("iret: %d, %s\n", iret, strerror(errno));
 
+    int fd2 = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
+    saddr.sin_port = htons(7891);
+    iret = ::bind(fd2, (struct sockaddr*)&saddr, sizeof(struct sockaddr));
+
+    int fd3 = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
+    saddr.sin_port = htons(7892);
+    iret = ::bind(fd3, (struct sockaddr*)&saddr, sizeof(struct sockaddr));
+
     // tcp
     int tfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     int reuse = 1;
     setsockopt(tfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    saddr.sin_port = htons(7890);
     iret = ::bind(tfd, (struct sockaddr*)&saddr, sizeof(struct sockaddr));
 
     hctx.m_ufd = fd;
+    hctx.m_ufd2 = fd2;
+    hctx.m_ufd3 = fd3;
     hctx.m_tfd = tfd;
     hctx.m_evb = heb;
 
@@ -326,11 +349,19 @@ int main(int argc, char **argv)
     // event_add(hev, &five_seconds);
     event_add(hev, NULL);
 
-    hev2 = event_new(heb, tfd, EV_READ | EV_PERSIST, cb_func_tcp, &hctx);
+    hev2 = event_new(heb, fd2, EV_READ | EV_PERSIST, cb_func, &hctx);
     event_add(hev2, NULL);
+
+    hev3 = event_new(heb, fd3, EV_READ | EV_PERSIST, cb_func, &hctx);
+    event_add(hev3, NULL);
+
+    htev = event_new(heb, tfd, EV_READ | EV_PERSIST, cb_func_tcp, &hctx);
+    event_add(htev, NULL);
    
     hctx.m_uevt = hev;    
-    hctx.m_tevt = hev2;    
+    hctx.m_uevt2 = hev2;    
+    hctx.m_uevt3 = hev3;    
+    hctx.m_tevt = htev;    
 
     // tcp listen
     iret = ::listen(tfd, 10);

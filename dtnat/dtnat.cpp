@@ -41,11 +41,11 @@ void DtNat::init()
 
     // m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
 
-    QString reg_str = QString("register;%1;hh;cc").arg(m_name);
-    QHostAddress serv_addr(NH_SERVER_ADDR);
-    m_reg_sock->writeDatagram(reg_str.toLatin1().data(), reg_str.length(), serv_addr, NH_SERVER_PORT);
-
-    
+    for (int i = 1 ; i <= 3; i ++) {
+        QString reg_str = QString("register%1;%2;hh;cc").arg(i).arg(m_name);
+        QHostAddress serv_addr(NH_SERVER_ADDR);
+        m_reg_sock->writeDatagram(reg_str.toLatin1().data(), reg_str.length(), serv_addr, NH_SERVER_PORT+i-1);
+    }
 }
 
 void DtNat::test()
@@ -250,9 +250,12 @@ void DtNat::onRegChannelReadyRead()
 
 void DtNat::onRegChannelBytesWritten(qint64 bytes)
 {
-    qDebug()<<sender()<<bytes;
-    
+    static int runed = 0;
+    if (runed) return;
+
+    runed = 1;
     if (m_notify_sock->state() != QAbstractSocket::SocketState::ConnectedState) {
+        qDebug()<<sender()<<bytes;
         m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
     }
 }
@@ -275,7 +278,7 @@ void DtNat::onNotifyChannelReadyRead()
     QTcpSocket *sock = (QTcpSocket*)(sender());
     QByteArray ba = sock->readAll();
     qDebug()<<sender()<<ba<<"\n";
-    int pnum = 256;
+    int pnum = 25600;
     QString cmd, from, to, value;
     QString ip;
     quint16 port;
@@ -294,10 +297,26 @@ void DtNat::onNotifyChannelReadyRead()
         port = elems2.at(1).toUShort();
         QString cmd_str = QString("punch_do;client;server;%1").arg(qrand());
 
-        for (quint16 nport = port + 1; nport < port + 1 + pnum; nport ++) {
-            m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(ip), nport);
+        m_hole_cmd = cmd_str;
+        m_port_base = port;
+        m_hole_ip = ip;
+        if (m_hole_timer == NULL) {
+            m_hole_timer = new QTimer();
+            QObject::connect(m_hole_timer, &QTimer::timeout, this, &DtNat::onHoleTimeout);
+            m_hole_timer->setInterval(350);
+            m_hole_timer->start();
         }
-
+        
+        /*
+        qDebug()<<10<<"try holing .."<<ip<<port<<(port+pnum);
+        for (int i = 0; i < 1000; i ++) {
+            for (quint16 nport = port + 1; nport < port + 1 + pnum; nport ++) {
+                m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(ip), nport);
+            }
+            QThread::msleep(5);
+        }
+        qDebug()<<10<<"try holing .."<<ip<<port<<(port+pnum)<<"done";
+        */
     }    
 
     if (m_is_server) {
@@ -307,3 +326,26 @@ void DtNat::onNotifyChannelReadyRead()
     }
 }
 
+void DtNat::onHoleTimeout()
+{
+    int pnum = 15600;
+    quint16 port = m_port_base;
+    QString cmd_str = m_hole_cmd;
+    QString ip = m_hole_ip;
+    quint64 iret;
+    int cnter = 0;
+
+    qDebug()<<10<<"try holing ..."<<port<<(port+pnum);    
+    // for (quint16 nport = port; nport < port + 1 + pnum; nport ++) {
+    // for (quint16 nport = 1025; nport < 65535; nport ++) {
+    for (quint16 nport = 1025 + qrand() % (pnum - 1000); nport > 1024 && nport < 65535; nport += (qrand() % 8 + 1) ) {
+        iret = m_reg_sock->writeDatagram(cmd_str.toLatin1(), QHostAddress(ip), nport);
+        if (iret == -1) {
+            qDebug()<<cnter<<"send udp error:"<<ip<<nport<<m_reg_sock->error()<<m_reg_sock->errorString();
+            break;
+        }
+        cnter ++;
+        if (cnter > 512) break;
+    }
+    qDebug()<<10<<"try holing ..."<<port<<(port+pnum)<<"done:"<<cnter;    
+}

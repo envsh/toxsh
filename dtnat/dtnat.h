@@ -47,18 +47,26 @@ public slots:
     void onNotifyChannelConnected();
     void onNotifyChannelReadyRead();
 
+    void onHoleTimeout();
+
 private:
     QString m_name;
     bool m_is_server = false;
     QUdpSocket *msock = NULL;
     QUdpSocket *m_reg_sock = NULL;
     QTcpSocket *m_notify_sock = NULL;
+
+    QTimer *m_hole_timer = NULL;
+    quint16 m_port_base = 0;
+    QString m_hole_ip;
+    QString m_hole_cmd;
 };
 
 /*
   非常全面的stun/turn实现，包括server和client。
   https://code.google.com/p/coturn/
   https://code.google.com/p/rfc5766-turn-server/
+  http://blog.csdn.net/oonukeoo/article/details/5942452
 
   http://www.bford.info/pub/net/p2pnat/
 
