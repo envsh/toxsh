@@ -67,6 +67,7 @@ private:
   https://code.google.com/p/coturn/
   https://code.google.com/p/rfc5766-turn-server/
   http://blog.csdn.net/oonukeoo/article/details/5942452
+  http://www.h3c.com.cn/MiniSite/Technology_Circle/Net_Reptile/The_Five/Home/Catalog/201206/747038_97665_0.htm
 
   http://www.bford.info/pub/net/p2pnat/
 

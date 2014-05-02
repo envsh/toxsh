@@ -5,3 +5,10 @@ add_executable(nathlp
 )
 
 target_link_libraries(nathlp -levent)
+
+
+add_executable(rlysrv
+  rlysrv.cpp
+)
+
+target_link_libraries(rlysrv -levent)

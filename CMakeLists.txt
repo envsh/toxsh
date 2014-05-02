@@ -27,6 +27,7 @@ add_subdirectory(webshd)
 add_subdirectory(webshc)
 add_subdirectory(trohd)
 add_subdirectory(trohc)
+add_subdirectory(p2psh)
 add_subdirectory(dtnat)
 #add_subdirectory(nathlp)
 
