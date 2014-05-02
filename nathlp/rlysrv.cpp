@@ -113,7 +113,7 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
         std::cout<<vals.at(0)<<vals.at(1)<<vals.at(2)<<vals.at(3)<<std::endl;
 
         // register;name;type;ip:port
-        if (hc.cmd == "register" && hc.to == "server") {
+        if (hc.cmd == "register" && hc.to == "regsrv") {
             peer->name = hc.from;
             peer->type = hc.to;
 
@@ -127,7 +127,7 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
             
             for (it = pctx->m_peers2.begin(); it != pctx->m_peers2.end(); it++) {
                 speer = it->second;
-                if (speer->type == "server") {
+                if (speer->type == "regsrv") {
                     break;
                 } 
                 speer = NULL;
@@ -174,11 +174,11 @@ void cb_func_tcp(evutil_socket_t fd, short what, void *args)
     inet_ntop(AF_INET, &sa.sin_addr.s_addr, buff, sizeof(buff));
     printf("fd=%d, what=%d, clifd=%d, ip=%s, port=%d\n", fd, what, cli_fd, buff, ntohs(sa.sin_port));
 
-    if (pctx->m_peers2.count(fd) == 0) {
+    if (pctx->m_peers2.count(cli_fd) == 0) {
         peer = new HlpPeer;
-        pctx->m_peers2[fd] = peer;
+        pctx->m_peers2[cli_fd] = peer;
     } else {
-        peer = pctx->m_peers2[fd];
+        peer = pctx->m_peers2[cli_fd];
     }
 
     peer->cli_fd = cli_fd;

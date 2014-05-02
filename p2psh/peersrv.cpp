@@ -1,0 +1,46 @@
+
+#include "xshdefs.h"
+#include "stunclient.h"
+
+#include "peersrv.h"
+
+PeerSrv::PeerSrv()
+    : QObject()
+{
+}
+
+PeerSrv::~PeerSrv()
+{
+}
+
+void PeerSrv::init()
+{
+    m_stun_client = new StunClient(STUN_CLIENT_PORT_ADD1);
+    QObject::connect(m_stun_client, &StunClient::mappedAddressRecieved, this, &PeerSrv::onMappedAddressRecieved);
+
+    m_stun_client->getMappedAddress();
+}
+
+void PeerSrv::onMappedAddressRecieved(QString addr)
+{
+    qDebug()<<addr;
+    this->m_mapped_addr = addr;
+
+    m_rly_sock = new QTcpSocket();
+    QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &PeerSrv::onRelayConnected);
+    QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &PeerSrv::onRelayReadyRead);
+
+    m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
+
+}
+
+void PeerSrv::onRelayConnected()
+{
+    qDebug()<<sender();
+    Q_ASSERT(1 == 2);
+}
+
+void PeerSrv::onRelayReadyRead()
+{
+    qDebug()<<sender();
+}

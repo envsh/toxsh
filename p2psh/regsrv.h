@@ -5,6 +5,8 @@
 #include <QtCore>
 #include <QtNetwork>
 
+class StunClient;
+
 class HlpPeer
 {
 public:
@@ -28,10 +30,13 @@ public:
     void init();
 
 public slots:
-    void onConnected();
-    void onReadyRead();
+    void onMappedAddressRecieved(QString addr);
+    void onRelayConnected();
+    void onRelayReadyRead();
 
 private:
+    QString m_mapped_addr;
+    StunClient *m_stun_client = NULL;
     QTcpSocket *m_rly_sock = NULL;
     QHash<QString, HlpPeer*> m_peers; // <name,ip:port>
 };

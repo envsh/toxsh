@@ -3,6 +3,8 @@
 #include <QtCore>
 
 #include "debugoutput.h"
+#include "xshdefs.h"
+#include "stunclient.h"
 #include "regsrv.h"
 
 int main(int argc, char **argv)
@@ -33,21 +35,34 @@ RegSrv::~RegSrv()
 
 void RegSrv::init()
 {
-    m_rly_sock = new QTcpSocket();
-    QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &RegSrv::onConnected);
-    QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &RegSrv::onReadyRead);
+    m_stun_client = new StunClient(STUN_CLIENT_PORT);
+    
+    m_stun_client = new StunClient(STUN_CLIENT_PORT_ADD1);
+    QObject::connect(m_stun_client, &StunClient::mappedAddressRecieved, this, &RegSrv::onMappedAddressRecieved);
 
-    m_rly_sock->connectToHost("81.4.106.67", 7890);
+    m_stun_client->getMappedAddress();
 }
 
-void RegSrv::onConnected()
+void RegSrv::onMappedAddressRecieved(QString addr)
+{
+    qDebug()<<addr;
+    this->m_mapped_addr = addr;
+
+    m_rly_sock = new QTcpSocket();
+    QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &RegSrv::onRelayConnected);
+    QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &RegSrv::onRelayReadyRead);
+
+    m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
+}
+
+void RegSrv::onRelayConnected()
 {
     qDebug()<<sender();
-    QString reg_cmd = "register;regsrv;server;0.0.0.0:0";
+    QString reg_cmd = "register;regsrv1;regsrv;0.0.0.0:0";
     int rc = m_rly_sock->write(reg_cmd.toLatin1());
 }
 
-void RegSrv::onReadyRead()
+void RegSrv::onRelayReadyRead()
 {
     qDebug()<<sender();
     QByteArray ba = m_rly_sock->readAll();
@@ -61,6 +76,7 @@ void RegSrv::onReadyRead()
     QString to = elems.at(2);
     QString value = elems.at(3);
     HlpPeer *peer = NULL;
+    HlpPeer *from_peer = NULL, *to_peer = NULL;
 
     if (cmd == "register") {
         if (m_peers.contains(from)) {
@@ -85,6 +101,23 @@ void RegSrv::onReadyRead()
 
     } else if (cmd == "get_client") {
         
+    } else if (cmd == "connect") {
+        to = "xshsrv1";
+        to_peer = this->m_peers.value(to, NULL);
+        if (to_peer == NULL) {
+            qDebug()<<"can not find dest peer:"<<to;
+        }
+
+        from = "xshcli1";
+        from_peer = this->m_peers.value(from, NULL);
+        if (from_peer == NULL) {
+            qDebug()<<"can not find src peer:"<<from;
+        }
+
+        if (to_peer && from_peer) {
+            // stun allocate
+            m_stun_client->allocate();
+        }
     }
 }
 
