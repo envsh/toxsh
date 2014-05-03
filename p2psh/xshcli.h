@@ -19,7 +19,7 @@ public:
 public slots:
     virtual void onRelayReadyRead(); 
     void onAllocateDone();
-    void onChannelBindDone();
+    void onChannelBindDone(QString relayed_addr);
     
     void onNewBackendConnection();
     void onBackendReadyRead();
@@ -31,6 +31,7 @@ private:
     QTcpServer *m_backend_sock = NULL;
     QTcpSocket *m_conn_sock = NULL;
     QString m_peer_addr;
+    QString m_peer_relayed_addr;
     bool  m_channel_done = false;
 };
 

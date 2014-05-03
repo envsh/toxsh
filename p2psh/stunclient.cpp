@@ -33,7 +33,7 @@ bool StunClient::getMappedAddress()
     stun_buffer tbuf;
     stun_set_binding_request_str(tbuf.buf, (size_t*)(&(tbuf.len)));
 
-    quint64 wlen2 = m_stun_sock->writeDatagram(QByteArray((char*)tbuf.buf, tbuf.len), 
+    qint64 wlen2 = m_stun_sock->writeDatagram(QByteArray((char*)tbuf.buf, tbuf.len), 
                                                QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);    
 
     return true;
@@ -76,6 +76,12 @@ bool StunClient::createPermission(QString peer_addr)
     return true;
 }
 
+bool StunClient::sendIndication(QByteArray data)
+{
+
+    return true;
+}
+
 bool StunClient::channelBind(QString peer_addr)
 {
     qDebug()<<peer_addr;
@@ -97,7 +103,7 @@ bool StunClient::channelBind(QString peer_addr)
                                         (u08bits*)m_realm.data(), (u08bits*)STUN_PASSWORD,
                                         (u08bits*)m_nonce.data(), SHATYPE_SHA1);
 
-    quint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
 
     qDebug()<<"write:"<<ret<<peer_addr;
     return true;
@@ -107,16 +113,19 @@ bool StunClient::channelData(QByteArray data)
 {
     stun_buffer buf;
 
-    stun_init_channel_message(0x4000, &buf, data.length(), 0);
-    memcpy(buf.buf, data.data(), data.length());
+    stun_init_channel_message(0x4000, &buf, data.length(), 1);
+    memcpy(buf.buf + 4, data.data(), data.length());
 
-    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    for (int i = 0 ; i < 5; i++) {
+        qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
 
-    //qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
-    //                               QHostAddress(m_relayed_addr.split(':').at(0)),
-    //                               m_relayed_addr.split(':').at(1).toUShort());
+        
+        // qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
+        //                        QHostAddress(m_relayed_addr.split(':').at(0)),
+        //                         m_relayed_addr.split(':').at(1).toUShort());
 
-    qDebug()<<"write chan data:"<<ret<<m_peer_addr<<m_relayed_addr;
+        qDebug()<<"write chan data:"<<ret<<data.length()<<buf.len<<m_peer_addr<<m_relayed_addr;
+    }
 
     return true;
 }
@@ -126,6 +135,21 @@ bool StunClient::refresh()
     return true;
 }
 
+bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
+{
+    stun_buffer buf;
+
+    stun_init_channel_message(0x4000, &buf, data.length(), 1);
+    memcpy(buf.buf + 4, data.data(), data.length());
+
+    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
+                                            QHostAddress(relayed_addr.split(':').at(0)),
+                                            relayed_addr.split(':').at(1).toUShort());
+
+    qDebug()<<"write relayed data:"<<ret<<data.length()<<buf.len<<m_peer_addr<<m_relayed_addr<<relayed_addr;
+    
+    return true;
+}
 
 void StunClient::onStunConnected()
 {
@@ -151,7 +175,8 @@ void StunClient::onStunReadyRead()
         qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
         
         for (int i = 0; i < datagram.length(); i ++) {
-            fprintf(stderr, "%c", datagram.at(i));
+            char c = datagram.at(i);
+            fprintf(stderr, "%c", isprint(c) ? c : '.');
         }
         fprintf(stderr, "]\n");
 
@@ -271,7 +296,7 @@ void StunClient::processResponse(QByteArray resp)
     }
 
     if (stun_method == STUN_METHOD_CHANNEL_BIND) {
-        emit this->channelBindDone();
+        emit this->channelBindDone(m_relayed_addr);
     }
 }
 

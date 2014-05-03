@@ -144,13 +144,13 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
                     // 是server的响应，需要转发给某个客户端
                     for (it = pctx->m_peers2.begin(); it != pctx->m_peers2.end(); it++) {
                         cpeer = it->second;
-                        if (cpeer->name == hc.from) {
+                        if (cpeer->name == hc.to) {
                             break;
                         }
                         cpeer = NULL;
                     }
                     if (cpeer == NULL) {
-                        std::cout<<"can not find relay client:"<<hc.from<<std::endl;
+                        std::cout<<"can not find relay client:"<<hc.to<<std::endl;
                     } else {
                         rc = ::write(cpeer->cli_fd, buff, rc);
                         std::cout<<"relay to client:"<<str<<std::endl;

@@ -47,7 +47,21 @@ void XshCli::onRelayReadyRead()
 
     if (cmd == "connect_ok") {
         m_peer_addr = value;
+        m_peer_relayed_addr = elems.at(4);
         m_stun_client->allocate();
+    }
+
+    if (cmd == "connect_ack") {
+        m_channel_done = true;
+
+        Q_ASSERT(m_conn_sock != NULL);
+        qint64 abytes = m_conn_sock->bytesAvailable();
+        QByteArray ba = m_conn_sock->readAll();
+
+        if (!ba.isEmpty()) {
+            // m_stun_client->channelData(ba);
+            m_stun_client->sendRelayData(ba, m_peer_relayed_addr);
+        }
     }
 }
 
@@ -56,9 +70,15 @@ void XshCli::onAllocateDone()
     m_stun_client->channelBind(m_peer_addr);
 }
 
-void XshCli::onChannelBindDone()
+void XshCli::onChannelBindDone(QString relayed_addr)
 {
-    qDebug()<<""<<sender();
+    qDebug()<<""<<sender()<<relayed_addr;
+
+    QString cmd = QString("relay_info;xshcli1;xshsrv1;%1").arg(relayed_addr);
+    m_rly_sock->write(cmd.toLatin1());
+    m_rly_sock->waitForBytesWritten();
+
+    /*
     m_channel_done = true;
 
     Q_ASSERT(m_conn_sock != NULL);
@@ -66,8 +86,10 @@ void XshCli::onChannelBindDone()
     QByteArray ba = m_conn_sock->readAll();
 
     if (!ba.isEmpty()) {
-        m_stun_client->channelData(ba);
+        // m_stun_client->channelData(ba);
+        m_stun_client->sendRelayData(ba, m_peer_relayed_addr);
     }
+    */
 }
 
 void XshCli::onNewBackendConnection()

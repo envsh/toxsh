@@ -101,26 +101,45 @@ void RegSrv::onRelayReadyRead()
     } else if (cmd == "get_client") {
         
     } else if (cmd == "connect") {
-        to = "xshsrv1";
         to_peer = this->m_peers.value(to, NULL);
         if (to_peer == NULL) {
             qDebug()<<"can not find dest peer:"<<to;
         }
 
-        from = "xshcli1";
         from_peer = this->m_peers.value(from, NULL);
         if (from_peer == NULL) {
             qDebug()<<"can not find src peer:"<<from;
         }
 
         if (to_peer && from_peer) {
-            // stun allocate
-            // m_stun_client->allocate();
-            value = QString("%1:%2").arg(to_peer->ip_addr.c_str()).arg(to_peer->ip_port);
-            QString new_cmd_str = QString("connect_ok;%1;%2;%3")
+            // 发送给 srv
+            value = QString("%1:%2").arg(from_peer->ip_addr.c_str()).arg(from_peer->ip_port);
+            QString new_cmd_str = QString("connect;%1;%2;%3")
                 .arg(from).arg(to).arg(value);
             m_rly_sock->write(new_cmd_str.toLatin1());
+            
         }
+    } else if (cmd == "relay_info") {
+        to_peer = this->m_peers.value(to, NULL);
+        if (to_peer == NULL) {
+            qDebug()<<"can not find dest peer:"<<to;
+        }
+
+        from_peer = this->m_peers.value(from, NULL);
+        if (from_peer == NULL) {
+            qDebug()<<"can not find src peer:"<<from;
+        }
+
+        if (to_peer && from_peer) {
+            // 发送给 srv
+            QString value2 = QString("%1:%2").arg(from_peer->ip_addr.c_str()).arg(from_peer->ip_port);
+            QString new_cmd_str = QString("connect_ok;%1;%2;%3;%4")
+                .arg(from).arg(to).arg(value2).arg(value);
+            m_rly_sock->write(new_cmd_str.toLatin1());
+        }
+
+    } else if (cmd == "connect_ack") {
+        m_rly_sock->write(ba);
     }
 }
 

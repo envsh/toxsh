@@ -14,9 +14,11 @@ public:
     bool getMappedAddress();
     bool allocate(char *realm = NULL, char *nonce = NULL);
     bool createPermission(QString peer_addr);
+    bool sendIndication(QByteArray data);
     bool channelBind(QString peer_addr);
     bool channelData(QByteArray data);
     bool refresh();
+    bool sendRelayData(QByteArray data, QString relayed_addr);
 
 public slots:
     void onStunConnected();
@@ -27,7 +29,7 @@ signals:
     void mappedAddressRecieved(QString addr);
     void packetRecieved(QByteArray ba);
     void allocateDone();
-    void channelBindDone();
+    void channelBindDone(QString relayed_addr);
 
 private:
     void processResponse(QByteArray resp);

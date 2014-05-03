@@ -18,6 +18,9 @@ public:
 
 public slots:
     void onMappedAddressRecieved(QString addr);
+    void onAllocateDone();
+    void onChannelBindDone(QString relayed_addr);
+
     void onRelayConnected();
     void onRelayReadyRead();
     void onBackendConnected();
@@ -28,7 +31,8 @@ private:
     QTcpSocket *m_rly_sock = NULL;
     QTcpSocket *m_backend_sock = NULL;
     QString m_mapped_addr;
-    
+    QString m_peer_addr;
+    QString m_peer_relayed_addr;
 };
 
 #endif /* _XSHSRV_H_ */
