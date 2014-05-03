@@ -18,6 +18,7 @@ void XshCli::init()
     // 
     QObject::connect(m_stun_client, &StunClient::allocateDone, this, &XshCli::onAllocateDone);
     QObject::connect(m_stun_client, &StunClient::channelBindDone, this, &XshCli::onChannelBindDone);
+    QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshCli::onPacketRecieved);
 
     /////
     // myself init
@@ -60,7 +61,7 @@ void XshCli::onRelayReadyRead()
 
         if (!ba.isEmpty()) {
             // m_stun_client->channelData(ba);
-            m_stun_client->sendRelayData(ba, m_peer_relayed_addr);
+            m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
         }
     }
 }
@@ -92,6 +93,13 @@ void XshCli::onChannelBindDone(QString relayed_addr)
     */
 }
 
+void XshCli::onPacketRecieved(QByteArray pkt)
+{
+    QByteArray data = QByteArray::fromHex(pkt);
+    qint64 rc = m_conn_sock->write(data);
+    qDebug()<<rc<<pkt;
+}
+
 void XshCli::onNewBackendConnection()
 {
     QTcpSocket *sock = NULL;
@@ -117,5 +125,5 @@ void XshCli::onBackendReadyRead()
     }
 
     QByteArray ba = sock->readAll();
-    m_stun_client->channelData(ba);
+    m_stun_client->channelData(ba.toHex());
 }

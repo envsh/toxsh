@@ -20,6 +20,7 @@ public slots:
     void onMappedAddressRecieved(QString addr);
     void onAllocateDone();
     void onChannelBindDone(QString relayed_addr);
+    void onPacketRecieved(QByteArray pkt);
 
     void onRelayConnected();
     void onRelayReadyRead();

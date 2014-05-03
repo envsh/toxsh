@@ -20,6 +20,7 @@ public slots:
     virtual void onRelayReadyRead(); 
     void onAllocateDone();
     void onChannelBindDone(QString relayed_addr);
+    void onPacketRecieved(QByteArray pkt);
     
     void onNewBackendConnection();
     void onBackendReadyRead();

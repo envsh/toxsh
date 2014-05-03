@@ -204,20 +204,26 @@ void StunClient::processResponse(QByteArray resp)
         return;
     }
 
-    if (!stun_is_response(&buf)) {
-        if (stun_is_indication(&buf)) {
-            qDebug()<<"indication data:"<<buf.len;
-        } else {
-            qDebug()<<resp.length()<<("The response is not a reponse message\n");
-        }
-        return;
-    }
-
     u16bits stun_method;
     u16bits stun_msg_type;
     stun_method = stun_get_method_str(buf.buf, buf.len);
     stun_msg_type = stun_get_msg_type_str(buf.buf, buf.len);
     qDebug()<<"method:"<<stun_method<<",msg type:"<<stun_msg_type;
+
+    if (!stun_is_response(&buf)) {
+        u16bits chan_no;
+        size_t blen = 0;
+        qDebug()<<"is chan msg:"<<stun_is_channel_message_str(buf.buf, &blen, &chan_no, 1);
+        qDebug()<<"chan no:"<<chan_no;
+
+        if (stun_is_indication(&buf)) {
+            qDebug()<<"indication data:"<<buf.len;
+            emit this->packetRecieved(QByteArray((char*)buf.buf + 4, buf.len - 4));
+        } else {
+            qDebug()<<resp.length()<<("The response is not a reponse message\n");
+        }
+        return;
+    }
 
 
     if (!stun_is_success_response(&buf)) {
