@@ -1,0 +1,8 @@
+#ifndef _STUNAUTH_H_
+#define _STUNAUTH_H_
+
+
+#define STUN_USERNAME ""
+#define STUN_PASSWORD ""
+
+#endif /* _STUNAUTH_H_ */

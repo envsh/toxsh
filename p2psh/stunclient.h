@@ -12,7 +12,7 @@ public:
     virtual ~StunClient();
 
     bool getMappedAddress();
-    bool allocate();
+    bool allocate(char *realm = NULL, char *nonce = NULL);
 
 public slots:
     void onStunConnected();

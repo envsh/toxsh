@@ -95,7 +95,8 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
     } else if (rc == 0) {
         // close
         close(fd);
-      
+
+        printf("remove peer: %d, %s, %s \n", fd, peer->name.c_str(), peer->type.c_str());      
         event_del(peer->cli_ev);
         peer->cli_ev = NULL;
         peer->cli_fd = -1;
@@ -103,6 +104,7 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
         pctx->m_peers2.erase(fd);
         delete peer;
         peer = NULL;
+
 
     } else if (rc > 0) {
         std::string str(buff, rc);
@@ -152,6 +154,7 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
                 } else {
                     std::cout<<"relayed cmd to server:"<<str<<speer<<std::endl;
                     rc = ::write(speer->cli_fd, buff, rc);
+                    std::cout<<"relayed cmd to server:"<<str<<speer<<" "<<rc<<std::endl;
                 }
             } else {
                 std::cout<<"can not find server to relay:"<<std::endl;

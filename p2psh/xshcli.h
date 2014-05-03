@@ -6,8 +6,6 @@
 
 #include "peersrv.h"
 
-class StunClient;
-
 
 class XshCli : public PeerSrv
 {
@@ -16,8 +14,19 @@ public:
     XshCli();
     virtual ~XshCli();
 
-private:
+    virtual void init();
+
+public slots:
+    virtual void onRelayReadyRead(); 
     
+    void onNewBackendConnection();
+    void onBackendReadyRead();
+
+protected:
+    virtual QString getRegCmd();
+
+private:
+    QTcpServer *m_backend_sock = NULL;
 };
 
 #endif /* _XSHCLI_H_ */

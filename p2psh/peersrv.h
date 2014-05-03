@@ -14,13 +14,16 @@ public:
     PeerSrv();
     virtual ~PeerSrv();
 
-    void init();
+    virtual void init();
 
 public slots:
-    void onMappedAddressRecieved(QString addr);
-    void onRelayConnected();
-    void onRelayReadyRead();
+    virtual void onMappedAddressRecieved(QString addr);
+    virtual void onRelayConnected();
+    virtual void onRelayReadyRead();
     
+protected:
+    virtual QString getRegCmd() = 0;
+
 protected:
     QString m_mapped_addr;
     StunClient *m_stun_client = NULL;

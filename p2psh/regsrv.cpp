@@ -36,8 +36,6 @@ RegSrv::~RegSrv()
 void RegSrv::init()
 {
     m_stun_client = new StunClient(STUN_CLIENT_PORT);
-    
-    m_stun_client = new StunClient(STUN_CLIENT_PORT_ADD1);
     QObject::connect(m_stun_client, &StunClient::mappedAddressRecieved, this, &RegSrv::onMappedAddressRecieved);
 
     m_stun_client->getMappedAddress();
@@ -84,6 +82,7 @@ void RegSrv::onRelayReadyRead()
         } else {
             peer = new HlpPeer();
             peer->ctime = time(NULL);
+            m_peers[from] = peer;
         }
 
         peer->name = from.toStdString();

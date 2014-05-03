@@ -15,7 +15,7 @@ PeerSrv::~PeerSrv()
 
 void PeerSrv::init()
 {
-    m_stun_client = new StunClient(STUN_CLIENT_PORT_ADD1);
+    m_stun_client = new StunClient(STUN_CLIENT_PORT_ADD2);
     QObject::connect(m_stun_client, &StunClient::mappedAddressRecieved, this, &PeerSrv::onMappedAddressRecieved);
 
     m_stun_client->getMappedAddress();
@@ -37,7 +37,10 @@ void PeerSrv::onMappedAddressRecieved(QString addr)
 void PeerSrv::onRelayConnected()
 {
     qDebug()<<sender();
-    Q_ASSERT(1 == 2);
+    QString reg_cmd = this->getRegCmd();
+
+    m_rly_sock->write(reg_cmd.toLatin1());
+    // Q_ASSERT(1 == 2);
 }
 
 void PeerSrv::onRelayReadyRead()
