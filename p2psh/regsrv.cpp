@@ -115,7 +115,11 @@ void RegSrv::onRelayReadyRead()
 
         if (to_peer && from_peer) {
             // stun allocate
-            m_stun_client->allocate();
+            // m_stun_client->allocate();
+            value = QString("%1:%2").arg(to_peer->ip_addr.c_str()).arg(to_peer->ip_port);
+            QString new_cmd_str = QString("connect_ok;%1;%2;%3")
+                .arg(from).arg(to).arg(value);
+            m_rly_sock->write(new_cmd_str.toLatin1());
         }
     }
 }

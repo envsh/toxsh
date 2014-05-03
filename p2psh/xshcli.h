@@ -18,6 +18,8 @@ public:
 
 public slots:
     virtual void onRelayReadyRead(); 
+    void onAllocateDone();
+    void onChannelBindDone();
     
     void onNewBackendConnection();
     void onBackendReadyRead();
@@ -27,6 +29,9 @@ protected:
 
 private:
     QTcpServer *m_backend_sock = NULL;
+    QTcpSocket *m_conn_sock = NULL;
+    QString m_peer_addr;
+    bool  m_channel_done = false;
 };
 
 #endif /* _XSHCLI_H_ */

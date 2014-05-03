@@ -115,7 +115,8 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
         std::cout<<vals.at(0)<<vals.at(1)<<vals.at(2)<<vals.at(3)<<std::endl;
 
         // register;name;type;ip:port
-        if (hc.cmd == "register" && hc.to == "regsrv") {
+        if (hc.cmd == "register") {
+            // if (hc.cmd == "register" && hc.to == "regsrv") {
             peer->name = hc.from;
             peer->type = hc.to;
 
@@ -123,7 +124,10 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
             peer->ip_addr = host_elems.at(0);
             peer->ip_port = atoi(host_elems.at(1).c_str());
             
-        } else {
+        }
+        
+        if (hc.cmd == "register" && hc.to == "regsrv") {
+        } else {  // 除了regsrv自注册外，其他的请求都需要转发到regsrv
             std::map<int, HlpPeer*>::iterator it;
             HlpPeer *speer = NULL, *cpeer = NULL;
             
