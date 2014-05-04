@@ -98,13 +98,8 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
 
         printf("remove peer: %d, %s, %s \n", fd, peer->name.c_str(), peer->type.c_str());      
         event_del(peer->cli_ev);
-        peer->cli_ev = NULL;
-        peer->cli_fd = -1;
-
         pctx->m_peers2.erase(fd);
         delete peer;
-        peer = NULL;
-
 
     } else if (rc > 0) {
         std::string str(buff, rc);
@@ -123,7 +118,25 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
             std::vector<std::string> host_elems = string_split(hc.value, ':');
             peer->ip_addr = host_elems.at(0);
             peer->ip_port = atoi(host_elems.at(1).c_str());
-            
+
+            // remove old register
+            HlpPeer *tpeer = NULL;
+            std::map<int, HlpPeer*>::iterator it;
+            for (it = pctx->m_peers2.begin(); it != pctx->m_peers2.end(); it++) {
+                tpeer = it->second;
+                if (tpeer->cli_fd != peer->cli_fd && tpeer->name == peer->name) {
+                    break;
+                }
+                tpeer = NULL;
+            }
+            if (tpeer) {
+                std::cout<<"close old same name register peer:"<<tpeer->cli_fd<<" "<<tpeer->name
+                         <<" "<<tpeer->type<<" "<<tpeer->ip_addr<<":"<<tpeer->ip_port<<std::endl;
+                event_del(tpeer->cli_ev);
+                ::close(tpeer->cli_fd);
+                pctx->m_peers2.erase(tpeer->cli_fd);
+                delete tpeer;
+            }
         }
         
         if (hc.cmd == "register" && hc.to == "regsrv") {
@@ -186,6 +199,7 @@ void cb_func_tcp(evutil_socket_t fd, short what, void *args)
         pctx->m_peers2[cli_fd] = peer;
     } else {
         peer = pctx->m_peers2[cli_fd];
+        peer->name = peer->type = peer->ip_addr = "";
     }
 
     peer->cli_fd = cli_fd;

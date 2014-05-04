@@ -50,6 +50,12 @@ private:
     uint32_t m_lifetime;
     
     QString m_peer_addr;
+
+    // reliable
+    QTimer *m_sending_timer = NULL;
+    bool m_sending_udp = false;
+    QByteArray m_sending_data;
+    QString m_sending_addr;
     
 };
 

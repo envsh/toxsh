@@ -25,6 +25,7 @@ public slots:
     void onRelayConnected();
     void onRelayReadyRead();
     void onBackendConnected();
+    void onBackendDisconnected();
     void onBackendReadyRead();
 
 private:

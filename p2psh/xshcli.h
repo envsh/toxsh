@@ -24,6 +24,7 @@ public slots:
     
     void onNewBackendConnection();
     void onBackendReadyRead();
+    void onBackendDisconnected();
 
 protected:
     virtual QString getRegCmd();

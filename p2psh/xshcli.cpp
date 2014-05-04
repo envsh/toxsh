@@ -128,3 +128,9 @@ void XshCli::onBackendReadyRead()
     // m_stun_client->channelData(ba.toHex());
     m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
 }
+
+void XshCli::onBackendDisconnected()
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
+}

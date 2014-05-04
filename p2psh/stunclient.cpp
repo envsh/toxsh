@@ -22,6 +22,11 @@ StunClient::StunClient(quint16 port)
     Q_ASSERT(port >= STUN_CLIENT_PORT);
     m_stun_port = port;
     m_stun_sock->bind(QHostAddress(STUN_CLIENT_ADDR), port);
+
+    m_sending_timer = new QTimer();
+    m_sending_timer->setInterval(1000 * 2);
+    m_sending_timer->setSingleShot(true);
+    QObject::connect(m_sending_timer, &QTimer::timeout, this, &StunClient::onRetryTimeout);
 }
 
 StunClient::~StunClient()
@@ -33,9 +38,15 @@ bool StunClient::getMappedAddress()
     stun_buffer tbuf;
     stun_set_binding_request_str(tbuf.buf, (size_t*)(&(tbuf.len)));
 
-    qint64 wlen2 = m_stun_sock->writeDatagram(QByteArray((char*)tbuf.buf, tbuf.len), 
+    qint64 rc = m_stun_sock->writeDatagram(QByteArray((char*)tbuf.buf, tbuf.len), 
                                                QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);    
-
+    {
+        m_sending_udp = true;
+        m_sending_data = QByteArray((char*)tbuf.buf, tbuf.len);
+        m_sending_addr = QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT);
+        m_sending_timer->start();
+    }
+    qDebug()<<rc;
     return true;
 }
 
@@ -60,6 +71,15 @@ bool StunClient::allocate(char *realm, char *nonce)
 
     QByteArray data = QByteArray((char*)alloc_buff.buf, alloc_buff.len);
     qint64 ret = m_stun_sock->writeDatagram(data, QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    // m_stun_sock->waitForBytesWritten();
+
+    {
+        m_sending_udp = true;
+        m_sending_data = QByteArray((char*)alloc_buff.buf, alloc_buff.len);
+        m_sending_addr = QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT);
+        m_sending_timer->start();
+    }
+
     qDebug()<<ret;
 
     return true;
@@ -104,6 +124,14 @@ bool StunClient::channelBind(QString peer_addr)
                                         (u08bits*)m_nonce.data(), SHATYPE_SHA1);
 
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    // m_stun_sock->waitForBytesWritten();
+
+    {
+        m_sending_udp = true;
+        m_sending_data = QByteArray((char*)buf.buf, buf.len);
+        m_sending_addr = QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT);
+        m_sending_timer->start();
+    }
 
     qDebug()<<"write:"<<ret<<peer_addr;
     return true;
@@ -146,6 +174,7 @@ bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
                                             QHostAddress(relayed_addr.split(':').at(0)),
                                             relayed_addr.split(':').at(1).toUShort());
 
+    m_stun_sock->waitForBytesWritten();
     qDebug()<<"write relayed data:"<<ret<<data.length()<<buf.len<<m_peer_addr<<m_relayed_addr<<relayed_addr;
     
     return true;
@@ -172,11 +201,17 @@ void StunClient::onStunReadyRead()
         sock->readDatagram(datagram.data(), datagram.size(),
                                 &sender, &senderPort);
 
-        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        {
+            m_sending_udp = false;
+            m_sending_timer->stop();
+        }
+
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex().left(20)<<"...";
         
         for (int i = 0; i < datagram.length(); i ++) {
             char c = datagram.at(i);
             fprintf(stderr, "%c", isprint(c) ? c : '.');
+            if (i > 300) break;
         }
         fprintf(stderr, "]\n");
 
@@ -396,7 +431,7 @@ void StunClient::debugStunResponse(QByteArray resp)
             break;
         case STUN_ATTRIBUTE_DATA:
             
-            qDebug()<<"attr data len:"<<attr_len<<QByteArray((char*)attr_value + 4, attr_len - 4);
+            qDebug()<<"attr data len:"<<attr_len<<QString(QByteArray((char*)attr_value + 4, attr_len - 4)).left(50)<<"...";
             break;
         default:
             qDebug()<<"unkown attr:"<<attr_type<<attr_len;
@@ -449,6 +484,16 @@ void StunClient::printHexView(unsigned char *buf, size_t len)
 
 void StunClient::onRetryTimeout()
 {
+    qDebug()<<""<<sender()<<m_sending_udp;
 
+    if (m_sending_udp == false) {
+        return;
+    }
+
+    QStringList tsl = m_sending_addr.split(':');
+    qint64 rc = m_stun_sock->writeDatagram(m_sending_data, QHostAddress(tsl.at(0)), tsl.at(1).toUShort());
+    qDebug()<<"retryed udp:"<<rc<<m_sending_addr;
+
+    m_sending_timer->start();
 }
 

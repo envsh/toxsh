@@ -53,7 +53,7 @@ void XshSrv::onPacketRecieved(QByteArray pkt)
 {
     QByteArray data = QByteArray::fromHex(pkt);
     qint64 rc = m_backend_sock->write(data);
-    qDebug()<<rc<<pkt;
+    qDebug()<<rc<<m_backend_sock->errorString()<<QString(pkt).left(60)<<"...";
 }
 
 void XshSrv::onRelayConnected()
@@ -88,6 +88,7 @@ void XshSrv::onRelayReadyRead()
 
         m_backend_sock = new QTcpSocket();
         QObject::connect(m_backend_sock, &QTcpSocket::connected, this, &XshSrv::onBackendConnected);
+        QObject::connect(m_backend_sock, &QTcpSocket::disconnected, this, &XshSrv::onBackendDisconnected);
         QObject::connect(m_backend_sock, &QTcpSocket::readyRead, this, &XshSrv::onBackendReadyRead);
         m_backend_sock->connectToHost("127.0.0.1", 22);
     }
@@ -100,6 +101,12 @@ void XshSrv::onBackendConnected()
     QString cmd_str = QString("connect_ack;%1;%2;%3").arg(from).arg(to).arg(m_peer_relayed_addr);
     qint64 rc = m_rly_sock->write(cmd_str.toLatin1());
     qDebug()<<rc<<cmd_str;
+}
+
+void XshSrv::onBackendDisconnected()
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<""<<sender()<<sock->errorString();
 }
 
 void XshSrv::onBackendReadyRead()
