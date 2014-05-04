@@ -125,5 +125,6 @@ void XshCli::onBackendReadyRead()
     }
 
     QByteArray ba = sock->readAll();
-    m_stun_client->channelData(ba.toHex());
+    // m_stun_client->channelData(ba.toHex());
+    m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
 }

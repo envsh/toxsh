@@ -42,7 +42,7 @@ bool StunClient::getMappedAddress()
 bool StunClient::allocate(char *realm, char *nonce)
 {
     stun_buffer alloc_buff;
-    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 30, 
+    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 5, 
                                   STUN_ATTRIBUTE_REQUESTED_ADDRESS_FAMILY_VALUE_IPV4,
                                   STUN_ATTRIBUTE_TRANSPORT_UDP_VALUE,
                                   STUN_ATTRIBUTE_MOBILITY_EVENT);
@@ -139,7 +139,7 @@ bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
 {
     stun_buffer buf;
 
-    stun_init_channel_message(0x4000, &buf, data.length(), 1);
+    stun_init_channel_message(0x4000, &buf, data.length(), 0);
     memcpy(buf.buf + 4, data.data(), data.length());
 
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
@@ -210,21 +210,32 @@ void StunClient::processResponse(QByteArray resp)
     stun_msg_type = stun_get_msg_type_str(buf.buf, buf.len);
     qDebug()<<"method:"<<stun_method<<",msg type:"<<stun_msg_type;
 
-    if (!stun_is_response(&buf)) {
+
+    this->debugStunResponse(resp);
+
+    // channel data
+    if (stun_is_indication(&buf)) {
         u16bits chan_no;
         size_t blen = 0;
-        qDebug()<<"is chan msg:"<<stun_is_channel_message_str(buf.buf, &blen, &chan_no, 1);
-        qDebug()<<"chan no:"<<chan_no;
 
-        if (stun_is_indication(&buf)) {
-            qDebug()<<"indication data:"<<buf.len;
-            emit this->packetRecieved(QByteArray((char*)buf.buf + 4, buf.len - 4));
-        } else {
-            qDebug()<<resp.length()<<("The response is not a reponse message\n");
-        }
+        qDebug()<<"indication data:"<<buf.len;
+
+        stun_attr_ref t_attr = stun_attr_get_first_by_type(&buf, STUN_ATTRIBUTE_DATA);
+        const u08bits *t_value = stun_attr_get_value(t_attr);
+        blen = stun_attr_get_len(t_attr);
+
+        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4));
+
+        qDebug()<<"is chan msg:"<<stun_is_channel_message_str(t_value, &blen, &chan_no, 0);
+        qDebug()<<"chan no:"<<chan_no<<blen;
+
         return;
     }
 
+    if (!stun_is_response(&buf)) {
+        qDebug()<<resp.length()<<("The response is not a reponse message\n");
+        return;
+    }
 
     if (!stun_is_success_response(&buf)) {
         int err_code = 0;
@@ -260,7 +271,6 @@ void StunClient::processResponse(QByteArray resp)
         return;
     }
 
-    this->debugStunResponse(resp);
 
     if (stun_is_binding_response(&buf)) {
         ioa_addr reflexive_addr;
@@ -326,7 +336,7 @@ void StunClient::debugStunResponse(QByteArray resp)
 
     if (!stun_is_response(&buf)) {
         qDebug()<<resp.length()<<("The response is not a reponse message\n");
-        return;
+        // return;
     }
 
     u16bits stun_method;
@@ -340,8 +350,10 @@ void StunClient::debugStunResponse(QByteArray resp)
     int attr_len;
     char relayed_addr_str[32] = {0};
     char mapped_addr_str[32] = {0};
+    char addr_str[32] = {0};
     ioa_addr relayed_addr;
     ioa_addr mapped_addr;
+    ioa_addr stun_addr;
     uint32_t lifetime = 0;
     uint32_t bandwidth = 0;
     stun_attr_ref raw_attr = stun_attr_get_first_str(buf.buf, buf.len);
@@ -377,6 +389,15 @@ void StunClient::debugStunResponse(QByteArray resp)
             bandwidth = nswap32(bandwidth);
             qDebug()<<"bandwidth:"<<bandwidth;
             break;
+        case STUN_ATTRIBUTE_XOR_PEER_ADDRESS:
+            stun_attr_get_addr_str(buf.buf, buf.len, raw_attr, &stun_addr, NULL);
+            addr_to_string(&stun_addr, (u08bits*)addr_str);
+            qDebug()<<"xor peer addr:"<<addr_str;
+            break;
+        case STUN_ATTRIBUTE_DATA:
+            
+            qDebug()<<"attr data len:"<<attr_len<<QByteArray((char*)attr_value + 4, attr_len - 4);
+            break;
         default:
             qDebug()<<"unkown attr:"<<attr_type<<attr_len;
             break;
@@ -410,6 +431,20 @@ QString StunClient::getStunAddress(QByteArray resp, uint16_t attr_type)
     }
 
     return QString((char*)addr_buff);
+}
+
+void StunClient::printHexView(unsigned char *buf, size_t len)
+{
+    int max_col = 32;
+    char tline[32 * 3 + 16 + 1] = {0};
+
+    for (int i = 0; i < (len/32 + 1); i++) {
+        memset(tline, ' ', sizeof(tline) - 1);
+
+        memcpy(tline, buf + i * max_col, max_col);
+
+        printf("%s\n", tline);
+    }
 }
 
 void StunClient::onRetryTimeout()

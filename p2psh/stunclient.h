@@ -35,6 +35,7 @@ private:
     void processResponse(QByteArray resp);
     static void debugStunResponse(QByteArray resp);
     static QString getStunAddress(QByteArray resp, uint16_t attr_type);
+    static void printHexView(unsigned char *buf, size_t len);
 
 private:
     QUdpSocket *m_stun_sock = NULL;
