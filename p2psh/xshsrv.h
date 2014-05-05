@@ -6,6 +6,7 @@
 #include <QtNetwork>
 
 class StunClient;
+class Srudp;
 
 class XshSrv : public QObject
 {
@@ -21,6 +22,7 @@ public slots:
     void onAllocateDone();
     void onChannelBindDone(QString relayed_addr);
     void onPacketRecieved(QByteArray pkt);
+    void onPacketReadyRead();
 
     void onRelayConnected();
     void onRelayReadyRead();
@@ -35,6 +37,7 @@ private:
     QString m_mapped_addr;
     QString m_peer_addr;
     QString m_peer_relayed_addr;
+    Srudp *m_rudp = NULL;
 };
 
 #endif /* _XSHSRV_H_ */

@@ -213,7 +213,7 @@ void StunClient::onStunReadyRead()
             fprintf(stderr, "%c", isprint(c) ? c : '.');
             if (i > 300) break;
         }
-        fprintf(stderr, "]\n");
+        fprintf(stderr, " ...]\n");
 
         this->processResponse(datagram);
         // processTheDatagram(datagram);

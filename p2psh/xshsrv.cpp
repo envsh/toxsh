@@ -2,6 +2,7 @@
 #include "xshdefs.h"
 #include "stunclient.h"
 
+#include "srudp.h"
 #include "xshsrv.h"
 
 XshSrv::XshSrv()
@@ -19,9 +20,12 @@ void XshSrv::init()
     QObject::connect(m_stun_client, &StunClient::mappedAddressRecieved, this, &XshSrv::onMappedAddressRecieved);
     QObject::connect(m_stun_client, &StunClient::allocateDone, this, &XshSrv::onAllocateDone);
     QObject::connect(m_stun_client, &StunClient::channelBindDone, this, &XshSrv::onChannelBindDone);
-    QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshSrv::onPacketRecieved);
+    // QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshSrv::onPacketRecieved);
 
     m_stun_client->getMappedAddress();
+
+    m_rudp = new Srudp(m_stun_client);
+    QObject::connect(m_rudp, &Srudp::readyRead, this, &XshSrv::onPacketReadyRead);
 }
 
 void XshSrv::onMappedAddressRecieved(QString addr)
@@ -51,9 +55,29 @@ void XshSrv::onChannelBindDone(QString relayed_addr)
 
 void XshSrv::onPacketRecieved(QByteArray pkt)
 {
-    QByteArray data = QByteArray::fromHex(pkt);
+    QByteArray data = pkt;
     qint64 rc = m_backend_sock->write(data);
-    qDebug()<<rc<<m_backend_sock->errorString()<<QString(pkt).left(60)<<"...";
+    qDebug()<<"SBR -> SSHD: Write: "<<rc<<m_backend_sock->errorString()<<pkt.length();
+}
+
+void XshSrv::onPacketReadyRead()
+{
+    qDebug()<<sender();
+    QHostAddress addr;
+    quint16 port;
+    QByteArray data;
+
+    int cnter = 0;
+    while (m_rudp->hasPendingDatagrams()) {
+        cnter ++;
+        data = m_rudp->readDatagram(addr, port);
+        if (data.isEmpty()) {
+            qDebug()<<"read empty pkt:";
+        } else {
+            this->onPacketRecieved(data);
+        }
+    }
+    qDebug()<<"read pkt conut:"<<cnter;    
 }
 
 void XshSrv::onRelayConnected()
@@ -114,6 +138,6 @@ void XshSrv::onBackendReadyRead()
     qDebug()<<sender();
     QByteArray ba = m_backend_sock->readAll();
 
-    m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
+    m_rudp->sendto(ba, m_peer_relayed_addr);
 }
 

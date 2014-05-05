@@ -4,6 +4,7 @@ add_executable(p2pshc
   xshcli.cpp
   peersrv.cpp
   stunclient.cpp
+  srudp.cpp
   ../libtroh/debugoutput.cpp
   ../dtnat/client/ns_turn_ioaddr.c
   ../dtnat/client/ns_turn_msg.c
@@ -17,6 +18,7 @@ add_executable(p2pshd
   xshsrv.cpp
   peersrv.cpp
   stunclient.cpp
+  srudp.cpp
   ../libtroh/debugoutput.cpp
   ../dtnat/client/ns_turn_ioaddr.c
   ../dtnat/client/ns_turn_msg.c

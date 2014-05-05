@@ -1,4 +1,5 @@
 
+#include "srudp.h"
 #include "stunclient.h"
 #include "xshcli.h"
 
@@ -18,7 +19,10 @@ void XshCli::init()
     // 
     QObject::connect(m_stun_client, &StunClient::allocateDone, this, &XshCli::onAllocateDone);
     QObject::connect(m_stun_client, &StunClient::channelBindDone, this, &XshCli::onChannelBindDone);
-    QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshCli::onPacketRecieved);
+    // QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshCli::onPacketRecieved);
+
+    m_rudp = new Srudp(m_stun_client);
+    QObject::connect(m_rudp, &Srudp::readyRead, this, &XshCli::onPacketReadyRead);
 
     /////
     // myself init
@@ -60,8 +64,7 @@ void XshCli::onRelayReadyRead()
         QByteArray ba = m_conn_sock->readAll();
 
         if (!ba.isEmpty()) {
-            // m_stun_client->channelData(ba);
-            m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
+            m_rudp->sendto(ba, m_peer_relayed_addr);
         }
     }
 }
@@ -95,9 +98,29 @@ void XshCli::onChannelBindDone(QString relayed_addr)
 
 void XshCli::onPacketRecieved(QByteArray pkt)
 {
-    QByteArray data = QByteArray::fromHex(pkt);
+    QByteArray data = pkt;
     qint64 rc = m_conn_sock->write(data);
-    qDebug()<<rc<<pkt;
+    qDebug()<<"CBR -> CLI: Write: "<<rc<<pkt.length();
+}
+
+void XshCli::onPacketReadyRead()
+{
+    qDebug()<<sender();
+    QHostAddress addr;
+    quint16 port;
+    QByteArray data;
+
+    int cnter = 0;
+    while (m_rudp->hasPendingDatagrams()) {
+        cnter ++;
+        data = m_rudp->readDatagram(addr, port);
+        if (data.isEmpty()) {
+            qDebug()<<"read empty pkt:";
+        } else {
+            this->onPacketRecieved(data);
+        }
+    }
+    qDebug()<<"read pkt conut:"<<cnter;
 }
 
 void XshCli::onNewBackendConnection()
@@ -125,8 +148,7 @@ void XshCli::onBackendReadyRead()
     }
 
     QByteArray ba = sock->readAll();
-    // m_stun_client->channelData(ba.toHex());
-    m_stun_client->sendRelayData(ba.toHex(), m_peer_relayed_addr);
+    m_rudp->sendto(ba, m_peer_relayed_addr);
 }
 
 void XshCli::onBackendDisconnected()

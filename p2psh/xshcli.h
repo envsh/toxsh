@@ -6,6 +6,7 @@
 
 #include "peersrv.h"
 
+class Srudp;
 
 class XshCli : public PeerSrv
 {
@@ -21,6 +22,7 @@ public slots:
     void onAllocateDone();
     void onChannelBindDone(QString relayed_addr);
     void onPacketRecieved(QByteArray pkt);
+    void onPacketReadyRead();
     
     void onNewBackendConnection();
     void onBackendReadyRead();
@@ -35,6 +37,7 @@ private:
     QString m_peer_addr;
     QString m_peer_relayed_addr;
     bool  m_channel_done = false;
+    Srudp *m_rudp = NULL;
 };
 
 #endif /* _XSHCLI_H_ */
