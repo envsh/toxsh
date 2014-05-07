@@ -32,6 +32,7 @@ public:
 public slots:
     void onMappedAddressRecieved(QString addr);
     void onRelayConnected();
+    void onRelayDisconnected();
     void onRelayReadyRead();
 
 private:
