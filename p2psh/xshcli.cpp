@@ -22,6 +22,8 @@ void XshCli::init()
     // QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &XshCli::onPacketRecieved);
 
     m_rudp = new Srudp(m_stun_client);
+    QObject::connect(m_rudp, &Srudp::connected, this, &XshCli::onRudpConnected);
+    QObject::connect(m_rudp, &Srudp::connectError, this, &XshCli::onRudpConnectError);
     QObject::connect(m_rudp, &Srudp::readyRead, this, &XshCli::onPacketReadyRead);
 
     /////
@@ -59,12 +61,18 @@ void XshCli::onRelayReadyRead()
     if (cmd == "connect_ack") {
         m_channel_done = true;
 
-        Q_ASSERT(m_conn_sock != NULL);
-        qint64 abytes = m_conn_sock->bytesAvailable();
-        QByteArray ba = m_conn_sock->readAll();
+        // connect rudp first, now
+        qDebug()<<m_peer_relayed_addr;
+        m_rudp->connectToHost(m_peer_relayed_addr.split(':').at(0), m_peer_relayed_addr.split(':').at(1).toUShort());
 
-        if (!ba.isEmpty()) {
-            m_rudp->sendto(ba, m_peer_relayed_addr);
+        if (0) {
+            Q_ASSERT(m_conn_sock != NULL);
+            qint64 abytes = m_conn_sock->bytesAvailable();
+            QByteArray ba = m_conn_sock->readAll();
+
+            if (!ba.isEmpty()) {
+                m_rudp->sendto(ba, m_peer_relayed_addr);
+            }
         }
     }
 }
@@ -156,3 +164,22 @@ void XshCli::onBackendDisconnected()
     QTcpSocket *sock = (QTcpSocket*)(sender());
     qDebug()<<sender()<<sock->errorString();
 }
+
+void XshCli::onRudpConnected()
+{
+    qDebug()<<""<<sender();
+
+    Q_ASSERT(m_conn_sock != NULL);
+    qint64 abytes = m_conn_sock->bytesAvailable();
+    QByteArray ba = m_conn_sock->readAll();
+
+    if (!ba.isEmpty()) {
+        m_rudp->sendto(ba, m_peer_relayed_addr);
+    }
+}
+
+void XshCli::onRudpConnectError()
+{
+    qDebug()<<""<<sender();    
+}
+

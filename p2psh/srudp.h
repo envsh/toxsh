@@ -77,6 +77,8 @@ public:
 
     bool connectToHost(QString host, quint16 port);
     bool disconnectFromHost();
+    bool serverConnectToHost(QString host, quint16 port);
+    bool setHost(QString host, quint16 port);
     
 public slots:
     bool ping();

@@ -30,6 +30,9 @@ public slots:
     void onBackendDisconnected();
     void onBackendReadyRead();
 
+    void onRudpConnected();
+    void onRudpConnectError();
+
 private:
     StunClient *m_stun_client = NULL;
     QTcpSocket *m_rly_sock = NULL;

@@ -28,6 +28,9 @@ public slots:
     void onBackendReadyRead();
     void onBackendDisconnected();
 
+    void onRudpConnected();
+    void onRudpConnectError();
+
 protected:
     virtual QString getRegCmd();
 

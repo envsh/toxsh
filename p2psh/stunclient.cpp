@@ -211,7 +211,7 @@ void StunClient::onStunReadyRead()
         for (int i = 0; i < datagram.length(); i ++) {
             char c = datagram.at(i);
             fprintf(stderr, "%c", isprint(c) ? c : '.');
-            if (i > 300) break;
+            if (i > 375) break;
         }
         fprintf(stderr, " ...]\n");
 
@@ -259,10 +259,10 @@ void StunClient::processResponse(QByteArray resp)
         const u08bits *t_value = stun_attr_get_value(t_attr);
         blen = stun_attr_get_len(t_attr);
 
-        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4));
-
         qDebug()<<"is chan msg:"<<stun_is_channel_message_str(t_value, &blen, &chan_no, 0);
         qDebug()<<"chan no:"<<chan_no<<blen;
+
+        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4));
 
         return;
     }

@@ -25,6 +25,8 @@ void XshSrv::init()
     m_stun_client->getMappedAddress();
 
     m_rudp = new Srudp(m_stun_client);
+    QObject::connect(m_rudp, &Srudp::connected, this, &XshSrv::onRudpConnected);
+    QObject::connect(m_rudp, &Srudp::connectError, this, &XshSrv::onRudpConnectError);
     QObject::connect(m_rudp, &Srudp::readyRead, this, &XshSrv::onPacketReadyRead);
 }
 
@@ -109,22 +111,24 @@ void XshSrv::onRelayReadyRead()
 
     if (cmd == "connect_ok") {
         m_peer_relayed_addr = elems.at(4);
+        m_rudp->setHost(m_peer_relayed_addr.split(':').at(0), m_peer_relayed_addr.split(':').at(1).toUShort());
+        
+        QString to = "xshcli1";
+        QString from = "xshsrv1";
+        QString cmd_str = QString("connect_ack;%1;%2;%3").arg(from).arg(to).arg(m_peer_relayed_addr);
+        qint64 rc = m_rly_sock->write(cmd_str.toLatin1());
+        qDebug()<<rc<<cmd_str;
 
-        m_backend_sock = new QTcpSocket();
-        QObject::connect(m_backend_sock, &QTcpSocket::connected, this, &XshSrv::onBackendConnected);
-        QObject::connect(m_backend_sock, &QTcpSocket::disconnected, this, &XshSrv::onBackendDisconnected);
-        QObject::connect(m_backend_sock, &QTcpSocket::readyRead, this, &XshSrv::onBackendReadyRead);
-        m_backend_sock->connectToHost("127.0.0.1", 22);
+        // QThread::msleep(50);// wait some time for ack arrive to peer
+
+        // connect rudp first now
+        // m_rudp->connectToHost(m_peer_relayed_addr.split(':').at(0), m_peer_relayed_addr.split(':').at(1).toUShort());
     }
 }
 
 void XshSrv::onBackendConnected()
 {
-    QString to = "xshcli1";
-    QString from = "xshsrv1";
-    QString cmd_str = QString("connect_ack;%1;%2;%3").arg(from).arg(to).arg(m_peer_relayed_addr);
-    qint64 rc = m_rly_sock->write(cmd_str.toLatin1());
-    qDebug()<<rc<<cmd_str;
+    qDebug()<<""<<sender();
 }
 
 void XshSrv::onBackendDisconnected()
@@ -139,5 +143,23 @@ void XshSrv::onBackendReadyRead()
     QByteArray ba = m_backend_sock->readAll();
 
     m_rudp->sendto(ba, m_peer_relayed_addr);
+}
+
+void XshSrv::onRudpConnected()
+{
+    qDebug()<<""<<sender();
+
+    m_rudp->serverConnectToHost(m_peer_relayed_addr.split(':').at(0), m_peer_relayed_addr.split(':').at(1).toUShort());
+
+    m_backend_sock = new QTcpSocket();
+    QObject::connect(m_backend_sock, &QTcpSocket::connected, this, &XshSrv::onBackendConnected);
+    QObject::connect(m_backend_sock, &QTcpSocket::disconnected, this, &XshSrv::onBackendDisconnected);
+    QObject::connect(m_backend_sock, &QTcpSocket::readyRead, this, &XshSrv::onBackendReadyRead);
+    m_backend_sock->connectToHost("127.0.0.1", 22);
+}
+
+void XshSrv::onRudpConnectError()
+{
+    qDebug()<<""<<sender();    
 }
 

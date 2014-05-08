@@ -57,7 +57,7 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
     m_stun_client->sendRelayData(npkt.toLatin1(), QString("%1:%2").arg(host).arg(port));
 
     // if (cseq == 1) {
-    if (true) {
+    if (false) {
         // first pkt, send more times;
         for (int i = 0; i < 2; i++) {
             m_stun_client->sendRelayData(npkt.toLatin1(), QString("%1:%2").arg(host).arg(port));            
@@ -74,6 +74,8 @@ bool Srudp::hasPendingDatagrams()
     if (m_cached_pkt_seqs.contains(nseq)) {
         return true;
     }
+
+    qDebug()<<""<<m_out_last_pkt_seq<<nseq;
 
     return false;
 }
@@ -100,14 +102,8 @@ void Srudp::onRawPacketRecieved(QByteArray pkt)
     QJsonDocument jdoc = QJsonDocument::fromJson(pkt);
     QJsonObject jobj = jdoc.object();
 
-
-    if (jobj.contains("cmd")) {
-        // raw rudp packet
-        this->rawProtoPacketHandler(jobj);
-    } else {
-        // TODO jobj validation   
-        // this->onPacketRecieved(jobj);
-    }
+    // raw rudp packet
+    this->rawProtoPacketHandler(jobj);
 }
 
 void Srudp::onPacketRecieved(QJsonObject jobj)
@@ -117,10 +113,25 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
         for (int i = 0; i < m_proto_send_queue.size(); i ++) {
             if (m_proto_send_queue.at(i).value("reliable") == jobj.value("reliable")) {
                 m_proto_send_queue.remove(i);
+                qDebug()<<"remove acked pkt:"<<jobj.value("reliable");
                 break;
             }
         }
         return;
+    }
+
+    // handle send ack
+    {
+        QJsonObject jobj_ack;
+        jobj_ack.insert("cmd", jobj.value("cmd"));
+        jobj_ack.insert("opt", jobj.value("opt").toInt() | OPT_ACK);
+        jobj_ack.insert("reliable", jobj.value("reliable"));
+        jobj_ack.insert("reliable_ack", jobj.value("reliable"));
+        jobj_ack.insert("unreliable", 0);
+        jobj_ack.insert("stime", (int)time(NULL));
+
+        QString data = QJsonDocument(jobj_ack).toJson(QJsonDocument::Compact);
+        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
     }
 
     // 
@@ -131,7 +142,7 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
     QByteArray hex_pkt = jobj.value("pkt").toString().toLocal8Bit();
     QByteArray pkt = QByteArray::fromHex(hex_pkt);
 
-    qDebug()<<"CBR got pkt_id:"<<str_pkt_id<<pkt_seq<<pkt.length()<<"Bytes";
+    qDebug()<<"CBR got pkt_id:"<<str_pkt_id<<pkt_seq<<pkt.length()<<"Bytes"<<m_cached_pkt_seqs.size();
 
 
     if (this->m_traned_seqs.contains(jobj.value("seq").toString())) {
@@ -285,6 +296,32 @@ bool Srudp::connectToHost(QString host, quint16 port)
 
     return true;
 }
+
+bool Srudp::serverConnectToHost(QString host, quint16 port)
+{
+    this->m_proto_host = host;
+    this->m_proto_port = port;
+
+    if (!m_proto_send_confirm_timer) {
+        m_proto_send_confirm_timer = new QTimer();
+        QObject::connect(m_proto_send_confirm_timer, &QTimer::timeout, this, &Srudp::onSendConfirmTimeout);
+    }
+
+    if (!m_proto_send_confirm_timer->isActive()) {
+        m_proto_send_confirm_timer->start(1000 * 2);
+    }
+
+    return true;
+}
+
+bool Srudp::setHost(QString host, quint16 port)
+{
+    this->m_proto_host = host;
+    this->m_proto_port = port;
+
+    return true;
+}
+
 bool Srudp::disconnectFromHost()
 {
     // do nothing
@@ -360,6 +397,7 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
     return true;
 }
 
+// ??? 三次握手还没有完全实现！！！
 bool Srudp::protoConnectHandler(QJsonObject jobj)
 {
     qDebug()<<"";
@@ -372,15 +410,32 @@ bool Srudp::protoConnectHandler(QJsonObject jobj)
             }
         }
     } else {
-        jobj.insert("cmd", CMD_CONN_RSP);
+        this->m_in_last_pkt_seq = jobj.value("opt").toInt();
+        this->m_out_last_pkt_seq = this->m_in_last_pkt_seq;
+
         jobj.insert("opt", jobj.value("opt").toInt() | OPT_ACK);
         jobj.insert("reliable_ack", jobj.value("reliable").toInt() + 1);
         jobj.insert("stime", (int)time(NULL));
 
         // 想当于回包不加到发送队列中
-
         QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
         m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        // maybe rudp client not recv
+
+        // 
+        jobj = QJsonObject();
+        jobj.insert("cmd", CMD_CONN_RSP);
+        jobj.insert("opt", OPT_RELIABLE);
+        jobj.insert("reliable", m_pkt_seq++);
+        jobj.insert("reliable_ack", 0);
+        jobj.insert("unreilable", 0);
+        jobj.insert("stime", (int)time(NULL));
+
+
+        m_proto_send_queue.append(jobj);        
+        data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
+        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        
     }
     return true;
 }
@@ -389,8 +444,33 @@ bool Srudp::protoConnectedHandler(QJsonObject jobj)
 {
     qDebug()<<"";
 
+    if (jobj.value("opt").toInt() & OPT_ACK) {
+        for (int i = 0; i < m_proto_send_queue.size(); i ++) {
+            if (m_proto_send_queue.at(i).value("reliable") == jobj.value("reliable")) {
+                m_proto_send_queue.remove(i);
+                break;
+            }
+        }
+
+        // server connected
+        emit connected();
+    } else {
+        this->m_in_last_pkt_seq = jobj.value("opt").toInt();
+        this->m_out_last_pkt_seq = this->m_in_last_pkt_seq;
+
+        jobj.insert("opt", jobj.value("opt").toInt() | OPT_ACK);
+        jobj.insert("reliable_ack", jobj.value("reliable").toInt() + 1);
+        jobj.insert("stime", (int)time(NULL));
+
+        // 想当于回包不加到发送队列中
+        QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
+        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+
+        // client connected
+        emit connected(); // client connected
+    }
+
     // do sth. useful
-    emit connected();
 
     return true;
 }
@@ -438,8 +518,11 @@ bool Srudp::protoCloseHandler(QJsonObject jobj)
 void Srudp::onSendConfirmTimeout()
 {
     int count = m_proto_send_queue.size();
-    qDebug()<<"there are some packet to fonfirm: "<<count;
+    bool plog = count == 0 && (qrand() % 20 == 0);
 
+    if (plog) qDebug()<<"there are some packet to fonfirm: "<<count;
+
+    bool has_retransmitted = false;
     QJsonObject jobj;
     int ntime = time(NULL);
     int rtcnt = 0;
@@ -456,12 +539,14 @@ void Srudp::onSendConfirmTimeout()
                 emit this->connectError();
                 break;
             } else {
+                has_retransmitted = true;
                 QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
                 m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
             }
         }
     }
-    
-    qDebug()<<"retransmitted pkts:"<<rtcnt<<count;
+    if (plog || has_retransmitted) {
+        qDebug()<<"retransmitted pkts:"<<rtcnt<<count<<has_retransmitted;
+    }
 }
 
