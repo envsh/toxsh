@@ -11,6 +11,7 @@
 #include "xshdefs.h"
 #include "stunclient.h"
 
+// TODO need keepalive channel, refresh and ping/pong
 StunClient::StunClient(quint16 port)
     : QObject()
 {

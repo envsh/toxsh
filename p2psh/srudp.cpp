@@ -397,7 +397,7 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
     return true;
 }
 
-// ??? 三次握手还没有完全实现！！！
+// 三次握手完全实现！！！
 bool Srudp::protoConnectHandler(QJsonObject jobj)
 {
     qDebug()<<"";
@@ -515,6 +515,7 @@ bool Srudp::protoCloseHandler(QJsonObject jobj)
     return true;
 }
 
+// TODO need keepalive packet
 void Srudp::onSendConfirmTimeout()
 {
     int count = m_proto_send_queue.size();
