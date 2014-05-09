@@ -23,7 +23,8 @@ int main(int argc, char **argv)
 ////////////////
 ///
 /////////////////
-
+// TODO relay connect close handle
+// TODO relay connection ping keepalive
 RegSrv::RegSrv()
     : QObject()
 {

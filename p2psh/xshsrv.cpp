@@ -58,8 +58,13 @@ void XshSrv::onChannelBindDone(QString relayed_addr)
 void XshSrv::onPacketRecieved(QByteArray pkt)
 {
     QByteArray data = pkt;
-    qint64 rc = m_backend_sock->write(data);
-    qDebug()<<"SBR -> SSHD: Write: "<<rc<<m_backend_sock->errorString()<<pkt.length();
+    if (!m_backend_sock) {
+        qDebug()<<"backend not connecte. cache this packets???";
+    } else {
+        qint64 rc = m_backend_sock->write(data);
+        qDebug()<<"SBR -> SSHD: Write: "<<rc<<pkt.length()
+                <<m_backend_sock->errorString()<<m_backend_sock->state();
+    }
 }
 
 void XshSrv::onPacketReadyRead()

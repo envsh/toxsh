@@ -3,6 +3,8 @@
 #include "stunclient.h"
 #include "xshcli.h"
 
+
+// TODO 也许把前几步的连接做成blocking模式更容易控制些。
 XshCli::XshCli()
     : PeerSrv()
 {

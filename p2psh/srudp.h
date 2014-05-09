@@ -105,6 +105,8 @@ private:
     QTimer *m_proto_send_confirm_timer = NULL;
     static const int m_proto_confirm_timeout = 1000 * 1; // ms
     static const int m_proto_resend_max_times = 16;
+    static const int m_proto_ping_max_timeout = 1000 * 6;
+    QDateTime m_proto_last_ping_time = QDateTime::currentDateTime();
     QUdpSocket *m_proto_sock = NULL;
 };
 

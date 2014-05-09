@@ -521,9 +521,10 @@ void Srudp::onSendConfirmTimeout()
     int count = m_proto_send_queue.size();
     bool plog = count == 0 && (qrand() % 20 == 0);
 
-    if (plog) qDebug()<<"there are some packet to fonfirm: "<<count;
+    if (plog) qDebug()<<"there are some packet to confirm: "<<count;
 
     bool has_retransmitted = false;
+    bool has_ping = false;
     QJsonObject jobj;
     int ntime = time(NULL);
     int rtcnt = 0;
@@ -532,9 +533,12 @@ void Srudp::onSendConfirmTimeout()
             rtcnt ++;
             m_proto_send_queue[i].insert("stime", ntime);
             m_proto_send_queue[i].insert("opt", m_proto_send_queue[i].value("opt").toInt() | OPT_RETRANSMITED);
+            m_proto_send_queue[i].insert("retry", m_proto_send_queue[i].value("retry").toInt() + 1);
 
             jobj = m_proto_send_queue[i];
-
+            if (jobj.value("cmd").toInt() == CMD_PING) {
+                has_ping = true;
+            }
             if (m_proto_send_queue.at(i).value("cmd").toInt() == CMD_CONN_REQ) {
                 m_proto_send_queue.remove(i);
                 emit this->connectError();
@@ -548,6 +552,14 @@ void Srudp::onSendConfirmTimeout()
     }
     if (plog || has_retransmitted) {
         qDebug()<<"retransmitted pkts:"<<rtcnt<<count<<has_retransmitted;
+    }
+
+    QDateTime nowtime = QDateTime::currentDateTime();
+    if (m_proto_last_ping_time.msecsTo(nowtime) >= m_proto_ping_max_timeout) {
+        if (!has_retransmitted && !has_ping) {
+            m_proto_last_ping_time = nowtime;
+            this->ping();
+        }
     }
 }
 

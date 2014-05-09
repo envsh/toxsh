@@ -24,6 +24,7 @@ public slots:
     void onStunConnected();
     void onStunReadyRead();
     void onRetryTimeout();
+    void onRefreshTimeout();
 
 signals:
     void mappedAddressRecieved(QString addr);
@@ -39,7 +40,6 @@ private:
 
 private:
     QUdpSocket *m_stun_sock = NULL;
-    QTimer *m_retry_timer = NULL;
     quint16 m_stun_port = 0;
 
     QByteArray m_realm;
@@ -48,7 +48,9 @@ private:
     QString m_relayed_addr;
     QString m_mapped_addr;
     uint32_t m_lifetime;
-    
+    static const int m_channel_refresh_timeout = 1000 * 30 * 1;
+    QTimer *m_channel_refresh_timer = NULL;
+   
     QString m_peer_addr;
 
     // reliable

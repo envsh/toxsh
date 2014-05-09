@@ -18,11 +18,23 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
 
     QString mfunc = QString(context.function);
     tlist = mfunc.split(' ');
-    tlist = tlist.takeAt(1).split('(');
+    if (tlist.at(0) == "static" || tlist.at(0) == "virtual") {
+        tlist = tlist.takeAt(2).split('(');
+    } else {
+        tlist = tlist.takeAt(1).split('(');
+    }
     mfunc = tlist.takeAt(0);
-
-    fprintf(stderr, "[] T(%u) %s:%u %s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
-            mfunc.toLocal8Bit().data(), msg.toLocal8Bit().constData());
+    
+    // static void StunClient::debugStunResponse(QByteArray)
+    // void StunClient::debugStunResponse(QByteArray)
+    // virtual void StunClinet::aaa()
+    if (1) {
+        fprintf(stderr, "[] T(%u) %s:%u %s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
+                mfunc.toLocal8Bit().data(), msg.toLocal8Bit().constData());
+    } else {
+        fprintf(stderr, "[] T(%u) %s:%u %s,%s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
+                mfunc.toLocal8Bit().data(), context.function, msg.toLocal8Bit().constData());
+    }
     return;
 
     QByteArray localMsg = msg.toLocal8Bit();

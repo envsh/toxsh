@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "ns_turn_defs.h"
 #include "ns_turn_msg_defs.h"
 #include "ns_turn_msg.h"
@@ -11,7 +13,13 @@
 #include "xshdefs.h"
 #include "stunclient.h"
 
+
+#define channel_no 0x4001
+
 // TODO need keepalive channel, refresh and ping/pong
+// TODO save channel info for reuse
+// TODO dynamic channel no
+
 StunClient::StunClient(quint16 port)
     : QObject()
 {
@@ -54,7 +62,7 @@ bool StunClient::getMappedAddress()
 bool StunClient::allocate(char *realm, char *nonce)
 {
     stun_buffer alloc_buff;
-    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 5, 
+    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 50, 
                                   STUN_ATTRIBUTE_REQUESTED_ADDRESS_FAMILY_VALUE_IPV4,
                                   STUN_ATTRIBUTE_TRANSPORT_UDP_VALUE,
                                   STUN_ATTRIBUTE_MOBILITY_EVENT);
@@ -116,7 +124,7 @@ bool StunClient::channelBind(QString peer_addr)
     
     make_ioa_addr_from_full_string((u08bits*)peer_addr.toLatin1().data(), 0, &t_peer_addr);
 
-    stun_set_channel_bind_request(&buf, &t_peer_addr, 0x4000);
+    stun_set_channel_bind_request(&buf, &t_peer_addr, channel_no);
     stun_attr_add(&buf, STUN_ATTRIBUTE_USERNAME, STUN_USERNAME, strlen(STUN_USERNAME));
     stun_attr_add(&buf, STUN_ATTRIBUTE_REALM, m_realm.data(), m_realm.length());
     stun_attr_add(&buf, STUN_ATTRIBUTE_NONCE, m_nonce.data(), m_nonce.length());
@@ -142,7 +150,7 @@ bool StunClient::channelData(QByteArray data)
 {
     stun_buffer buf;
 
-    stun_init_channel_message(0x4000, &buf, data.length(), 1);
+    stun_init_channel_message(channel_no, &buf, data.length(), 1);
     memcpy(buf.buf + 4, data.data(), data.length());
 
     for (int i = 0 ; i < 5; i++) {
@@ -161,6 +169,24 @@ bool StunClient::channelData(QByteArray data)
 
 bool StunClient::refresh()
 {
+    stun_buffer buf;
+    
+    stun_init_request(STUN_METHOD_REFRESH, &buf);
+    uint32_t lt = htonl(567);
+    stun_attr_add(&buf, STUN_ATTRIBUTE_LIFETIME, (const char*)&lt, 4);
+    
+    stun_attr_add(&buf, STUN_ATTRIBUTE_USERNAME, STUN_USERNAME, strlen(STUN_USERNAME));
+    stun_attr_add(&buf, STUN_ATTRIBUTE_REALM, m_realm.data(), m_realm.length());
+    stun_attr_add(&buf, STUN_ATTRIBUTE_NONCE, m_nonce.data(), m_nonce.length());
+    stun_attr_add_integrity_by_user_str(buf.buf, &buf.len, (u08bits*)STUN_USERNAME,
+                                        (u08bits*)m_realm.data(), (u08bits*)STUN_PASSWORD,
+                                        (u08bits*)m_nonce.data(), SHATYPE_SHA1);
+
+    stun_attr_add_fingerprint_str((unsigned char*)&buf.buf, &buf.len);
+
+    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    qDebug()<<"write relayed data:"<<ret<<buf.len<<m_peer_addr<<m_relayed_addr;
+
     return true;
 }
 
@@ -168,7 +194,7 @@ bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
 {
     stun_buffer buf;
 
-    stun_init_channel_message(0x4000, &buf, data.length(), 0);
+    stun_init_channel_message(channel_no, &buf, data.length(), 0);
     memcpy(buf.buf + 4, data.data(), data.length());
 
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
@@ -183,7 +209,7 @@ bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
 
 void StunClient::onStunConnected()
 {
-
+    qDebug()<<"";
 }
 
 void StunClient::onStunReadyRead()
@@ -304,6 +330,18 @@ void StunClient::processResponse(QByteArray resp)
             }
         }
 
+        if (err_code == 437) {
+            assert(err_code != 437); // allocate mismatch
+        }
+
+        if (err_code == 438) {
+            assert(err_code != 438); // stale nonce
+        }
+
+        if (err_code == 486) {
+            assert(err_code != 486); // allocate quota reached
+        }
+
         return;
     }
 
@@ -349,6 +387,18 @@ void StunClient::processResponse(QByteArray resp)
 
     if (stun_method == STUN_METHOD_CHANNEL_BIND) {
         emit this->channelBindDone(m_relayed_addr);
+
+        if (!m_channel_refresh_timer) {
+            m_channel_refresh_timer = new QTimer();
+            QObject::connect(m_channel_refresh_timer, &QTimer::timeout, this, &StunClient::onRefreshTimeout);
+        }
+        if (!m_channel_refresh_timer->isActive()) {
+            m_channel_refresh_timer->start(m_channel_refresh_timeout);
+        }
+    }
+
+    if (stun_method == STUN_METHOD_REFRESH) {
+        qDebug()<<"refresh responsed.";
     }
 }
 
@@ -496,5 +546,11 @@ void StunClient::onRetryTimeout()
     qDebug()<<"retryed udp:"<<rc<<m_sending_addr;
 
     m_sending_timer->start();
+}
+
+void StunClient::onRefreshTimeout()
+{
+    qDebug()<<"";
+    this->refresh();
 }
 
