@@ -368,8 +368,10 @@ int turn_session_info_copy_from(struct turn_session_info* tsi, ts_ur_super_sessi
 			}
 			if(ss->alloc.relay_session.s) {
 				tsi->peer_protocol = get_ioa_socket_type(ss->alloc.relay_session.s);
-				addr_cpy(&(tsi->relay_addr_data.addr),get_local_addr_from_ioa_socket(ss->alloc.relay_session.s));
-				addr_to_string(&(tsi->relay_addr_data.addr),(u08bits*)tsi->relay_addr_data.saddr);
+				if(ss->alloc.is_valid) {
+					addr_cpy(&(tsi->relay_addr_data.addr),get_local_addr_from_ioa_socket(ss->alloc.relay_session.s));
+					addr_to_string(&(tsi->relay_addr_data.addr),(u08bits*)tsi->relay_addr_data.saddr);
+				}
 			}
 			STRCPY(tsi->username,ss->username);
 			tsi->enforce_fingerprints = ss->enforce_fingerprints;
@@ -1229,7 +1231,7 @@ static int handle_turn_refresh(turn_turnserver *server,
 				if(tsid != server->id) {
 
 					if(server->send_socket_to_relay) {
-						ioa_socket_handle new_s = detach_ioa_socket(ss->client_session.s, 1);
+						ioa_socket_handle new_s = detach_ioa_socket(ss->client_session.s,1);
 						if(new_s) {
 						  if(server->send_socket_to_relay(tsid, mid, tid, new_s, message_integrity, 
 										  RMT_MOBILE_SOCKET, in_buffer)<0) {
@@ -1305,7 +1307,7 @@ static int handle_turn_refresh(turn_turnserver *server,
 
 								//Transfer socket:
 
-								ioa_socket_handle s = detach_ioa_socket(ss->client_session.s, 0);
+								ioa_socket_handle s = detach_ioa_socket(ss->client_session.s,0);
 
 								ss->to_be_closed = 1;
 
@@ -1939,7 +1941,7 @@ static int handle_turn_connection_bind(turn_turnserver *server,
 				turnserver_id sid = (id & 0xFF000000)>>24;
 				ioa_socket_handle s = ss->client_session.s;
 				if(s) {
-					ioa_socket_handle new_s = detach_ioa_socket(s, 1);
+					ioa_socket_handle new_s = detach_ioa_socket(s,1);
 					if(new_s) {
 					  if(server->send_socket_to_relay(sid, id, tid, new_s, message_integrity, RMT_CB_SOCKET, NULL)<0) {
 					    *err_code = 400;
@@ -2228,6 +2230,19 @@ static int handle_turn_channel_bind(turn_turnserver *server,
 				  stun_set_channel_bind_response_str(ioa_network_buffer_data(nbh), &len, tid, 0, NULL);
 				  ioa_network_buffer_set_size(nbh,len);
 				  *resp_constructed = 1;
+
+				  if(get_ioa_socket_type(ss->client_session.s) == UDP_SOCKET ||
+						  get_ioa_socket_type(ss->client_session.s) == TCP_SOCKET) {
+					  chn->kernel_channel = CREATE_TURN_CHANNEL_KERNEL(chn->chnum,
+						  get_ioa_socket_address_family(ss->client_session.s),
+						  get_ioa_socket_address_family(ss->alloc.relay_session.s),
+						  get_ioa_socket_type(ss->client_session.s)==UDP_SOCKET ? IPPROTO_UDP : IPPROTO_TCP,
+						  &(get_remote_addr_from_ioa_socket(ss->client_session.s)->ss),
+						  &(get_local_addr_from_ioa_socket(ss->client_session.s)->ss),
+						  &(get_local_addr_from_ioa_socket(ss->alloc.relay_session.s)),
+						  &(get_remote_addr_from_ioa_socket(ss->alloc.relay_session.s))
+						  );
+				  }
 			  }
 			}
 		}
@@ -2333,8 +2348,8 @@ static int handle_turn_binding(turn_turnserver *server,
 				stun_attr_get_addr_str(ioa_network_buffer_data(in_buffer->nbh),
 							ioa_network_buffer_get_size(in_buffer->nbh),
 							sar, response_destination, response_destination);
-				break;
 			}
+			break;
 		default:
 			if(attr_type>=0x0000 && attr_type<=0x7FFF)
 				unknown_attrs[(*ua_num)++] = nswap16(attr_type);
@@ -2706,8 +2721,9 @@ static int need_stun_authentication(turn_turnserver *server)
 	case TURN_CREDENTIALS_SHORT_TERM:
 		return 1;
 	default:
-		return 0;
+		;
 	};
+	return 0;
 }
 
 static int create_challenge_response(turn_turnserver *server,
@@ -2831,20 +2847,17 @@ static int check_stun_auth(turn_turnserver *server,
 			if(server->shatype != SHATYPE_SHA1) {
 				*err_code = SHA_TOO_WEAK;
 				return create_challenge_response(server,ss,tid,resp_constructed,err_code,reason,nbh,method);
-				return -1;
 			}
 			break;
 		case SHA256SIZEBYTES:
 			if(server->shatype != SHATYPE_SHA256) {
 				*err_code = 401;
 				return create_challenge_response(server,ss,tid,resp_constructed,err_code,reason,nbh,method);
-				return -1;
 			}
 			break;
 		default:
 			*err_code = 401;
 			return create_challenge_response(server,ss,tid,resp_constructed,err_code,reason,nbh,method);
-			return -1;
 		};
 	}
 
@@ -3540,7 +3553,7 @@ int shutdown_client_connection(turn_turnserver *server, ts_ur_super_session *ss,
 	report_turn_session_info(server,ss,1);
 	dec_quota(ss);
 
-	if(!force && (ss->is_mobile)) {
+	if(!force && ss->is_mobile) {
 
 		if (elem->s && server->verbose) {
 
@@ -4193,14 +4206,7 @@ static void peer_input_handler(ioa_socket_handle s, int event_type,
 						(int) (nswap16(t[0])));
 			}
 
-			int ret = write_client_connection(server, ss, nbh, in_buffer->recv_ttl-1, in_buffer->recv_tos);
-			if (ret < 0) {
-				if(server->verbose) {
-					TURN_LOG_FUNC(TURN_LOG_LEVEL_INFO,
-						"session %018llu: client socket to be closed from peer handler: ss=0x%lx\n", (unsigned long long)(ss->id), (long)ss);
-				}
-				set_ioa_socket_tobeclosed(s);
-			}
+			write_client_connection(server, ss, nbh, in_buffer->recv_ttl-1, in_buffer->recv_tos);
 		}
 	}
 }

@@ -339,7 +339,6 @@ u16bits stun_make_error_response(u16bits method) {
 
 void stun_init_buffer_str(u08bits *buf, size_t *len) {
   *len=STUN_HEADER_LENGTH;
-  fprintf(stderr, "llll=%d, %p\n", *len, buf);
   ns_bzero(buf,*len);
 }
 
