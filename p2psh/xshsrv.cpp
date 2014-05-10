@@ -42,9 +42,16 @@ void XshSrv::onMappedAddressRecieved(QString addr)
     m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
 }
 
-void XshSrv::onAllocateDone()
+void XshSrv::onAllocateDone(QString relayed_addr)
 {
-    m_stun_client->channelBind(m_peer_addr);
+    qDebug()<<sender()<<relayed_addr;
+
+    m_stun_client->createPermission(m_peer_addr);
+
+    QString cmd = QString("relay_info;xshsrv1;xshcli1;%1").arg(relayed_addr);
+    qint64 rc = m_rly_sock->write(cmd.toLatin1());
+
+    // m_stun_client->channelBind(m_peer_addr);
 }
 
 void XshSrv::onChannelBindDone(QString relayed_addr)

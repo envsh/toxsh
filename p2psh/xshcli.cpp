@@ -79,9 +79,17 @@ void XshCli::onRelayReadyRead()
     }
 }
 
-void XshCli::onAllocateDone()
+void XshCli::onAllocateDone(QString relayed_addr)
 {
-    m_stun_client->channelBind(m_peer_addr);
+    qDebug()<<""<<sender()<<relayed_addr;
+
+    m_stun_client->createPermission(m_peer_addr);
+
+    QString cmd = QString("relay_info;xshcli1;xshsrv1;%1").arg(relayed_addr);
+    m_rly_sock->write(cmd.toLatin1());
+    m_rly_sock->waitForBytesWritten();
+
+    // m_stun_client->channelBind(m_peer_addr);
 }
 
 void XshCli::onChannelBindDone(QString relayed_addr)

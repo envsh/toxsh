@@ -62,7 +62,7 @@ bool StunClient::getMappedAddress()
 bool StunClient::allocate(char *realm, char *nonce)
 {
     stun_buffer alloc_buff;
-    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 50, 
+    stun_set_allocate_request_str(alloc_buff.buf, &alloc_buff.len, 60 * 5, 
                                   STUN_ATTRIBUTE_REQUESTED_ADDRESS_FAMILY_VALUE_IPV4,
                                   STUN_ATTRIBUTE_TRANSPORT_UDP_VALUE,
                                   STUN_ATTRIBUTE_MOBILITY_EVENT);
@@ -100,7 +100,21 @@ bool StunClient::createPermission(QString peer_addr)
     m_peer_addr = peer_addr;
 
     stun_buffer buf;
+    ioa_addr t_peer_addr;
+    
+    make_ioa_addr_from_full_string((u08bits*)peer_addr.toLatin1().data(), 0, &t_peer_addr);
 
+    stun_init_request(STUN_METHOD_CREATE_PERMISSION, &buf);
+    stun_attr_add_addr(&buf, STUN_ATTRIBUTE_XOR_PEER_ADDRESS, &t_peer_addr);
+    stun_attr_add(&buf, STUN_ATTRIBUTE_USERNAME, STUN_USERNAME, strlen(STUN_USERNAME));
+    stun_attr_add(&buf, STUN_ATTRIBUTE_REALM, m_realm.data(), m_realm.length());
+    stun_attr_add(&buf, STUN_ATTRIBUTE_NONCE, m_nonce.data(), m_nonce.length());
+    stun_attr_add_integrity_by_user_str(buf.buf, &buf.len, (u08bits*)STUN_USERNAME,
+                                        (u08bits*)m_realm.data(), (u08bits*)STUN_PASSWORD,
+                                        (u08bits*)m_nonce.data(), SHATYPE_SHA1);
+
+    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    qDebug()<<"write relayed data:"<<ret<<buf.len<<m_peer_addr<<m_relayed_addr;
 
     return true;
 }
@@ -197,9 +211,16 @@ bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
     stun_init_channel_message(channel_no, &buf, data.length(), 0);
     memcpy(buf.buf + 4, data.data(), data.length());
 
+
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), 
                                             QHostAddress(relayed_addr.split(':').at(0)),
                                             relayed_addr.split(':').at(1).toUShort());
+
+    /*
+    qint64 ret = m_stun_sock->writeDatagram(data, data.length(), 
+                                            QHostAddress(m_relayed_addr.split(':').at(0)),
+                                            m_relayed_addr.split(':').at(1).toUShort());
+    */
 
     m_stun_sock->waitForBytesWritten();
     qDebug()<<"write relayed data:"<<ret<<data.length()<<buf.len<<m_peer_addr<<m_relayed_addr<<relayed_addr;
@@ -382,7 +403,7 @@ void StunClient::processResponse(QByteArray resp)
 
     if (stun_method == STUN_METHOD_ALLOCATE) {
         m_relayed_addr = this->getStunAddress(resp, STUN_ATTRIBUTE_XOR_RELAYED_ADDRESS);
-        emit this->allocateDone();
+        emit this->allocateDone(m_relayed_addr);
     }
 
     if (stun_method == STUN_METHOD_CHANNEL_BIND) {
