@@ -406,9 +406,7 @@ void StunClient::processResponse(QByteArray resp)
         emit this->allocateDone(m_relayed_addr);
     }
 
-    if (stun_method == STUN_METHOD_CHANNEL_BIND) {
-        emit this->channelBindDone(m_relayed_addr);
-
+    if (stun_method == STUN_METHOD_CREATE_PERMISSION) {
         if (!m_channel_refresh_timer) {
             m_channel_refresh_timer = new QTimer();
             QObject::connect(m_channel_refresh_timer, &QTimer::timeout, this, &StunClient::onRefreshTimeout);
@@ -416,6 +414,10 @@ void StunClient::processResponse(QByteArray resp)
         if (!m_channel_refresh_timer->isActive()) {
             m_channel_refresh_timer->start(m_channel_refresh_timeout);
         }
+    }
+
+    if (stun_method == STUN_METHOD_CHANNEL_BIND) {
+        emit this->channelBindDone(m_relayed_addr);
     }
 
     if (stun_method == STUN_METHOD_REFRESH) {
