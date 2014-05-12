@@ -50,6 +50,8 @@ void RegSrv::onMappedAddressRecieved(QString addr)
     m_rly_sock = new QTcpSocket();
     QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &RegSrv::onRelayConnected);
     QObject::connect(m_rly_sock, &QTcpSocket::disconnected, this, &RegSrv::onRelayDisconnected);
+    QObject::connect(m_rly_sock, SIGNAL(error(QAbstractSocket::SocketError)),
+                     this, SLOT(onRelayError(QAbstractSocket::SocketError)));
     QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &RegSrv::onRelayReadyRead);
 
     m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
@@ -68,6 +70,13 @@ void RegSrv::onRelayDisconnected()
     qDebug()<<sender()<<sock->errorString();
     // TODO retry connect to relay
 }
+
+void RegSrv::onRelayError(QAbstractSocket::SocketError error)
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
+}
+
 
 void RegSrv::onRelayReadyRead()
 {

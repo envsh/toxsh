@@ -33,6 +33,7 @@ public slots:
     void onMappedAddressRecieved(QString addr);
     void onRelayConnected();
     void onRelayDisconnected();
+    void onRelayError(QAbstractSocket::SocketError error);
     void onRelayReadyRead();
 
 private:

@@ -552,6 +552,14 @@ void Srudp::onSendConfirmTimeout()
             if (m_proto_send_queue.at(i).value("cmd").toInt() == CMD_CONN_REQ) {
                 m_proto_send_queue.remove(i);
                 emit this->connectError();
+
+                if (jobj.value("retry").toInt() > 3) {
+                } else {
+                    qDebug()<<"retry rudp connect...";
+                    // has_retransmitted = true;
+                    // QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
+                    // m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+                }
                 break;
             } else {
                 has_retransmitted = true;
@@ -568,7 +576,7 @@ void Srudp::onSendConfirmTimeout()
     if (m_proto_last_ping_time.msecsTo(nowtime) >= m_proto_ping_max_timeout) {
         if (!has_retransmitted && !has_ping) {
             m_proto_last_ping_time = nowtime;
-            this->ping();
+            // this->ping();
         }
     }
 }

@@ -293,7 +293,7 @@ void StunClient::processResponse(QByteArray resp)
     u16bits stun_msg_type;
     stun_method = stun_get_method_str(buf.buf, buf.len);
     stun_msg_type = stun_get_msg_type_str(buf.buf, buf.len);
-    qDebug()<<"method:"<<stun_method<<",msg type:"<<stun_msg_type;
+    qDebug()<<"method:"<<stun_method<<getMethodName(stun_method)<<",msg type:"<<stun_msg_type;
 
 
     this->debugStunResponse(resp);
@@ -454,7 +454,7 @@ void StunClient::debugStunResponse(QByteArray resp)
     u16bits stun_msg_type;
     stun_method = stun_get_method_str(buf.buf, buf.len);
     stun_msg_type = stun_get_msg_type_str(buf.buf, buf.len);
-    qDebug()<<"method:"<<stun_method<<",msg type:"<<stun_msg_type;
+    qDebug()<<"method:"<<stun_method<<getMethodName(stun_method)<<",msg type:"<<stun_msg_type;
 
     int attr_type;
     const u08bits *attr_value;
@@ -558,6 +558,49 @@ void StunClient::printHexView(unsigned char *buf, size_t len)
     }
 }
 
+QString StunClient::getMethodName(int method)
+{
+    QString str_method;
+
+    switch (method) {
+    case STUN_METHOD_BINDING:
+        str_method = "binding";
+        break;
+    case STUN_METHOD_ALLOCATE:
+        str_method = "allocate";
+        break;
+    case STUN_METHOD_REFRESH:
+        str_method = "refresh";
+        break;
+    case STUN_METHOD_SEND:
+        str_method = "send";
+        break;
+    case STUN_METHOD_DATA:
+        str_method = "data";
+        break;
+    case STUN_METHOD_CREATE_PERMISSION:
+        str_method = "create_permission";
+        break;
+    case STUN_METHOD_CHANNEL_BIND:
+        str_method = "channel_bind";
+        break;
+    case STUN_METHOD_CONNECT:
+        str_method = "connect";
+        break;
+    case STUN_METHOD_CONNECTION_BIND:
+        str_method = "connection_bind";
+        break;
+    case STUN_METHOD_CONNECTION_ATTEMPT:
+        str_method = "connection_attempt";
+        break;
+    default:
+        str_method = "unknown";
+        break;
+    };
+
+    return str_method;
+}
+
 void StunClient::onRetryTimeout()
 {
     qDebug()<<""<<sender()<<m_sending_udp;
@@ -576,6 +619,6 @@ void StunClient::onRetryTimeout()
 void StunClient::onRefreshTimeout()
 {
     qDebug()<<"";
-    this->refresh();
+    // this->refresh();
 }
 

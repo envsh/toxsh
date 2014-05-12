@@ -37,6 +37,9 @@ void XshSrv::onMappedAddressRecieved(QString addr)
 
     m_rly_sock = new QTcpSocket();
     QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &XshSrv::onRelayConnected);
+    QObject::connect(m_rly_sock, &QTcpSocket::disconnected, this, &XshSrv::onRelayDisconnected);
+    QObject::connect(m_rly_sock, SIGNAL(error(QAbstractSocket::SocketError)),
+                     this, SLOT(onRelayError(QAbstractSocket::SocketError)));
     QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &XshSrv::onRelayReadyRead);
 
     m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
@@ -100,6 +103,18 @@ void XshSrv::onRelayConnected()
     
     QString reg_cmd = QString("register;xshsrv1;xshsrv;%1").arg(m_mapped_addr);
     qint64 rc = m_rly_sock->write(reg_cmd.toLatin1());
+}
+
+void XshSrv::onRelayDisconnected()
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
+}
+
+void XshSrv::onRelayError(QAbstractSocket::SocketError error)
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
 }
 
 void XshSrv::onRelayReadyRead()

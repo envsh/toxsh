@@ -19,6 +19,8 @@ public:
 public slots:
     virtual void onMappedAddressRecieved(QString addr);
     virtual void onRelayConnected();
+    virtual void onRelayDisconnected();
+    virtual void onRelayError(QAbstractSocket::SocketError error);
     virtual void onRelayReadyRead();
     
 protected:

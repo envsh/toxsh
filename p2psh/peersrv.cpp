@@ -28,6 +28,9 @@ void PeerSrv::onMappedAddressRecieved(QString addr)
 
     m_rly_sock = new QTcpSocket();
     QObject::connect(m_rly_sock, &QTcpSocket::connected, this, &PeerSrv::onRelayConnected);
+    QObject::connect(m_rly_sock, &QTcpSocket::disconnected, this, &PeerSrv::onRelayDisconnected);
+    QObject::connect(m_rly_sock, SIGNAL(error(QAbstractSocket::SocketError)),
+                     this, SLOT(onRelayError(QAbstractSocket::SocketError)));
     QObject::connect(m_rly_sock, &QTcpSocket::readyRead, this, &PeerSrv::onRelayReadyRead);
 
     m_rly_sock->connectToHost(RELAY_SERVER_ADDR, RELAY_SERVER_PORT);
@@ -43,7 +46,21 @@ void PeerSrv::onRelayConnected()
     // Q_ASSERT(1 == 2);
 }
 
+void PeerSrv::onRelayDisconnected()
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
+}
+
+void PeerSrv::onRelayError(QAbstractSocket::SocketError error)
+{
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+    qDebug()<<sender()<<sock->errorString();
+}
+
+
 void PeerSrv::onRelayReadyRead()
 {
     qDebug()<<sender();
 }
+

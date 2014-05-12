@@ -25,6 +25,8 @@ public slots:
     void onPacketReadyRead();
 
     void onRelayConnected();
+    void onRelayDisconnected();
+    void onRelayError(QAbstractSocket::SocketError error);
     void onRelayReadyRead();
     void onBackendConnected();
     void onBackendDisconnected();

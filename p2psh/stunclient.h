@@ -30,6 +30,7 @@ signals:
     void mappedAddressRecieved(QString addr);
     void packetRecieved(QByteArray ba);
     void allocateDone(QString relayed_addr);
+    void stunError();
     void channelBindDone(QString relayed_addr);
 
 private:
@@ -37,6 +38,7 @@ private:
     static void debugStunResponse(QByteArray resp);
     static QString getStunAddress(QByteArray resp, uint16_t attr_type);
     static void printHexView(unsigned char *buf, size_t len);
+    static QString getMethodName(int method);
 
 private:
     QUdpSocket *m_stun_sock = NULL;
