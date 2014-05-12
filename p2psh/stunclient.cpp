@@ -101,8 +101,9 @@ bool StunClient::createPermission(QString peer_addr)
 
     stun_buffer buf;
     ioa_addr t_peer_addr;
+    QString perm_addr = peer_addr.split(':').at(0) + ":0";
     
-    make_ioa_addr_from_full_string((u08bits*)peer_addr.toLatin1().data(), 0, &t_peer_addr);
+    make_ioa_addr_from_full_string((u08bits*)perm_addr.toLatin1().data(), 0, &t_peer_addr);
 
     stun_init_request(STUN_METHOD_CREATE_PERMISSION, &buf);
     stun_attr_add_addr(&buf, STUN_ATTRIBUTE_XOR_PEER_ADDRESS, &t_peer_addr);
@@ -204,6 +205,7 @@ bool StunClient::refresh()
     return true;
 }
 
+// TODO data length too big > 1000 split
 bool StunClient::sendRelayData(QByteArray data, QString relayed_addr)
 {
     stun_buffer buf;

@@ -11,7 +11,7 @@
 #define STUN_CLIENT_ADDR "0.0.0.0"
 
 // for regsrv
-#define STUN_CLIENT_PORT 37766
+#define STUN_CLIENT_PORT 57766
 // for xshsrv
 #define STUN_CLIENT_PORT_ADD1 (STUN_CLIENT_PORT + 1)
 // for xshcli

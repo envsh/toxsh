@@ -17,11 +17,21 @@ Srudp::~Srudp()
 {
 }
 
+// TODO split big packet > 1000
 bool Srudp::sendto(QByteArray data, QString host)
 {
     QStringList tsl = host.split(':');
     Q_ASSERT(tsl.size() == 2);
-    return this->sendto(data, tsl.at(0), tsl.at(1).toUShort());
+
+    int pkt_len = 123;
+    QByteArray tba = data;
+    while (tba.length() > 0) {
+        this->sendto(tba.left(pkt_len), tsl.at(0), tsl.at(1).toUShort());
+        tba = tba.right(tba.length() - pkt_len);
+    }
+
+    return true;
+    // return this->sendto(data, tsl.at(0), tsl.at(1).toUShort());
 }
 
 bool Srudp::sendto(QByteArray data, QString host, quint16 port)
