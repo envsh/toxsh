@@ -115,14 +115,51 @@ bool StunClient::createPermission(QString peer_addr)
                                         (u08bits*)m_nonce.data(), SHATYPE_SHA1);
 
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    // ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    // ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
     qDebug()<<"write relayed data:"<<ret<<buf.len<<m_peer_addr<<m_relayed_addr;
 
     return true;
 }
 
-bool StunClient::sendIndication(QByteArray data)
+bool StunClient::sendIndication(QString peer_addr, QByteArray data)
 {
+    qDebug()<<data.length()<<peer_addr;
 
+    stun_buffer buf;
+    ioa_addr t_peer_addr;
+
+    make_ioa_addr_from_full_string((u08bits*)peer_addr.toLatin1().data(), 0, &t_peer_addr);
+    
+    stun_init_indication(STUN_METHOD_SEND, &buf);
+    stun_attr_add_addr(&buf, STUN_ATTRIBUTE_XOR_PEER_ADDRESS, &t_peer_addr);
+    stun_attr_add(&buf, STUN_ATTRIBUTE_DONT_FRAGMENT, NULL, 0);
+
+    // test data
+    data = "heheheeeeeeeeeeefrom," + peer_addr.toLatin1();
+    stun_attr_add(&buf, STUN_ATTRIBUTE_DATA, data.data(), data.length());
+
+    qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    // ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
+    qDebug()<<"write relayed data:"<<ret<<buf.len<<m_peer_addr<<m_relayed_addr;
+
+    return true;
+}
+
+bool StunClient::replyIndication(QString peer_addr, QByteArray data)
+{
+    stun_buffer buf;
+    
+    stun_init_indication(STUN_METHOD_DATA, &buf);
+    stun_attr_add(&buf, STUN_ATTRIBUTE_DATA, data.data(), data.length());
+
+    char tbuf[512] = {0};
+    memcpy(tbuf + 4, data.data(), data.length());
+
+    qint64 ret = m_stun_sock->writeDatagram(tbuf, 4 + data.length(),
+                                            QHostAddress(peer_addr.split(':').at(0)), peer_addr.split(':').at(1).toUShort());
+    qDebug()<<"write reply indi:"<<ret<<data.length()<<data<<peer_addr;
     return true;
 }
 
@@ -308,11 +345,12 @@ void StunClient::processResponse(QByteArray resp)
         stun_attr_ref t_attr = stun_attr_get_first_by_type(&buf, STUN_ATTRIBUTE_DATA);
         const u08bits *t_value = stun_attr_get_value(t_attr);
         blen = stun_attr_get_len(t_attr);
+        QString xor_peer_addr = getStunAddress(resp, STUN_ATTRIBUTE_XOR_PEER_ADDRESS);
 
         qDebug()<<"is chan msg:"<<stun_is_channel_message_str(t_value, &blen, &chan_no, 0);
-        qDebug()<<"chan no:"<<chan_no<<blen;
+        qDebug()<<"chan no:"<<chan_no<<blen<<xor_peer_addr;
 
-        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4));
+        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4), xor_peer_addr);
 
         return;
     }
@@ -409,6 +447,7 @@ void StunClient::processResponse(QByteArray resp)
     }
 
     if (stun_method == STUN_METHOD_CREATE_PERMISSION) {
+        emit this->createPermissionDone();
         if (!m_channel_refresh_timer) {
             m_channel_refresh_timer = new QTimer();
             QObject::connect(m_channel_refresh_timer, &QTimer::timeout, this, &StunClient::onRefreshTimeout);

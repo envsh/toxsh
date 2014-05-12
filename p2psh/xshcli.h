@@ -20,7 +20,8 @@ public:
 public slots:
     virtual void onRelayReadyRead(); 
     void onAllocateDone(QString relayed_addr);
-    void onChannelBindDone(QString relayed_addr);
+    void onCreatePermissionDone();
+    // void onChannelBindDone(QString relayed_addr);
     void onPacketRecieved(QByteArray pkt);
     void onPacketReadyRead();
     
@@ -37,9 +38,11 @@ protected:
 private:
     QTcpServer *m_backend_sock = NULL;
     QTcpSocket *m_conn_sock = NULL;
+    QString m_relayed_addr = NULL;
     QString m_peer_addr;
-    QString m_peer_relayed_addr;
-    bool  m_channel_done = false;
+    // QString m_peer_relayed_addr;
+    // bool  m_channel_done = false;
+    bool m_perm_done = false;
     Srudp *m_rudp = NULL;
 };
 

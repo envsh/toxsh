@@ -106,11 +106,17 @@ QByteArray Srudp::readDatagram(QHostAddress &addr, quint16 &port)
 }
 
 
-void Srudp::onRawPacketRecieved(QByteArray pkt)
+void Srudp::onRawPacketRecieved(QByteArray pkt, QString peer_addr)
 {
-    qDebug()<<(sender())<<pkt.length();
+    qDebug()<<(sender())<<pkt.length()<<peer_addr;
     QJsonDocument jdoc = QJsonDocument::fromJson(pkt);
     QJsonObject jobj = jdoc.object();
+
+    if (jobj.isEmpty()) {
+        qDebug()<<"maybe first test pkt";
+        m_stun_client->sendIndication(peer_addr, "hehe1234567890");
+        return;
+    }
 
     // raw rudp packet
     this->rawProtoPacketHandler(jobj);
@@ -302,7 +308,8 @@ bool Srudp::connectToHost(QString host, quint16 port)
 
     m_proto_send_queue.append(jobj);
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-    m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+    // m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+    m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
 
     return true;
 }
@@ -401,6 +408,7 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
         this->onPacketRecieved(jobj);
         break;
     default:
+        qDebug()<<"unknown cmd:"<<cmd<<jobj;
         break;
     };
     
@@ -564,7 +572,8 @@ void Srudp::onSendConfirmTimeout()
             } else {
                 has_retransmitted = true;
                 QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-                m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+                // m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+                
             }
         }
     }

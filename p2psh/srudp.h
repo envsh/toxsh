@@ -40,7 +40,7 @@ public:
     QByteArray readDatagram(QHostAddress &addr, quint16 &port);
 
 public slots:
-    void onRawPacketRecieved(QByteArray pkt);
+    void onRawPacketRecieved(QByteArray pkt, QString peer_addr);
     void onPacketRecieved(QJsonObject jobj);
     // lost packet retrive
     void onRetranLostPacketFinished(QNetworkReply *reply);

@@ -19,10 +19,12 @@ public:
 
 public slots:
     void onMappedAddressRecieved(QString addr);
-    void onAllocateDone(QString relayed_addr);
-    void onChannelBindDone(QString relayed_addr);
+    // void onAllocateDone(QString relayed_addr);
+    // void onChannelBindDone(QString relayed_addr);
     void onPacketRecieved(QByteArray pkt);
     void onPacketReadyRead();
+
+    void onKeepAliveTimeout();
 
     void onRelayConnected();
     void onRelayDisconnected();
@@ -35,6 +37,7 @@ public slots:
     void onRudpConnected();
     void onRudpConnectError();
 
+
 private:
     StunClient *m_stun_client = NULL;
     QTcpSocket *m_rly_sock = NULL;
@@ -43,6 +46,7 @@ private:
     QString m_peer_addr;
     QString m_peer_relayed_addr;
     Srudp *m_rudp = NULL;
+    QTimer *m_stun_keepalive_timer = NULL;
 };
 
 #endif /* _XSHSRV_H_ */

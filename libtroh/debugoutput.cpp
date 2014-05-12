@@ -29,10 +29,12 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     // void StunClient::debugStunResponse(QByteArray)
     // virtual void StunClinet::aaa()
     if (1) {
-        fprintf(stderr, "[] T(%u) %s:%u %s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
+        fprintf(stderr, "[%s] T(%u) %s:%u %s - %s\n", time_str.toLocal8Bit().data(),  tid,
+                hpath.toLocal8Bit().data(), context.line,
                 mfunc.toLocal8Bit().data(), msg.toLocal8Bit().constData());
     } else {
-        fprintf(stderr, "[] T(%u) %s:%u %s,%s - %s\n", tid, hpath.toLocal8Bit().data(), context.line,
+        fprintf(stderr, "[%s] T(%u) %s:%u %s,%s - %s\n", time_str.toLocal8Bit().data(), tid,
+                hpath.toLocal8Bit().data(), context.line,
                 mfunc.toLocal8Bit().data(), context.function, msg.toLocal8Bit().constData());
     }
     return;
