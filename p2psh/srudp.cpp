@@ -20,18 +20,24 @@ Srudp::~Srudp()
 // TODO split big packet > 1000
 bool Srudp::sendto(QByteArray data, QString host)
 {
+    qDebug()<<"need send big packet size:"<<data.length();
+
     QStringList tsl = host.split(':');
     Q_ASSERT(tsl.size() == 2);
 
+    int cnter = 0;
     int pkt_len = 123;
     QByteArray tba = data;
     while (tba.length() > 0) {
+        QThread::msleep(300); // slow download send rate, or stun server maybe think me as DDOS attack.
         this->sendto(tba.left(pkt_len), tsl.at(0), tsl.at(1).toUShort());
         tba = tba.right(tba.length() - pkt_len);
+        // if (cnter ++ > 12) break;
     }
 
     return true;
     // return this->sendto(data, tsl.at(0), tsl.at(1).toUShort());
+    // about max udp packet size: https://stackoverflow.com/questions/14993000/the-most-reliable-and-efficient-udp-packet-size
 }
 
 bool Srudp::sendto(QByteArray data, QString host, quint16 port)
@@ -45,17 +51,17 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
     jobj.insert("reliable", cseq);
     jobj.insert("reliable_ack", 0);
     jobj.insert("unreliable", 0);
-    jobj.insert("stime", (int)time(NULL));
+    // jobj.insert("stime", (int)time(NULL));
 
     jobj.insert("id", cseq);
     jobj.insert("pseq", QString("%1").arg(cseq-1));
     jobj.insert("seq", QString("%1").arg(cseq));
     jobj.insert("pkt", QString(data.toHex()));
-    jobj.insert("dlen", QString("%1").arg(data.length()));
-    jobj.insert("host", host);
-    jobj.insert("port", QString("%1").arg(port));
-    jobj.insert("ctime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
-    jobj.insert("mtime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+    // jobj.insert("dlen", QString("%1").arg(data.length()));
+    // jobj.insert("host", host);
+    // jobj.insert("port", QString("%1").arg(port));
+    // jobj.insert("ctime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+    // jobj.insert("mtime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
     jobj.insert("retry", 0);
     
     this->m_out_caches[cseq] = jobj;
@@ -63,15 +69,12 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
     m_proto_send_queue.append(jobj);
     QString npkt = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
 
-    qDebug()<<"sending pkt:"<<cseq;
-    m_stun_client->sendRelayData(npkt.toLatin1(), QString("%1:%2").arg(host).arg(port));
+    qDebug()<<"sending pkt:"<<cseq<<npkt.length()<<m_proto_host<<m_proto_port<<host<<port;
 
-    // if (cseq == 1) {
-    if (false) {
-        // first pkt, send more times;
-        for (int i = 0; i < 2; i++) {
-            m_stun_client->sendRelayData(npkt.toLatin1(), QString("%1:%2").arg(host).arg(port));            
-        }
+    if (m_client_mode) {
+        m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), npkt.toLatin1());
+    } else {
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), npkt.toLatin1());
     }
 
     return true;
@@ -94,12 +97,16 @@ QByteArray Srudp::readDatagram(QHostAddress &addr, quint16 &port)
 {
     QByteArray data;
     QJsonObject jobj;
+    QString peer_addr;
 
     jobj = this->getNextPacket();
     if (!jobj.isEmpty()) {
         QByteArray hex_pkt = jobj.value("pkt").toString().toLocal8Bit();
         QByteArray pkt = QByteArray::fromHex(hex_pkt);
         data = pkt;
+        peer_addr = jobj.value("peer_addr").toString();
+        addr.setAddress(peer_addr.split(':').at(0));
+        port = peer_addr.split(':').at(1).toUShort();
     }
 
     return data;
@@ -113,10 +120,19 @@ void Srudp::onRawPacketRecieved(QByteArray pkt, QString peer_addr)
     QJsonObject jobj = jdoc.object();
 
     if (jobj.isEmpty()) {
-        qDebug()<<"maybe first test pkt";
-        m_stun_client->sendIndication(peer_addr, "hehe1234567890");
+        qDebug()<<"any error???"<<peer_addr;
         return;
     }
+
+    // need temp store
+    jobj.insert("peer_addr", peer_addr);
+
+    /*
+    if (!m_client_mode) {
+        m_proto_host = peer_addr.split(':').at(0);
+        m_proto_port = peer_addr.split(':').at(1).toUShort();
+    }
+    */
 
     // raw rudp packet
     this->rawProtoPacketHandler(jobj);
@@ -126,12 +142,17 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
 {
     // handle ack pkt
     if (jobj.value("opt").toInt() & OPT_ACK) {
+        int cnter = 0;
         for (int i = 0; i < m_proto_send_queue.size(); i ++) {
             if (m_proto_send_queue.at(i).value("reliable") == jobj.value("reliable")) {
                 m_proto_send_queue.remove(i);
                 qDebug()<<"remove acked pkt:"<<jobj.value("reliable");
+                cnter += 1;
                 break;
             }
+        }
+        if (cnter == 0) {
+            qDebug()<<"ack pkt, but already removed from queue."<<jobj.value("seq");
         }
         return;
     }
@@ -147,7 +168,11 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
         jobj_ack.insert("stime", (int)time(NULL));
 
         QString data = QJsonDocument(jobj_ack).toJson(QJsonDocument::Compact);
-        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        if (m_client_mode) {
+            m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+        } else {
+            m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+        }
     }
 
     // 
@@ -176,6 +201,7 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
             emit this->readyRead();
         } else {
             // find the lost pkt seq
+            qDebug()<<"maybe has lost packet";
         }
     }
 }
@@ -284,19 +310,12 @@ void Srudp::onRetranLostPacketFinished(QNetworkReply *reply)
 ////////////
 ////
 ///////////
+// should call by stun peerA 
+// maybe connect has problem, omit connect for test
 bool Srudp::connectToHost(QString host, quint16 port)
 {
-    this->m_proto_host = host;
-    this->m_proto_port = port;
-
-    if (!m_proto_send_confirm_timer) {
-        m_proto_send_confirm_timer = new QTimer();
-        QObject::connect(m_proto_send_confirm_timer, &QTimer::timeout, this, &Srudp::onSendConfirmTimeout);
-    }
-
-    if (!m_proto_send_confirm_timer->isActive()) {
-        m_proto_send_confirm_timer->start(1000 * 2);
-    }
+    this->setClientMode(true);
+    this->setHost(host, port);
 
     QJsonObject jobj;
     jobj.insert("cmd", CMD_CONN_REQ);
@@ -308,13 +327,18 @@ bool Srudp::connectToHost(QString host, quint16 port)
 
     m_proto_send_queue.append(jobj);
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-    // m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
-    m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
 
     return true;
 }
 
 bool Srudp::serverConnectToHost(QString host, quint16 port)
+{
+    this->setHost(host, port);
+    return true;
+}
+
+bool Srudp::setHost(QString host, quint16 port)
 {
     this->m_proto_host = host;
     this->m_proto_port = port;
@@ -331,11 +355,9 @@ bool Srudp::serverConnectToHost(QString host, quint16 port)
     return true;
 }
 
-bool Srudp::setHost(QString host, quint16 port)
+bool Srudp::setClientMode(bool is_client)
 {
-    this->m_proto_host = host;
-    this->m_proto_port = port;
-
+    m_client_mode = is_client;
     return true;
 }
 
@@ -352,7 +374,11 @@ bool Srudp::disconnectFromHost()
 
     m_proto_send_queue.append(jobj);
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-    m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+    if (m_client_mode) {
+        m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    } else {
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    }
 
     if (m_proto_send_confirm_timer) {
         m_proto_send_confirm_timer->stop();
@@ -374,7 +400,11 @@ bool Srudp::ping()
 
     m_proto_send_queue.append(jobj);
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-    m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+    if (m_client_mode) {
+        m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    } else {
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    }
 
     return true;    
 }
@@ -437,7 +467,7 @@ bool Srudp::protoConnectHandler(QJsonObject jobj)
 
         // 想当于回包不加到发送队列中
         QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
         // maybe rudp client not recv
 
         // 
@@ -452,7 +482,7 @@ bool Srudp::protoConnectHandler(QJsonObject jobj)
 
         m_proto_send_queue.append(jobj);        
         data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
         
     }
     return true;
@@ -482,7 +512,7 @@ bool Srudp::protoConnectedHandler(QJsonObject jobj)
 
         // 想当于回包不加到发送队列中
         QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-        m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+        m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
 
         // client connected
         emit connected(); // client connected
@@ -505,7 +535,11 @@ bool Srudp::protoPingHandler(QJsonObject jobj)
     // 想当于回复包，不加到发送队列中
 
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-    m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
+    if (m_client_mode) {
+        m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    } else {
+        m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+    }
 
     return true;
 }
@@ -570,10 +604,14 @@ void Srudp::onSendConfirmTimeout()
                 }
                 break;
             } else {
+                QThread::msleep(300);
                 has_retransmitted = true;
                 QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
-                // m_stun_client->sendRelayData(data.toLatin1(), QString("%1:%2").arg(m_proto_host).arg(m_proto_port));
-                
+                if (m_client_mode) {
+                    m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+                } else {
+                    m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
+                }
             }
         }
     }
@@ -585,7 +623,7 @@ void Srudp::onSendConfirmTimeout()
     if (m_proto_last_ping_time.msecsTo(nowtime) >= m_proto_ping_max_timeout) {
         if (!has_retransmitted && !has_ping) {
             m_proto_last_ping_time = nowtime;
-            // this->ping();
+            // if (m_client_mode) this->ping();
         }
     }
 }

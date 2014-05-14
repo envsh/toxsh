@@ -36,11 +36,13 @@ signals:
     void channelBindDone(QString relayed_addr);
 
 private:
-    void processResponse(QByteArray resp);
+    void processResponse(QByteArray resp, QString peer_addr);
     static void debugStunResponse(QByteArray resp);
     static QString getStunAddress(QByteArray resp, uint16_t attr_type);
     static void printHexView(unsigned char *buf, size_t len);
     static QString getMethodName(int method);
+    void saveAllocatePuples(QByteArray realm, QByteArray nonce);
+    void loadAllocatePuples();
 
 private:
     QUdpSocket *m_stun_sock = NULL;

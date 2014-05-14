@@ -11,7 +11,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
 {
     int tid = syscall(__NR_gettid);
     QDateTime now = QDateTime::currentDateTime();
-    QString time_str = now.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    QString time_str = now.toString("yyyy-MM-dd hh:mm:ss"); // now.toString("yyyy-MM-dd hh:mm:ss.zzz");
 
     QStringList tlist = QString(context.file).split('/');
     QString hpath = tlist.takeAt(tlist.count() - 1);

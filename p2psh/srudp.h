@@ -79,6 +79,7 @@ public:
     bool disconnectFromHost();
     bool serverConnectToHost(QString host, quint16 port);
     bool setHost(QString host, quint16 port);
+    bool setClientMode(bool is_client);
     
 public slots:
     bool ping();
@@ -98,6 +99,7 @@ private slots:
 
 private:
     // rfc rudp proto
+    bool m_client_mode = false; // call connectToHost is client, and it's stun peerA
     QString m_proto_host;
     quint16 m_proto_port = 0;
     bool m_proto_must_ack = 1;

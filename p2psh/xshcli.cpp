@@ -81,7 +81,6 @@ void XshCli::onAllocateDone(QString relayed_addr)
 
     m_stun_client->createPermission(m_peer_addr);
 
-
     /*
     QString cmd = QString("relay_info;xshcli1;xshsrv1;%1").arg(relayed_addr);
     m_rly_sock->write(cmd.toLatin1());
@@ -92,19 +91,12 @@ void XshCli::onAllocateDone(QString relayed_addr)
 void XshCli::onCreatePermissionDone()
 {
     qDebug()<<"";
-    // m_perm_done = true;
+    // m_perm_done = true; // should after connect
    
     QString cmd = QString("relay_info_req;xshcli1;xshsrv1;%1").arg(m_relayed_addr);
     m_rly_sock->write(cmd.toLatin1());
     m_rly_sock->waitForBytesWritten();
 
-
-    if (0) {
-        // 试着给peer发送一个连接请求，测试是否能成功。
-        // connect rudp first, now
-        qDebug()<<m_peer_addr;
-        m_rudp->connectToHost(m_peer_addr.split(':').at(0), m_peer_addr.split(':').at(1).toUShort());
-    }
 }
 
 /*
@@ -119,11 +111,33 @@ void XshCli::onChannelBindDone(QString relayed_addr)
 }
 */
 
-void XshCli::onPacketRecieved(QByteArray pkt)
+void XshCli::onPacketRecieved(QByteArray pkt, QHostAddress addr, quint16 port)
 {
+    if (m_recv_data_len == 0) {
+        // 第一个接收到的包，需要处理，这端可以认为已经连接成功
+        m_peer_addr = addr.toString() + QString(":%1").arg(port);
+        m_rudp->setHost(addr.toString(), port); // server mode send to stun port
+        m_rudp->setClientMode(false);
+
+        Q_ASSERT(m_conn_sock != NULL);
+        qint64 abytes = m_conn_sock->bytesAvailable();
+        QByteArray ba = m_conn_sock->readAll();
+
+        m_send_data_len += ba.length();
+
+        if (!ba.isEmpty()) {
+            m_rudp->sendto(ba, QString("%1:%2").arg(addr.toString()).arg(port));
+        }
+    
+        m_perm_done = true;
+
+        qDebug()<<sender()<<"cplen:"<<abytes<<"tslen:"<<m_send_data_len<<"trlen:"<<m_recv_data_len;        
+    }
+
     QByteArray data = pkt;
     qint64 rc = m_conn_sock->write(data);
-    qDebug()<<"CBR -> CLI: Write: "<<rc<<pkt.length();
+    m_recv_data_len += rc;
+    qDebug()<<"CBR -> CLI: Write: "<<rc<<pkt.length()<<"tslen:"<<m_send_data_len<<"trlen:"<<m_recv_data_len;
 }
 
 void XshCli::onPacketReadyRead()
@@ -140,7 +154,7 @@ void XshCli::onPacketReadyRead()
         if (data.isEmpty()) {
             qDebug()<<"read empty pkt:";
         } else {
-            this->onPacketRecieved(data);
+            this->onPacketRecieved(data, addr, port);
         }
     }
     qDebug()<<"read pkt conut:"<<cnter;
@@ -164,15 +178,16 @@ void XshCli::onNewBackendConnection()
 void XshCli::onBackendReadyRead()
 {
     QTcpSocket *sock = (QTcpSocket*)(sender());
-    qDebug()<<sender();
 
     if (!m_perm_done) {
         return;
     }
 
     QByteArray ba = sock->readAll();
-    // m_rudp->sendto(ba, m_peer_relayed_addr);
-    // m_rudp->sendto(ba, QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT));
+    m_send_data_len += ba.length();
+    m_rudp->sendto(ba, QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT));
+
+    qDebug()<<sender()<<"tslen:"<<m_send_data_len<<"trlen:"<<m_recv_data_len;
 }
 
 void XshCli::onBackendDisconnected()
@@ -183,16 +198,7 @@ void XshCli::onBackendDisconnected()
 
 void XshCli::onRudpConnected()
 {
-    qDebug()<<""<<sender();
-
-    Q_ASSERT(m_conn_sock != NULL);
-    qint64 abytes = m_conn_sock->bytesAvailable();
-    QByteArray ba = m_conn_sock->readAll();
-
-    if (!ba.isEmpty()) {
-        // m_rudp->sendto(ba, m_peer_relayed_addr);
-        m_rudp->sendto(ba, QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT));
-    }
+    qDebug()<<""<<sender();    
 }
 
 void XshCli::onRudpConnectError()

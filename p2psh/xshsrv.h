@@ -47,6 +47,10 @@ private:
     QString m_peer_relayed_addr;
     Srudp *m_rudp = NULL;
     QTimer *m_stun_keepalive_timer = NULL;
+
+    // for backend
+    qint64 m_recv_data_len = 0;
+    qint64 m_send_data_len = 0;
 };
 
 #endif /* _XSHSRV_H_ */

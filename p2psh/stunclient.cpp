@@ -36,6 +36,8 @@ StunClient::StunClient(quint16 port)
     m_sending_timer->setInterval(1000 * 2);
     m_sending_timer->setSingleShot(true);
     QObject::connect(m_sending_timer, &QTimer::timeout, this, &StunClient::onRetryTimeout);
+
+    this->loadAllocatePuples();
 }
 
 StunClient::~StunClient()
@@ -71,11 +73,16 @@ bool StunClient::allocate(char *realm, char *nonce)
     // stun_attr_add_str(alloc_buff.buf, &alloc_buff.len, OLD_STUN_ATTRIBUTE_PASSWORD, (u08bits*)STUN_PASSWORD, strlen(STUN_PASSWORD));
 
     if (realm != NULL && nonce != NULL) {
-        stun_attr_add(&alloc_buff, STUN_ATTRIBUTE_REALM, realm, strlen(realm));
-        stun_attr_add(&alloc_buff, STUN_ATTRIBUTE_NONCE, nonce, strlen(nonce));
+        m_realm = QByteArray(realm);
+        m_nonce = QByteArray(nonce);
+    }
+
+    if (!m_realm.isEmpty() && !m_nonce.isEmpty()) {
+        stun_attr_add(&alloc_buff, STUN_ATTRIBUTE_REALM, m_realm.data(), m_realm.length());
+        stun_attr_add(&alloc_buff, STUN_ATTRIBUTE_NONCE, m_nonce.data(), m_nonce.length());
         stun_attr_add_integrity_by_user_str(alloc_buff.buf, &alloc_buff.len,
-                                            (u08bits*)STUN_USERNAME, (u08bits*)realm, (u08bits*)STUN_PASSWORD,
-                                            (u08bits*)nonce, SHATYPE_SHA1);
+                                            (u08bits*)STUN_USERNAME, (u08bits*)m_realm.data(), (u08bits*)STUN_PASSWORD,
+                                            (u08bits*)m_nonce.data(), SHATYPE_SHA1);
     }
 
     QByteArray data = QByteArray((char*)alloc_buff.buf, alloc_buff.len);
@@ -119,6 +126,13 @@ bool StunClient::createPermission(QString peer_addr)
     // ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
     qDebug()<<"write relayed data:"<<ret<<buf.len<<m_peer_addr<<m_relayed_addr;
 
+    {
+        m_sending_udp = true;
+        m_sending_data = QByteArray((char*)buf.buf, buf.len);
+        m_sending_addr = QString("%1:%2").arg(STUN_SERVER_ADDR).arg(STUN_SERVER_PORT);
+        m_sending_timer->start();
+    }
+
     return true;
 }
 
@@ -134,9 +148,6 @@ bool StunClient::sendIndication(QString peer_addr, QByteArray data)
     stun_init_indication(STUN_METHOD_SEND, &buf);
     stun_attr_add_addr(&buf, STUN_ATTRIBUTE_XOR_PEER_ADDRESS, &t_peer_addr);
     stun_attr_add(&buf, STUN_ATTRIBUTE_DONT_FRAGMENT, NULL, 0);
-
-    // test data
-    data = "heheheeeeeeeeeeefrom," + peer_addr.toLatin1();
     stun_attr_add(&buf, STUN_ATTRIBUTE_DATA, data.data(), data.length());
 
     qint64 ret = m_stun_sock->writeDatagram(QByteArray((char*)buf.buf, buf.len), QHostAddress(STUN_SERVER_ADDR), STUN_SERVER_PORT);
@@ -302,12 +313,12 @@ void StunClient::onStunReadyRead()
         }
         fprintf(stderr, " ...]\n");
 
-        this->processResponse(datagram);
+        this->processResponse(datagram, QString("%1:%2").arg(sender.toString()).arg(senderPort));
         // processTheDatagram(datagram);
     }
 }
 
-void StunClient::processResponse(QByteArray resp)
+void StunClient::processResponse(QByteArray resp, QString peer_addr)
 {
     u08bits rbuf[STUN_BUFFER_SIZE];
     size_t rlen = 0;
@@ -322,7 +333,9 @@ void StunClient::processResponse(QByteArray resp)
     memcpy(buf.buf, resp.data(), resp.length());
 
     if (!stun_is_command_message(&buf)) {
-        qDebug()<<resp.length()<<("The response is not a STUN message\n");
+        qDebug()<<resp.length()<<("The response is not a STUN message")<<peer_addr;
+        // should be a relayed raw UDP packet to peerA
+        emit packetRecieved(resp, peer_addr);
         return;
     }
 
@@ -332,8 +345,10 @@ void StunClient::processResponse(QByteArray resp)
     stun_msg_type = stun_get_msg_type_str(buf.buf, buf.len);
     qDebug()<<"method:"<<stun_method<<getMethodName(stun_method)<<",msg type:"<<stun_msg_type;
 
-
-    this->debugStunResponse(resp);
+    if (stun_method == STUN_METHOD_BINDING) {
+    } else {
+        this->debugStunResponse(resp);
+    }
 
     // channel data
     if (stun_is_indication(&buf)) {
@@ -443,6 +458,7 @@ void StunClient::processResponse(QByteArray resp)
 
     if (stun_method == STUN_METHOD_ALLOCATE) {
         m_relayed_addr = this->getStunAddress(resp, STUN_ATTRIBUTE_XOR_RELAYED_ADDRESS);
+        this->saveAllocatePuples(m_realm, m_nonce);
         emit this->allocateDone(m_relayed_addr);
     }
 
@@ -638,6 +654,41 @@ QString StunClient::getMethodName(int method)
     };
 
     return str_method;
+}
+
+void StunClient::saveAllocatePuples(QByteArray realm, QByteArray nonce)
+{
+    QString stun_alloc_file = "/tmp/stun_allocate_info.txt";
+    QJsonObject jobj;
+    jobj.insert("realm", QString(realm.toHex()));
+    jobj.insert("nonce", QString(nonce.toHex()));
+    jobj.insert("ctime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+
+    QString jstr = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
+    QFile fp(stun_alloc_file);
+    fp.open(QIODevice::ReadWrite);
+    fp.resize(0);
+    fp.write(jstr.toLatin1());
+    fp.close();
+}
+
+void StunClient::loadAllocatePuples()
+{
+    QString stun_alloc_file = "/tmp/stun_allocate_info.txt";
+    QJsonObject jobj;
+
+    QFile fp(stun_alloc_file);
+    fp.open(QIODevice::ReadWrite);
+    QByteArray content = fp.readAll();
+    fp.close();
+
+    jobj = QJsonDocument::fromJson(content).object();
+    if (jobj.contains("realm") && jobj.contains("nonce")) {
+        m_realm = QByteArray::fromHex(jobj.value("realm").toString().toLatin1());
+        m_nonce = QByteArray::fromHex(jobj.value("nonce").toString().toLatin1());
+    } else {
+        qDebug()<<"can not load allocate puples.";
+    }
 }
 
 void StunClient::onRetryTimeout()

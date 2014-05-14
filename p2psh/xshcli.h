@@ -22,7 +22,7 @@ public slots:
     void onAllocateDone(QString relayed_addr);
     void onCreatePermissionDone();
     // void onChannelBindDone(QString relayed_addr);
-    void onPacketRecieved(QByteArray pkt);
+    void onPacketRecieved(QByteArray pkt, QHostAddress host, quint16 port);
     void onPacketReadyRead();
     
     void onNewBackendConnection();
@@ -44,6 +44,10 @@ private:
     // bool  m_channel_done = false;
     bool m_perm_done = false;
     Srudp *m_rudp = NULL;
+
+    // for backend
+    qint64 m_send_data_len = 0;
+    qint64 m_recv_data_len = 0;
 };
 
 #endif /* _XSHCLI_H_ */
