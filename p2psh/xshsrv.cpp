@@ -54,6 +54,7 @@ void XshSrv::onMappedAddressRecieved(QString addr)
     } else {
         // keepalive response
         if (addr != m_mapped_addr) {
+            // TODO 这个怎么处理
             qDebug()<<"hole addr changed:"<<m_mapped_addr<<"-->"<<addr;
         }
     }

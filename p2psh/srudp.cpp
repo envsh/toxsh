@@ -46,6 +46,7 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
 
     qint64 cseq = this->m_pkt_seq ++;
 
+    // TODO 更短的key值
     jobj.insert("cmd", CMD_APP);
     jobj.insert("opt", OPT_RELIABLE);
     jobj.insert("reliable", cseq);
@@ -152,7 +153,7 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
             }
         }
         if (cnter == 0) {
-            qDebug()<<"ack pkt, but already removed from queue."<<jobj.value("seq");
+            qDebug()<<"ack pkt, but already removed from queue."<<jobj.value("reliable");
         }
         return;
     }
@@ -581,6 +582,7 @@ void Srudp::onSendConfirmTimeout()
 
     if (plog) qDebug()<<"there are some packet to confirm: "<<count;
 
+    QVector<qint64> retransmit_seqs;
     bool has_retransmitted = false;
     bool has_ping = false;
     QJsonObject jobj;
@@ -611,6 +613,7 @@ void Srudp::onSendConfirmTimeout()
                 break;
             } else {
                 QThread::msleep(300);
+                retransmit_seqs.append(jobj.value("reliable").toInt());
                 has_retransmitted = true;
                 QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
                 if (m_client_mode) {
@@ -622,14 +625,17 @@ void Srudp::onSendConfirmTimeout()
         }
     }
     if (plog || has_retransmitted) {
-        qDebug()<<"retransmitted pkts:"<<rtcnt<<count<<has_retransmitted;
+        if (retransmit_seqs.size() > 8) {
+            retransmit_seqs.resize(8);
+        }
+        qDebug()<<"retransmitted pkts:"<<rtcnt<<count<<has_retransmitted<<retransmit_seqs;
     }
 
     QDateTime nowtime = QDateTime::currentDateTime();
     if (m_proto_last_ping_time.msecsTo(nowtime) >= m_proto_ping_max_timeout) {
         if (!has_retransmitted && !has_ping) {
             m_proto_last_ping_time = nowtime;
-            // if (m_client_mode) this->ping();
+            if (m_client_mode) this->ping();
         }
     }
 }
