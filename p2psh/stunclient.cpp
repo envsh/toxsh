@@ -101,6 +101,7 @@ bool StunClient::allocate(char *realm, char *nonce)
     return true;
 }
 
+// TODO permission也需要keepalive，并且标准上是固定的5分钟
 bool StunClient::createPermission(QString peer_addr)
 {
     qDebug()<<peer_addr;
@@ -460,16 +461,27 @@ void StunClient::processResponse(QByteArray resp, QString peer_addr)
         m_relayed_addr = this->getStunAddress(resp, STUN_ATTRIBUTE_XOR_RELAYED_ADDRESS);
         this->saveAllocatePuples(m_realm, m_nonce);
         emit this->allocateDone(m_relayed_addr);
-    }
 
-    if (stun_method == STUN_METHOD_CREATE_PERMISSION) {
-        emit this->createPermissionDone();
         if (!m_channel_refresh_timer) {
             m_channel_refresh_timer = new QTimer();
             QObject::connect(m_channel_refresh_timer, &QTimer::timeout, this, &StunClient::onRefreshTimeout);
         }
         if (!m_channel_refresh_timer->isActive()) {
             m_channel_refresh_timer->start(m_channel_refresh_timeout);
+        }
+    }
+
+    if (stun_method == STUN_METHOD_CREATE_PERMISSION) {
+        if (!m_permission_keepalive_timer) {
+            emit this->createPermissionDone();
+        }
+
+        if (!m_permission_keepalive_timer) {
+            m_permission_keepalive_timer = new QTimer();
+            QObject::connect(m_permission_keepalive_timer, &QTimer::timeout, this, &StunClient::onPermKATimeout);
+        }
+        if (!m_permission_keepalive_timer->isActive()) {
+            m_permission_keepalive_timer->start(m_permission_keepalive_timeout);
         }
     }
 
@@ -709,6 +721,12 @@ void StunClient::onRetryTimeout()
 void StunClient::onRefreshTimeout()
 {
     qDebug()<<"";
-    // this->refresh();
+    this->refresh();
+}
+
+void StunClient::onPermKATimeout()
+{
+    qDebug()<<"";
+    this->createPermission(m_peer_addr);
 }
 

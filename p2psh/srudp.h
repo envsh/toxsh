@@ -52,7 +52,7 @@ signals:
     void resetSenderState();
 
 private:
-    bool verifyPacket(QJsonObject jobj);
+    // bool verifyPacket(QJsonObject jobj);
     bool cachePacket(QJsonObject jobj);
     QJsonObject getNextPacket();
     void guessLostPacket();

@@ -26,6 +26,7 @@ public slots:
     void onStunReadyRead();
     void onRetryTimeout();
     void onRefreshTimeout();
+    void onPermKATimeout();
 
 signals:
     void mappedAddressRecieved(QString addr);
@@ -54,8 +55,10 @@ private:
     QString m_relayed_addr;
     QString m_mapped_addr;
     uint32_t m_lifetime;
-    static const int m_channel_refresh_timeout = 1000 * 30 * 1;
+    static const int m_channel_refresh_timeout = 1000 * 60 * 1; // todo change to m_allocate_refresh_timeout
     QTimer *m_channel_refresh_timer = NULL;
+    static const int m_permission_keepalive_timeout = 1000 * 6 * 3; // 注，这里不用*5是因为可能由于别的请求导致keepalive延时，不能精确到5
+    QTimer *m_permission_keepalive_timer = NULL;
    
     QString m_peer_addr;
 

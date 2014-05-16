@@ -192,20 +192,22 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
     }
 
     {
-        if (this->verifyPacket(jobj)) {
+        // if (this->verifyPacket(jobj)) {
             this->cachePacket(jobj);
             if (this->m_cached_pkt_seqs.size() > 5) {
                 qDebug()<<"ready writing to user client..."<<this->m_cached_pkt_seqs.size();
             }
 
-            emit this->readyRead();
-        } else {
-            // find the lost pkt seq
-            qDebug()<<"maybe has lost packet";
-        }
+            if (this->hasPendingDatagrams()) {
+                emit this->readyRead();
+            } else {
+                // find the lost pkt seq
+                qDebug()<<"maybe has lost packet:"<<m_in_last_pkt_seq<<m_out_last_pkt_seq;
+            }
     }
 }
 
+/*
 bool Srudp::verifyPacket(QJsonObject jobj)
 {
     int seq = jobj.value("seq").toString().toInt();
@@ -214,13 +216,17 @@ bool Srudp::verifyPacket(QJsonObject jobj)
     }
     return false;
 }
-
+*/
 bool Srudp::cachePacket(QJsonObject jobj)
 {
     int seq = jobj.value("seq").toString().toInt();
     this->m_traned_seqs[jobj.value("seq").toString()] = 1;
-    m_in_last_pkt_seq += 1;
     this->m_cached_pkt_seqs[seq] = jobj;
+    
+    if (seq == this->m_in_last_pkt_seq + 1) {
+        m_in_last_pkt_seq += 1;
+    }
+
     return true;
 }
 

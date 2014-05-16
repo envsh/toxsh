@@ -38,7 +38,9 @@ void XshSrv::onMappedAddressRecieved(QString addr)
 
         m_stun_keepalive_timer = new QTimer();
         QObject::connect(m_stun_keepalive_timer, &QTimer::timeout, this, &XshSrv::onKeepAliveTimeout);
-        m_stun_keepalive_timer->start(1000 * 56); // hole keepalive between 30-60sec
+        m_stun_keepalive_timer->start(1000 * 52); // hole keepalive between 30-60sec
+        // 虽然使用了小于端口映射失效的时间值，但由于其他包的原因，可能导致保持会话包发送延迟
+        // 从而这个映射地址发生变化。
 
 
         m_rly_sock = new QTcpSocket();

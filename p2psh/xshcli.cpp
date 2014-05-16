@@ -157,7 +157,7 @@ void XshCli::onPacketReadyRead()
             this->onPacketRecieved(data, addr, port);
         }
     }
-    qDebug()<<"read pkt conut:"<<cnter;
+    qDebug()<<"read pkt count:"<<cnter;
 }
 
 void XshCli::onNewBackendConnection()
