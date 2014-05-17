@@ -64,9 +64,10 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
     // jobj.insert("ctime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
     // jobj.insert("mtime", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
     jobj.insert("retry", 0);
-    
-    this->m_out_caches[cseq] = jobj;
 
+    this->schedPrepareSendto(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), jobj);
+
+    /*
     m_proto_send_queue.append(jobj);
     QString npkt = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
 
@@ -77,6 +78,7 @@ bool Srudp::sendto(QByteArray data, QString host, quint16 port)
     } else {
         m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), npkt.toLatin1());
     }
+    */
 
     return true;
 }
@@ -144,9 +146,9 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
     // handle ack pkt
     if (jobj.value("opt").toInt() & OPT_ACK) {
         int cnter = 0;
-        for (int i = 0; i < m_proto_send_queue.size(); i ++) {
-            if (m_proto_send_queue.at(i).value("reliable") == jobj.value("reliable")) {
-                m_proto_send_queue.remove(i);
+        for (int i = 0; i < m_proto_sched_queue.size(); i ++) {
+            if (m_proto_sched_queue.at(i).value("reliable") == jobj.value("reliable")) {
+                m_proto_sched_queue.remove(i);
                 qDebug()<<"remove acked pkt:"<<jobj.value("reliable");
                 cnter += 1;
                 break;
@@ -154,6 +156,9 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
         }
         if (cnter == 0) {
             qDebug()<<"ack pkt, but already removed from queue."<<jobj.value("reliable");
+        }
+        if (m_proto_sched_queue.isEmpty()) {
+            this->schedNextSendto();
         }
         return;
     }
@@ -174,6 +179,7 @@ void Srudp::onPacketRecieved(QJsonObject jobj)
         } else {
             m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
         }
+        qDebug()<<"sent ACK:"<<jobj.value("seq")<<m_proto_host<<m_proto_port;
     }
 
     // 
@@ -319,6 +325,7 @@ void Srudp::onRetranLostPacketFinished(QNetworkReply *reply)
 ///////////
 // should call by stun peerA 
 // maybe connect has problem, omit connect for test
+/*
 bool Srudp::connectToHost(QString host, quint16 port)
 {
     this->setClientMode(true);
@@ -338,12 +345,14 @@ bool Srudp::connectToHost(QString host, quint16 port)
 
     return true;
 }
-
+*/
+/*
 bool Srudp::serverConnectToHost(QString host, quint16 port)
 {
     this->setHost(host, port);
     return true;
 }
+*/
 
 bool Srudp::setHost(QString host, quint16 port)
 {
@@ -368,6 +377,7 @@ bool Srudp::setClientMode(bool is_client)
     return true;
 }
 
+/*
 bool Srudp::disconnectFromHost()
 {
     // do nothing
@@ -393,6 +403,7 @@ bool Srudp::disconnectFromHost()
 
     return true;
 }
+*/
 
 bool Srudp::ping()
 {
@@ -405,7 +416,6 @@ bool Srudp::ping()
     jobj.insert("data", (int)time(NULL));
     jobj.insert("stime", (int)time(NULL));
 
-    m_proto_send_queue.append(jobj);
     QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
     if (m_client_mode) {
         m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
@@ -425,13 +435,16 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
     
     switch (cmd) {
     case CMD_CONN_REQ:
-        this->protoConnectHandler(jobj);
+        qDebug()<<"Not supported command:"<<cmd;
+        // this->protoConnectHandler(jobj);
         break;
     case CMD_CONN_RSP:
-        this->protoConnectedHandler(jobj);
+        qDebug()<<"Not supported command:"<<cmd;
+        // this->protoConnectedHandler(jobj);
         break;
     case CMD_CLOSE:
-        this->protoCloseHandler(jobj);
+        qDebug()<<"Not supported command:"<<cmd;
+        // this->protoCloseHandler(jobj);
         break;
     case CMD_PING:
         this->protoPingHandler(jobj);
@@ -453,6 +466,7 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
 }
 
 // 三次握手完全实现！！！
+/*
 bool Srudp::protoConnectHandler(QJsonObject jobj)
 {
     qDebug()<<"";
@@ -494,7 +508,9 @@ bool Srudp::protoConnectHandler(QJsonObject jobj)
     }
     return true;
 }
+*/
 
+/*
 bool Srudp::protoConnectedHandler(QJsonObject jobj)
 {
     qDebug()<<"";
@@ -529,6 +545,7 @@ bool Srudp::protoConnectedHandler(QJsonObject jobj)
 
     return true;
 }
+*/
 
 bool Srudp::protoPingHandler(QJsonObject jobj)
 {
@@ -555,9 +572,9 @@ bool Srudp::protoPongHandler(QJsonObject jobj)
 {
     qDebug()<<jobj.value("reliable")<<jobj.value("reliable_ack")<<(jobj.value("opt").toInt() & OPT_ACK);
 
-    for (int i = 0; i < m_proto_send_queue.size(); i ++) {
-        if (m_proto_send_queue.at(i).value("reliable") == jobj.value("reliable")) {
-            m_proto_send_queue.remove(i);
+    for (int i = 0; i < m_proto_sched_queue.size(); i ++) {
+        if (m_proto_sched_queue.at(i).value("reliable") == jobj.value("reliable")) {
+            m_proto_sched_queue.remove(i);
             break;
         }
     }
@@ -565,6 +582,7 @@ bool Srudp::protoPongHandler(QJsonObject jobj)
     return true;
 }
 
+/*
 bool Srudp::protoCloseHandler(QJsonObject jobj)
 {
     qDebug()<<"";
@@ -573,11 +591,12 @@ bool Srudp::protoCloseHandler(QJsonObject jobj)
 
     return true;
 }
+*/
 
 // TODO need keepalive packet
 void Srudp::onSendConfirmTimeout()
 {
-    int count = m_proto_send_queue.size();
+    int count = m_proto_sched_queue.size();
     bool plog = count == 0 && (qrand() % 20 == 0);
 
     if (plog) qDebug()<<"there are some packet to confirm: "<<count;
@@ -588,19 +607,19 @@ void Srudp::onSendConfirmTimeout()
     QJsonObject jobj;
     int ntime = time(NULL);
     int rtcnt = 0;
-    for (int i = 0; i < m_proto_send_queue.size(); i ++) {
-        if (ntime - m_proto_send_queue.at(i).value("stime").toInt() > 1) {
+    for (int i = 0; i < m_proto_sched_queue.size(); i ++) {
+        if (ntime - m_proto_sched_queue.at(i).value("stime").toInt() > 1) {
             rtcnt ++;
-            m_proto_send_queue[i].insert("stime", ntime);
-            m_proto_send_queue[i].insert("opt", m_proto_send_queue[i].value("opt").toInt() | OPT_RETRANSMITED);
-            m_proto_send_queue[i].insert("retry", m_proto_send_queue[i].value("retry").toInt() + 1);
+            m_proto_sched_queue[i].insert("stime", ntime);
+            m_proto_sched_queue[i].insert("opt", m_proto_sched_queue[i].value("opt").toInt() | OPT_RETRANSMITED);
+            m_proto_sched_queue[i].insert("retry", m_proto_sched_queue[i].value("retry").toInt() + 1);
 
-            jobj = m_proto_send_queue[i];
+            jobj = m_proto_sched_queue[i];
             if (jobj.value("cmd").toInt() == CMD_PING) {
                 has_ping = true;
             }
-            if (m_proto_send_queue.at(i).value("cmd").toInt() == CMD_CONN_REQ) {
-                m_proto_send_queue.remove(i);
+            if (m_proto_sched_queue.at(i).value("cmd").toInt() == CMD_CONN_REQ) {
+                m_proto_sched_queue.remove(i);
                 emit this->connectError();
 
                 if (jobj.value("retry").toInt() > 3) {
@@ -615,12 +634,18 @@ void Srudp::onSendConfirmTimeout()
                 QThread::msleep(300);
                 retransmit_seqs.append(jobj.value("reliable").toInt());
                 has_retransmitted = true;
+
+                
+                this->schedRealSendto(jobj);
+
+                /*
                 QString data = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
                 if (m_client_mode) {
                     m_stun_client->replyIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
                 } else {
                     m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
                 }
+                */
             }
         }
     }
@@ -638,5 +663,60 @@ void Srudp::onSendConfirmTimeout()
             if (m_client_mode) this->ping();
         }
     }
+}
+
+bool Srudp::schedPrepareSendto(QString peer_addr, QJsonObject jobj)
+{
+
+    jobj.insert("peer_addr", peer_addr);
+    m_proto_send_queue.append(jobj);    
+    
+    this->schedNextSendto();
+    
+    return true;
+}
+
+bool Srudp::schedNextSendto()
+{
+    if (m_proto_sched_queue.isEmpty()) {
+        int t_sched_count = this->m_proto_sched_queue_max_size;
+        int sched_count = qMin(t_sched_count, m_proto_send_queue.size());
+        
+        for (int i = 0; i < sched_count; i++) {
+            m_proto_sched_queue.append(m_proto_send_queue.at(i));
+        }
+
+        for (int i = sched_count - 1; i >= 0; i--) {
+            m_proto_send_queue.remove(i);
+        }
+
+        for (int i = 0; i < sched_count; i ++) {
+            this->schedRealSendto(m_proto_sched_queue.at(i));
+        }
+    }
+    
+    return true;
+}
+
+bool Srudp::schedRealSendto(QJsonObject jobj)
+{
+    QString peer_addr = jobj.value("peer_addr").toString();
+    jobj.remove("peer_addr");
+
+    QString npkt = QJsonDocument(jobj).toJson(QJsonDocument::Compact);
+
+    qint64 cseq = jobj.value("reliable").toInt();
+    QString host = peer_addr.split(':').at(0);
+    quint16 port = peer_addr.split(':').at(1).toUShort();
+    qDebug()<<"sending pkt:"<<cseq<<npkt.length()<<m_proto_host<<m_proto_port<<host<<port;
+
+    if (m_client_mode) {
+        m_stun_client->replyIndication(peer_addr, npkt.toLatin1());
+    } else {
+        m_stun_client->sendIndication(peer_addr, npkt.toLatin1());
+    }
+    
+
+    return true;
 }
 

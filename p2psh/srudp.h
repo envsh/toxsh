@@ -64,7 +64,6 @@ private:
     qint64 m_in_last_pkt_seq = 0;
     QString m_last_pkt_id;
     QMap<qint64, QJsonObject> m_cached_pkt_seqs; // m_in_caches;
-    QMap<qint64, QJsonObject> m_out_caches;
     QMap<QString, int> m_traned_seqs; // "seq" => 1/0
     static qint64 m_pkt_seq; 
 
@@ -75,8 +74,8 @@ public:
            CMD_APP = 0x10, CMD_APP_MAX = 0xff - 0x10};
     enum { OPT_NONE = 0, OPT_RELIABLE = 1, OPT_ACK = 2, OPT_RETRANSMITED = 4};
 
-    bool connectToHost(QString host, quint16 port);
-    bool disconnectFromHost();
+    // bool connectToHost(QString host, quint16 port);
+    // bool disconnectFromHost();
     bool serverConnectToHost(QString host, quint16 port);
     bool setHost(QString host, quint16 port);
     bool setClientMode(bool is_client);
@@ -84,11 +83,11 @@ public:
 public slots:
     bool ping();
     bool rawProtoPacketHandler(QJsonObject jobj);
-    bool protoConnectHandler(QJsonObject jobj);
-    bool protoConnectedHandler(QJsonObject jobj);
+    // bool protoConnectHandler(QJsonObject jobj);
+    // bool protoConnectedHandler(QJsonObject jobj);
     bool protoPingHandler(QJsonObject jobj);
     bool protoPongHandler(QJsonObject jobj);
-    bool protoCloseHandler(QJsonObject jobj);
+    // bool protoCloseHandler(QJsonObject jobj);
 
 signals:
     void connected();
@@ -98,11 +97,18 @@ private slots:
     void onSendConfirmTimeout();
 
 private:
+    bool schedPrepareSendto(QString peer_addr, QJsonObject jobj);
+    bool schedRealSendto(QJsonObject jobj);
+    bool schedNextSendto();
+
+private:
     // rfc rudp proto
     bool m_client_mode = false; // call connectToHost is client, and it's stun peerA
     QString m_proto_host;
     quint16 m_proto_port = 0;
     bool m_proto_must_ack = 1;
+    QVector<QJsonObject> m_proto_sched_queue; // 发送调度队列，大小为10，应该能影响更及时，减小包拥塞
+    static const int m_proto_sched_queue_max_size = 10; // 
     QVector<QJsonObject> m_proto_send_queue;
     QTimer *m_proto_send_confirm_timer = NULL;
     static const int m_proto_confirm_timeout = 1000 * 1; // ms
