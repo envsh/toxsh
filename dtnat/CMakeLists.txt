@@ -1,7 +1,8 @@
-include_directories("client" "common" "server")
+include_directories("client" "common" "server" "../libtroh/")
 add_executable(dtnat
   main.cpp
   dtnat.cpp
+  ../libtroh/debugoutput.cpp
   client/ns_turn_ioaddr.c
   client/ns_turn_msg.c
   client/ns_turn_msg_addr.c

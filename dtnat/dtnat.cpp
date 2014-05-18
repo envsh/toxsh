@@ -13,6 +13,13 @@
 #define NH_SERVER_ADDR "81.4.106.67"
 #define NH_SERVER_PORT 7890
 
+#define STUN_SERVER_ADDR1 "74.125.23.127" // "74.125.25.127" // "74.125.137.127" // "173.194.76.127" // "74.125.131.127" // "208.97.25.20"   // "132.177.123.6" // "66.228.45.110"
+#define STUN_SERVER_PORT1 19302 // 3478
+
+#define STUN_SERVER_ADDR2 "175.41.167.79"
+#define STUN_SERVER_PORT2 3478
+
+
 
 DtNat::DtNat(const char *name)
     : QObject(0)
@@ -62,8 +69,14 @@ void DtNat::test()
     // QHostAddress addr("66.228.45.110");// ("numb.viagenie.ca"); // OK
     // QHostAddress addr("numb.viagenie.ca");
     // QHostAddress addr("192.168.1.103");
+    // QHostAddress addr("208.97.25.20"); // stun.ideasip.com
     // QHostAddress addr("77.72.174.163"); // stun.voxgratia.org // XXX,低版本协议rfc3889
     // QHostAddress addr(""); // stun.voxalot.com        //xxx,低版本协议rfc3889
+    // stun:stun.l.google.com:19302  // OKKKK    
+    // stun:stun1.l.google.com:19302  // OKKKK    
+    // stun:stun2.l.google.com:19302  // OKKKK    
+    // stun:stun3.l.google.com:19302  // OKKKK    
+    // stun:stun4.l.google.com:19302  // OKKKK
     // QHostAddress addr("77.72.174.161"); // stun.voipbuster.com // xxx,低版本协议rfc3889
     // QHostAddress addr("217.10.68.152"); // stun.sipgate.net //xxx,低版本协议rfc3889
     // QHostAddress addr("132.177.123.6"); // stunserver.org // xxx,低版本协议rfc3889
@@ -352,4 +365,109 @@ void DtNat::onHoleTimeout()
         if (cnter > 512) break;
     }
     qDebug()<<10<<"try holing ..."<<port<<(port+pnum)<<"done:"<<cnter;    
+}
+
+void DtNat::do_phase1()
+{
+    qDebug()<<"do phase11111...";
+
+    msock = new QUdpSocket();
+    msock->bind(QHostAddress::AnyIPv4, 7766);
+
+    stun_buffer tbuf;
+    stun_set_binding_request(&tbuf);
+    
+    QByteArray rdata = QByteArray((char*)tbuf.buf, tbuf.len);
+    qint64 bytes;
+    QByteArray datagram;
+    QHostAddress sender;
+    quint16 senderPort;
+    QString mapped_addr;
+
+    // F1
+    msock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR1), STUN_SERVER_PORT1);
+    msock->waitForBytesWritten();
+
+    msock->waitForReadyRead();
+    bytes = msock->bytesAvailable();
+    qDebug()<<bytes;
+
+    datagram.resize(msock->pendingDatagramSize());
+    msock->readDatagram(datagram.data(), datagram.size(),
+                       &sender, &senderPort);
+    qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+    for (int i = 0; i < datagram.length(); i ++) {
+        char c = datagram.at(i);
+        fprintf(stderr, "%c", isprint(c) ? c : '.');
+        if (i > 375) break;
+    }
+    fprintf(stderr, " ...]\n");
+
+    mapped_addr = this->getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+    qDebug()<<"S1 mapped addr:"<<mapped_addr;
+
+    /// F3
+    msock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR2), STUN_SERVER_PORT2);
+    msock->waitForBytesWritten();
+
+    msock->waitForReadyRead();
+    bytes = msock->bytesAvailable();
+    qDebug()<<bytes;
+
+    datagram.resize(msock->pendingDatagramSize());
+    msock->readDatagram(datagram.data(), datagram.size(),
+                       &sender, &senderPort);
+    qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+
+    for (int i = 0; i < datagram.length(); i ++) {
+        char c = datagram.at(i);
+        fprintf(stderr, "%c", isprint(c) ? c : '.');
+        if (i > 375) break;
+    }
+    fprintf(stderr, " ...]\n");
+
+    mapped_addr = this->getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+    qDebug()<<"S2 mapped addr:"<<mapped_addr;
+    
+    
+}
+
+void DtNat::do_phase2()
+{
+
+}
+
+void DtNat::do_phase3()
+{
+
+}
+
+
+QString DtNat::getStunAddress(QByteArray resp, uint16_t attr_type)
+{
+    stun_buffer buf;
+    u08bits addr_buff[STUN_BUFFER_SIZE] = {0};
+
+    buf.len = resp.length();
+    memcpy(buf.buf, resp.data(), resp.length());
+
+    uint16_t t_attr_type;
+    const u08bits *attr_value;
+    int attr_len;
+    ioa_addr stun_addr;
+    stun_attr_ref raw_attr = stun_attr_get_first_str(buf.buf, buf.len);
+    for ( ; raw_attr ; raw_attr = stun_attr_get_next_str(buf.buf, buf.len, raw_attr)) {
+        t_attr_type = stun_attr_get_type(raw_attr);
+        attr_value = stun_attr_get_value(raw_attr);
+        attr_len = stun_attr_get_len(raw_attr);
+
+        if (t_attr_type == attr_type) {
+            stun_attr_get_addr_str(buf.buf, buf.len, raw_attr, &stun_addr, NULL);
+            addr_to_string(&stun_addr, (u08bits*)addr_buff);
+            break;
+        }
+    }
+
+    return QString((char*)addr_buff);
 }

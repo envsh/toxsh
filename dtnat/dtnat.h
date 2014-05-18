@@ -36,6 +36,11 @@ public:
     void test();
     void processResponse(QByteArray resp);
 
+    void do_phase1();
+    void do_phase2();
+    void do_phase3();
+    QString getStunAddress(QByteArray resp, uint16_t attr_type);
+
 public slots:
     void onReadyRead();
     void onConnected();
@@ -60,6 +65,12 @@ private:
     quint16 m_port_base = 0;
     QString m_hole_ip;
     QString m_hole_cmd;
+
+    QUdpSocket *m_hole_sock = NULL;
+    QString m_hole_addr_s1;
+    QString m_hole_addr_s2;
+    enum {PM_UNKNOWN = 0, PM_INC, PM_DEC, PM_SKIP};
+    int m_punch_mode;
 };
 
 /*
