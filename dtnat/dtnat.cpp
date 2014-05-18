@@ -35,6 +35,10 @@ void DtNat::init()
     QObject::connect(m_reg_sock, &QUdpSocket::bytesWritten, this, &DtNat::onRegChannelBytesWritten);
     m_reg_sock->bind(QHostAddress::AnyIPv4, 7766);
 
+    int fd = m_reg_sock->socketDescriptor();
+    int ttl = 10;
+    setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+
     m_notify_sock = new QTcpSocket();
     QObject::connect(m_notify_sock, &QTcpSocket::connected, this, &DtNat::onNotifyChannelConnected);
     QObject::connect(m_notify_sock, &QTcpSocket::readyRead, this, &DtNat::onNotifyChannelReadyRead);
