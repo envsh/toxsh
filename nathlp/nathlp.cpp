@@ -101,45 +101,45 @@ int nh_sendto(int fd, std::string str, std::string addr, unsigned short port)
 
 HlpPeer *find_peer(HlpContext *pctx, struct sockaddr *sa)
 {
-  HlpPeer *peer = NULL, *tpeer;
-  std::string uname;
-  struct sockaddr_in *isa = (struct sockaddr_in*)sa;
-  struct sockaddr_in *usa;
+    HlpPeer *peer = NULL, *tpeer;
+    std::string uname;
+    struct sockaddr_in *isa = (struct sockaddr_in*)sa;
+    struct sockaddr_in *usa;
   
-  std::map<std::string, HlpPeer*>::iterator it;
+    std::map<std::string, HlpPeer*>::iterator it;
 
-  for (it = pctx->m_peers.begin(); it != pctx->m_peers.end(); it++) {
-    uname = it->first;
-    tpeer = it->second;
-    usa = (struct sockaddr_in*)(&tpeer->usa);
-    if (usa->sin_addr.s_addr == isa->sin_addr.s_addr) {
-      peer = tpeer;
-      break;
+    for (it = pctx->m_peers.begin(); it != pctx->m_peers.end(); it++) {
+        uname = it->first;
+        tpeer = it->second;
+        usa = (struct sockaddr_in*)(&tpeer->usa);
+        if (usa->sin_addr.s_addr == isa->sin_addr.s_addr) {
+            peer = tpeer;
+            break;
+        }
     }
-  }
 
-  return peer;
-  return NULL;
+    return peer;
+    return NULL;
 }
 
 HlpPeer *find_peer(HlpContext *pctx, int tfd)
 {
-  HlpPeer *peer = NULL, *tpeer;
-  std::string uname;
+    HlpPeer *peer = NULL, *tpeer;
+    std::string uname;
   
-  std::map<std::string, HlpPeer*>::iterator it;
+    std::map<std::string, HlpPeer*>::iterator it;
 
-  for (it = pctx->m_peers.begin(); it != pctx->m_peers.end(); it++) {
-    uname = it->first;
-    tpeer = it->second;
-    if (tfd == tpeer->cli_fd) {
-      peer = tpeer;
-      break;
+    for (it = pctx->m_peers.begin(); it != pctx->m_peers.end(); it++) {
+        uname = it->first;
+        tpeer = it->second;
+        if (tfd == tpeer->cli_fd) {
+            peer = tpeer;
+            break;
+        }
     }
-  }
 
-  return peer;
-  return NULL;
+    return peer;
+    return NULL;
 }
 
 void state_processor(HlpCmd *pcmd, HlpContext *pctx)
@@ -259,15 +259,15 @@ void cb_func_tcp_read(evutil_socket_t fd, short what, void *args)
     rc = read(fd, buff, sizeof(buff));
     printf("tcp read rc=%d, fd=%d, what=%d\n", rc, fd, what);    
     if (rc == 0) {
-      // close
-      close(fd);
+        // close
+        close(fd);
 
-      peer = find_peer(pctx, fd);
-      assert(peer != NULL);
+        peer = find_peer(pctx, fd);
+        assert(peer != NULL);
       
-      event_del(peer->cli_ev);
-      peer->cli_ev = NULL;
-      peer->cli_fd = -1;
+        event_del(peer->cli_ev);
+        peer->cli_ev = NULL;
+        peer->cli_fd = -1;
     }
 }
 
