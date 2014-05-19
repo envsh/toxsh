@@ -32,10 +32,15 @@ public:
     DtNatBase();
     virtual ~DtNatBase();
 
+protected:
+    void init_stuns();
 
+protected:
+    QVector<QString> m_stuns;
+    QMap<int, QString> m_mapped_addrs; // stun_idx => mapped
 };
 
-class DtNatSrv : public QObject
+class DtNatSrv : public DtNatBase
 {
     Q_OBJECT;
 public:
@@ -76,7 +81,7 @@ private:
     int m_punch_mode;
 };
 
-class DtNatCli : public QObject
+class DtNatCli : public DtNatBase
 {
     Q_OBJECT;
 public:
@@ -88,6 +93,8 @@ public:
 public slots:
     void onBrgConnected();
     void onBrgReadyRead();
+
+    void onDetectReadyRead();
 
 private:
     void do_phase1();
