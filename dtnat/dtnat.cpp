@@ -459,8 +459,43 @@ DtNatCli::~DtNatCli()
 {
 }
 
+#include <miniupnpc/miniupnpc.h>
+#include <miniupnpc/upnpcommands.h>
+void test_upnp()
+{
+    int err = 0;
+    int ret;
+    char lanaddr[64];
+    char externalIPAddress[40];
+    struct UPNPDev *updev = NULL, *d2;
+    struct UPNPUrls urls;
+    struct IGDdatas data;
+
+    updev = upnpDiscover(1000 * 2, NULL, NULL, 0, 0, &err);
+
+    qDebug()<<updev<<err;
+    d2 = updev;
+    while (d2 != NULL) {
+        qDebug()<<d2->descURL<<d2->st<<d2->scope_id;
+        d2 = d2->pNext;
+    }
+
+    ret = UPNP_GetValidIGD(updev->pNext, &urls, &data, lanaddr, sizeof(lanaddr));
+    qDebug()<<ret<<urls.controlURL<<urls.ipcondescURL<<urls.rootdescURL<<lanaddr;
+
+    ret = UPNP_GetExternalIPAddress(urls.controlURL, data.first.servicetype, externalIPAddress);
+    qDebug()<<ret<<externalIPAddress;
+
+    ret = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
+                              "37755", "37756", lanaddr, "dtn查at-123", "UDP", 0, NULL);
+    qDebug()<<ret;
+}
+
 void DtNatCli::init()
 {
+    //test_upnp();
+    //return;
+
     m_detect_sock = new QUdpSocket();
     m_detect_sock->bind(QHostAddress::AnyIPv4, 7755);
 
@@ -482,6 +517,7 @@ void DtNatCli::init()
     // goon init
     QObject::connect(m_detect_sock, &QUdpSocket::readyRead, this, &DtNatCli::onDetectReadyRead);
 }
+
 
 void DtNatCli::onBrgConnected()
 {

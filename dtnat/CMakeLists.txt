@@ -11,4 +11,4 @@ add_executable(dtnat
   )
 
 qt5_use_modules(dtnat Core Network)
-target_link_libraries(dtnat -lcrypto -lpthread)
+target_link_libraries(dtnat -lcrypto -lpthread -lminiupnpc)
