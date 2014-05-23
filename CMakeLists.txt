@@ -30,4 +30,5 @@ add_subdirectory(trohc)
 add_subdirectory(p2psh)
 add_subdirectory(dtnat)
 #add_subdirectory(nathlp)
+add_subdirectory(kdns)
 
