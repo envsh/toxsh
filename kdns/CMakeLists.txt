@@ -2,6 +2,7 @@ include_directories("../libtroh")
 add_executable(kdns
   main.cpp
   kdns.cpp
+  queue.cpp
   ../libtroh/debugoutput.cpp
 )
 
