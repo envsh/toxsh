@@ -95,6 +95,8 @@ public slots:
     void onBrgReadyRead();
 
     void onDetectReadyRead();
+    void onHoleTimeout();
+    void onHoleReadyRead();
 
 private:
     void do_phase1();
@@ -103,8 +105,10 @@ private:
     QTcpSocket *m_brg_sock = NULL;
     QUdpSocket *m_detect_sock = NULL;
     QUdpSocket *m_hole_sock = NULL;
+    QTimer *m_hole_timer = NULL;
     QString m_hole_addr_s1;
     QString m_hole_addr_s2;
+    QMap<int, QUdpSocket*> m_hole_peers;
 };
 
 /*

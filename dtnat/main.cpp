@@ -9,13 +9,13 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
 
     if (argc >= 2 && strcmp(argv[1], "server") == 0) {
-        DtNatSrv dns;
+        DtNatSrv *dns = new DtNatSrv;
         // pdn.test();
         // pdn.init();
-        dns.do_phase1();
+        dns->do_phase1();
     } else {
-        DtNatCli dnc;
-        dnc.init();
+        DtNatCli *dnc = new DtNatCli;
+        dnc->init();
     }
 
     return app.exec();
