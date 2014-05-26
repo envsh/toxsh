@@ -61,52 +61,6 @@ void KDNS::onReadyRead()
         } else {
             this->debugPacket(data, iret);
             this->processQuery(data, iret, addr, port);
-
-            /*
-            ptr = data;
-            ldns_wire2pkt(&qpkt, (const uint8_t*)ptr, iret);
-            rr_list = ldns_pkt_question(qpkt);
-
-            qDebug()<<iret<<"qid:"<<DNS_HEADER_QID(ptr)
-                    <<"qr:"<<DNS_HEADER_QR(ptr)
-                    <<"aa:"<<DNS_HEADER_AA(ptr)
-                    <<"rd:"<<DNS_HEADER_RD(ptr)
-                    <<"ra:"<<DNS_HEADER_RA(ptr)
-                    <<"qd:"<<DNS_HEADER_QDCOUNT(ptr)
-                    <<"an:"<<DNS_HEADER_ANCOUNT(ptr)
-                    <<"ns:"<<DNS_HEADER_NSCOUNT(ptr)
-                    <<"ar:"<<DNS_HEADER_ARCOUNT(ptr)
-                    <<"qt:"<<DNS_QUESTION_TYPE(ptr+31)
-                    <<"qc:"<<DNS_QUESTION_CLASS(ptr+31);
-            for (int i = 0; i < ldns_rr_list_rr_count(rr_list); i ++) {
-                rr = ldns_rr_list_rr(rr_list, i);
-                qDebug()<<i
-                        <<"ldns qt:"<<ldns_rr_get_type(rr)
-                        <<"ldns qc:"<<ldns_rr_get_class(rr);
-                if (ldns_rr_get_type(rr) == LDNS_RR_TYPE_A) {
-                    ldns_rr_set_type(rr, LDNS_RR_TYPE_AAAA);
-                }
-            }
-
-            qDebug()<<QByteArray(data, iret).toHex();
-            if (g_first_pkt.isEmpty()) g_first_pkt = QByteArray(data+2, iret-2);
-            else {
-                qDebug()<<(QByteArray(data, iret) == g_first_pkt);
-                // qDebug()<<g_first_pkt.toHex();
-            }
-            if (QByteArray(data+2, iret-2) != g_first_pkt) {
-                
-            }
-            
-            // modify question
-            // DNS_QUESTION_SET_TYPE(ptr+31, 28);
-            ptr = NULL;
-            ldns_pkt2wire((uint8_t**)&ptr, qpkt, &ilen);
-            qDebug()<<"pkt 2 buff:"<<ilen;
-
-            m_fwd_sock->writeDatagram(ptr, ilen, QHostAddress("2001:4860:4860::8888"), 53);
-            // m_fwd_sock->writeDatagram(data, iret, QHostAddress("2001:4860:4860::8888"), 53);
-            */
         }
     }
     qDebug()<<"read pkt count:"<<cnter;
@@ -137,53 +91,6 @@ void KDNS::onFwdReadyRead()
         } else {
             this->debugPacket(data, iret);
             this->processResponse(data, iret, addr, port);
-            /*
-            ptr = data;
-            this->processResponse(data, iret, addr, port);
-            qDebug()<<iret<<"qid:"<<DNS_HEADER_QID(ptr)
-                    <<"rd:"<<DNS_HEADER_RD(ptr)
-                    <<"ra:"<<DNS_HEADER_RA(ptr)
-                    <<"qd:"<<DNS_HEADER_QDCOUNT(ptr)
-                    <<"an:"<<DNS_HEADER_ANCOUNT(ptr);
-            
-            irc = ares_parse_a_reply((unsigned char*)ptr, iret, &host, NULL, &naddrttls);
-            if (host != NULL) {
-                qDebug()<<irc<<host<<naddrttls<<host->h_name<<host->h_aliases<<host->h_addr_list
-                        <<host->h_addrtype<<AF_INET<<AF_INET6;
-                // if AF_INET, this is A rec, transform to AAAA rec
-
-                p = host->h_aliases[0];
-                for (int i =0 ; p != NULL; p = host->h_aliases[i++]) {
-                    qDebug()<<"alias:"<<p;
-                }
-
-                p = host->h_addr_list[0];
-                for (int i = 0 ; p != NULL; p = host->h_addr_list[++i]) {
-                    char straddr[64];
-                    char straddr6[64];
-                    inet_ntop(AF_INET, p, straddr, sizeof(straddr));
-                    qDebug()<<"addr:"<<(void*)p<<straddr<<QByteArray(p, 4).toHex();
-                }
-            }
-
-            host = NULL;
-            irc = ares_parse_aaaa_reply((unsigned char*)ptr, iret, &host, NULL, &naddrttls);
-            if (host != NULL) {
-                qDebug()<<irc<<host<<naddrttls<<host->h_name<<host->h_addrtype<<AF_INET<<AF_INET6;
-
-                p = host->h_addr_list[0];
-                for (int i = 0 ; p != NULL; p = host->h_addr_list[++i]) {
-                    char straddr[64];
-                    inet_ntop(AF_INET6, p, straddr, sizeof(straddr));
-                    qDebug()<<"addr:"<<(void*)p<<straddr;
-                }
-                
-            } else {
-                qDebug()<<"can not got ipv6 addr";
-            }
-                        
-            m_sock->writeDatagram(data, iret, g_addr, g_port);
-            */
         }
     }
     qDebug()<<"read pkt count:"<<cnter;
@@ -507,4 +414,6 @@ void KDNS::debugPacket(char *data, int len)
 
   另一种简单的方式，使用DNS劫持，如果主机有IPv6地址，则把IPv4地址劫持到127.0.0.1，
   一般程序都会重试另一个ip，而这个ip则是真实的IPv6的IP了。
+
+  TODO: 内存泄漏
  */
