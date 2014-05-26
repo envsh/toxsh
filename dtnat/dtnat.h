@@ -25,24 +25,40 @@ typedef struct stun_packet {
     stun_attr attr[1]; 
 } stun_packet;
 
-class DtNat : public QObject
+class DtNatBase : public QObject
 {
     Q_OBJECT;
 public:
-    DtNat(const char *name);
-    ~DtNat();
+    DtNatBase();
+    virtual ~DtNatBase();
+
+protected:
+    void init_stuns();
+
+protected:
+    QVector<QString> m_stuns;
+    QMap<int, QString> m_mapped_addrs; // stun_idx => mapped
+};
+
+class DtNatSrv : public DtNatBase
+{
+    Q_OBJECT;
+public:
+    DtNatSrv();
+    virtual ~DtNatSrv();
 
     void init();
     void test();
     void processResponse(QByteArray resp);
 
+    void do_phase1();
+    void do_phase2();
+    void do_phase3();
+    static QString getStunAddress(QByteArray resp, uint16_t attr_type);
+
 public slots:
     void onReadyRead();
     void onConnected();
-
-    void onRegChannelConnected();
-    void onRegChannelReadyRead();
-    void onRegChannelBytesWritten(qint64 bytes);
 
     void onNotifyChannelConnected();
     void onNotifyChannelReadyRead();
@@ -50,16 +66,49 @@ public slots:
     void onHoleTimeout();
 
 private:
-    QString m_name;
-    bool m_is_server = false;
-    QUdpSocket *msock = NULL;
-    QUdpSocket *m_reg_sock = NULL;
+    QUdpSocket *m_detect_sock = NULL;
     QTcpSocket *m_notify_sock = NULL;
 
     QTimer *m_hole_timer = NULL;
     quint16 m_port_base = 0;
     QString m_hole_ip;
     QString m_hole_cmd;
+
+    QUdpSocket *m_hole_sock = NULL;
+    QString m_hole_addr_s1;
+    QString m_hole_addr_s2;
+    enum {PM_UNKNOWN = 0, PM_INC, PM_DEC, PM_SKIP};
+    int m_punch_mode;
+};
+
+class DtNatCli : public DtNatBase
+{
+    Q_OBJECT;
+public:
+    DtNatCli();
+    virtual ~DtNatCli();
+
+    void init();
+
+public slots:
+    void onBrgConnected();
+    void onBrgReadyRead();
+
+    void onDetectReadyRead();
+    void onHoleTimeout();
+    void onHoleReadyRead();
+
+private:
+    void do_phase1();
+
+private:
+    QTcpSocket *m_brg_sock = NULL;
+    QUdpSocket *m_detect_sock = NULL;
+    QUdpSocket *m_hole_sock = NULL;
+    QTimer *m_hole_timer = NULL;
+    QString m_hole_addr_s1;
+    QString m_hole_addr_s2;
+    QMap<int, QUdpSocket*> m_hole_peers;
 };
 
 /*

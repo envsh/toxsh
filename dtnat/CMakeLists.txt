@@ -1,7 +1,8 @@
-include_directories("client" "common" "server")
+include_directories("client" "common" "server" "../libtroh/")
 add_executable(dtnat
   main.cpp
   dtnat.cpp
+  ../libtroh/debugoutput.cpp
   client/ns_turn_ioaddr.c
   client/ns_turn_msg.c
   client/ns_turn_msg_addr.c
@@ -10,4 +11,4 @@ add_executable(dtnat
   )
 
 qt5_use_modules(dtnat Core Network)
-target_link_libraries(dtnat -lcrypto -lpthread)
+target_link_libraries(dtnat -lcrypto -lpthread -lminiupnpc)

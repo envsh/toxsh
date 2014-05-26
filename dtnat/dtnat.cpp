@@ -1,3 +1,4 @@
+#include <assert.h>
 
 #include "ns_turn_defs.h"
 #include "ns_turn_msg_defs.h"
@@ -13,53 +14,91 @@
 #define NH_SERVER_ADDR "81.4.106.67"
 #define NH_SERVER_PORT 7890
 
+// "74.125.23.127" // "74.125.25.127" // "74.125.137.127" // "173.194.76.127" // "74.125.131.127" // "208.97.25.20"   // "132.177.123.6" // "66.228.45.110"
+#define STUN_SERVER_ADDR1 "74.125.137.127"
+#define STUN_SERVER_PORT1 19302 // 3478
 
-DtNat::DtNat(const char *name)
-    : QObject(0)
+#define STUN_SERVER_ADDR2 "175.41.167.79"
+#define STUN_SERVER_PORT2 3478
+
+/////////////////////////////////////
+///
+////////////////////////////////////
+
+DtNatBase::DtNatBase()
+    : QObject()
 {
-    m_name = name;
-    if (m_name == "server") {
-        m_is_server = true;
-    }
+    this->init_stuns();
 }
 
-DtNat::~DtNat()
+DtNatBase::~DtNatBase()
 {
 }
 
-void DtNat::init()
+void DtNatBase::init_stuns()
 {
-    m_reg_sock = new QUdpSocket();
-    QObject::connect(m_reg_sock, &QUdpSocket::connected, this, &DtNat::onRegChannelConnected);
-    QObject::connect(m_reg_sock, &QUdpSocket::readyRead, this, &DtNat::onRegChannelReadyRead);
-    QObject::connect(m_reg_sock, &QUdpSocket::bytesWritten, this, &DtNat::onRegChannelBytesWritten);
-    m_reg_sock->bind(QHostAddress::AnyIPv4, 7766);
+    // m_stuns.append("66.228.45.110:3478");
+    // m_stuns.append("175.41.167.79:3478");
+    m_stuns.append("74.125.23.127:19302");
+    m_stuns.append("74.125.25.127:19302");
+    // m_stuns.append("74.125.137.127:19302");
+    // m_stuns.append("173.194.76.127:19302");
+    // m_stuns.append("77.72.174.161:3478");
+    // m_stuns.append("217.10.68.152:3478");
+    // m_stuns.append("");
+}
+
+/////////////////////////////////////
+///
+////////////////////////////////////
+
+DtNatSrv::DtNatSrv()
+    : DtNatBase()
+{
+}
+
+DtNatSrv::~DtNatSrv()
+{
+}
+
+void DtNatSrv::init()
+{
+
+    m_detect_sock = new QUdpSocket();
+    m_detect_sock->bind(QHostAddress::AnyIPv4, 7755);
+    m_hole_sock = new QUdpSocket();
+
+    /*
+    int fd = m_reg_sock->socketDescriptor();
+    int ttl = 10;
+    setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+    */
 
     m_notify_sock = new QTcpSocket();
-    QObject::connect(m_notify_sock, &QTcpSocket::connected, this, &DtNat::onNotifyChannelConnected);
-    QObject::connect(m_notify_sock, &QTcpSocket::readyRead, this, &DtNat::onNotifyChannelReadyRead);
+    QObject::connect(m_notify_sock, &QTcpSocket::connected, this, &DtNatSrv::onNotifyChannelConnected);
+    QObject::connect(m_notify_sock, &QTcpSocket::readyRead, this, &DtNatSrv::onNotifyChannelReadyRead);
 
-    // m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
-
-    for (int i = 1 ; i <= 3; i ++) {
-        QString reg_str = QString("register%1;%2;hh;cc").arg(i).arg(m_name);
-        QHostAddress serv_addr(NH_SERVER_ADDR);
-        m_reg_sock->writeDatagram(reg_str.toLatin1().data(), reg_str.length(), serv_addr, NH_SERVER_PORT+i-1);
-    }
+    m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
 }
 
-void DtNat::test()
+void DtNatSrv::test()
 {
-    msock = new QUdpSocket();
-    QObject::connect(msock, &QUdpSocket::connected, this, &DtNat::onConnected);
-    QObject::connect(msock, &QUdpSocket::readyRead, this, &DtNat::onReadyRead);
-    msock->bind(QHostAddress::AnyIPv4, 7755);
+    m_detect_sock = new QUdpSocket();
+    QObject::connect(m_detect_sock, &QUdpSocket::connected, this, &DtNatSrv::onConnected);
+    QObject::connect(m_detect_sock, &QUdpSocket::readyRead, this, &DtNatSrv::onReadyRead);
+    m_detect_sock->bind(QHostAddress::AnyIPv4, 7755);
 
     // QHostAddress addr("66.228.45.110");// ("numb.viagenie.ca"); // OK
     // QHostAddress addr("numb.viagenie.ca");
     // QHostAddress addr("192.168.1.103");
+    // QHostAddress addr("208.97.25.20"); // stun.ideasip.com
     // QHostAddress addr("77.72.174.163"); // stun.voxgratia.org // XXX,低版本协议rfc3889
     // QHostAddress addr(""); // stun.voxalot.com        //xxx,低版本协议rfc3889
+    // stun:stun.l.google.com:19302  // OKKKK    
+    // stun:stun1.l.google.com:19302  // OKKKK    
+    // stun:stun2.l.google.com:19302  // OKKKK    
+    // stun:stun3.l.google.com:19302  // OKKKK    
+    // stun:stun4.l.google.com:19302  // OKKKK
     // QHostAddress addr("77.72.174.161"); // stun.voipbuster.com // xxx,低版本协议rfc3889
     // QHostAddress addr("217.10.68.152"); // stun.sipgate.net //xxx,低版本协议rfc3889
     // QHostAddress addr("132.177.123.6"); // stunserver.org // xxx,低版本协议rfc3889
@@ -76,7 +115,7 @@ void DtNat::test()
 
     quint16 port = 3478;
 
-    // msock->connectToHost("numb.viagenie.ca", port);
+    // m_detect_sock->connectToHost("numb.viagenie.ca", port);
 
     stun_header header;
     memset(&header, 0, sizeof(header));
@@ -111,13 +150,13 @@ void DtNat::test()
     qDebug()<<memcmp(rbuf, tbuf.buf, tbuf.len);
     
     QByteArray msg = "01jjjjjjjjjjjjjjjjjjjjj2345985u6486456u4564586u4586u4586u496u486u8";
-    quint64 wlen;// = msock->writeDatagram(msg, addr, port);
-    quint64 wlen2 = msock->writeDatagram(QByteArray((char*)rbuf, tbuf.len), addr, port);
-    // quint64 wlen2 = msock->writeDatagram(QByteArray((char*)&tbuf.buf, tbuf.len), addr, port);
+    quint64 wlen;// = m_detect_sock->writeDatagram(msg, addr, port);
+    quint64 wlen2 = m_detect_sock->writeDatagram(QByteArray((char*)rbuf, tbuf.len), addr, port);
+    // quint64 wlen2 = m_detect_sock->writeDatagram(QByteArray((char*)&tbuf.buf, tbuf.len), addr, port);
     qDebug()<<addr<<port<<wlen<<wlen2<<rlen<<tbuf.len<<memcmp(rbuf, tbuf.buf, tbuf.len);
 }
 
-void DtNat::onConnected()
+void DtNatSrv::onConnected()
 {
     QUdpSocket *sock = (QUdpSocket*)(sender());
     qDebug()<<""<<sock;
@@ -126,11 +165,11 @@ void DtNat::onConnected()
     quint16 port = 3478;
 
     QByteArray msg = "01jjjjjjjjjjjjjjjjjjjjj2345985u6486456u4564586u4586u4586u496u486u8";
-    quint64 wlen = msock->writeDatagram(msg, addr, port);
+    quint64 wlen = m_detect_sock->writeDatagram(msg, addr, port);
     qDebug()<<addr<<port<<wlen;
 }
 
-void DtNat::onReadyRead()
+void DtNatSrv::onReadyRead()
 {
     QUdpSocket *sock = (QUdpSocket*)(sender());
     qDebug()<<""<<sock;
@@ -158,7 +197,7 @@ void DtNat::onReadyRead()
     }
 }
 
-void DtNat::processResponse(QByteArray resp)
+void DtNatSrv::processResponse(QByteArray resp)
 {
     u08bits rbuf[STUN_BUFFER_SIZE];
     size_t rlen = 0;
@@ -217,63 +256,20 @@ void DtNat::processResponse(QByteArray resp)
     }
 }
 
-void DtNat::onRegChannelConnected()
-{
-    qDebug()<<sender();
-}
-
-void DtNat::onRegChannelReadyRead()
-{
-    QUdpSocket *sock = (QUdpSocket *)(sender());
-    QByteArray ba;
-    char buff[256] = {0};
-    QHostAddress peer_addr;
-    quint16 peer_port;
-
-    sock->readDatagram(buff, sizeof(buff), &peer_addr, &peer_port);
-    qDebug()<<sender()<<buff<<peer_addr<<peer_port;
-
-    QString cmd, from, to, value;
-    QString ip;
-    quint16 port;
-
-    QList<QByteArray> elems = QByteArray(buff).split(';');
-    cmd = elems.at(0);
-    from = elems.at(1);
-    to = elems.at(2);
-    value = elems.at(3);
-
-    if (cmd == "punch_do") {
-        qDebug()<<"haha, hole punch okkkkk,"<<peer_addr<<peer_port;
-    }
-}
-
-void DtNat::onRegChannelBytesWritten(qint64 bytes)
-{
-    static int runed = 0;
-    if (runed) return;
-
-    runed = 1;
-    if (m_notify_sock->state() != QAbstractSocket::SocketState::ConnectedState) {
-        qDebug()<<sender()<<bytes;
-        m_notify_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
-    }
-}
-
-void DtNat::onNotifyChannelConnected()
+void DtNatSrv::onNotifyChannelConnected()
 {
     qDebug()<<sender();
 
+    /*
     if (m_is_server) {
-        
     } else {
         QString cmd_str = "punch_relay;client;server;dd";
-        m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(NH_SERVER_ADDR), NH_SERVER_PORT);
-
+         m_reg_sock->writeDatagram(cmd_str.toLatin1().data(), cmd_str.length(), QHostAddress(NH_SERVER_ADDR), NH_SERVER_PORT);
     }
+    */
 }
 
-void DtNat::onNotifyChannelReadyRead()
+void DtNatSrv::onNotifyChannelReadyRead()
 {
     QTcpSocket *sock = (QTcpSocket*)(sender());
     QByteArray ba = sock->readAll();
@@ -302,7 +298,7 @@ void DtNat::onNotifyChannelReadyRead()
         m_hole_ip = ip;
         if (m_hole_timer == NULL) {
             m_hole_timer = new QTimer();
-            QObject::connect(m_hole_timer, &QTimer::timeout, this, &DtNat::onHoleTimeout);
+            QObject::connect(m_hole_timer, &QTimer::timeout, this, &DtNatSrv::onHoleTimeout);
             m_hole_timer->setInterval(350);
             m_hole_timer->start();
         }
@@ -318,15 +314,9 @@ void DtNat::onNotifyChannelReadyRead()
         qDebug()<<10<<"try holing .."<<ip<<port<<(port+pnum)<<"done";
         */
     }    
-
-    if (m_is_server) {
-        
-    } else {
-
-    }
 }
 
-void DtNat::onHoleTimeout()
+void DtNatSrv::onHoleTimeout()
 {
     int pnum = 15600;
     quint16 port = m_port_base;
@@ -339,13 +329,423 @@ void DtNat::onHoleTimeout()
     // for (quint16 nport = port; nport < port + 1 + pnum; nport ++) {
     // for (quint16 nport = 1025; nport < 65535; nport ++) {
     for (quint16 nport = 1025 + qrand() % (pnum - 1000); nport > 1024 && nport < 65535; nport += (qrand() % 8 + 1) ) {
-        iret = m_reg_sock->writeDatagram(cmd_str.toLatin1(), QHostAddress(ip), nport);
+        // iret = m_reg_sock->writeDatagram(cmd_str.toLatin1(), QHostAddress(ip), nport);
         if (iret == -1) {
-            qDebug()<<cnter<<"send udp error:"<<ip<<nport<<m_reg_sock->error()<<m_reg_sock->errorString();
+            // qDebug()<<cnter<<"send udp error:"<<ip<<nport<<m_reg_sock->error()<<m_reg_sock->errorString();
             break;
         }
         cnter ++;
         if (cnter > 512) break;
     }
     qDebug()<<10<<"try holing ..."<<port<<(port+pnum)<<"done:"<<cnter;    
+}
+
+void DtNatSrv::do_phase1()
+{
+    qDebug()<<"do phase11111...";
+
+    m_detect_sock = new QUdpSocket();
+    m_detect_sock->bind(QHostAddress::AnyIPv4, 7766);
+
+    stun_buffer tbuf;
+    stun_set_binding_request(&tbuf);
+    
+    QByteArray rdata = QByteArray((char*)tbuf.buf, tbuf.len);
+    qint64 bytes;
+    QByteArray datagram;
+    QHostAddress sender;
+    quint16 senderPort;
+    QString mapped_addr;
+
+    // F1
+    m_detect_sock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR1), STUN_SERVER_PORT1);
+    m_detect_sock->waitForBytesWritten();
+
+    m_detect_sock->waitForReadyRead();
+    bytes = m_detect_sock->bytesAvailable();
+    qDebug()<<bytes;
+
+    datagram.resize(m_detect_sock->pendingDatagramSize());
+    m_detect_sock->readDatagram(datagram.data(), datagram.size(),
+                       &sender, &senderPort);
+    qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+    for (int i = 0; i < datagram.length(); i ++) {
+        char c = datagram.at(i);
+        fprintf(stderr, "%c", isprint(c) ? c : '.');
+        if (i > 375) break;
+    }
+    fprintf(stderr, " ...]\n");
+
+    mapped_addr = this->getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+    qDebug()<<"S1 mapped addr:"<<mapped_addr;
+
+    /// F3
+    m_detect_sock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR2), STUN_SERVER_PORT2);
+    m_detect_sock->waitForBytesWritten();
+
+    m_detect_sock->waitForReadyRead();
+    bytes = m_detect_sock->bytesAvailable();
+    qDebug()<<bytes;
+
+    datagram.resize(m_detect_sock->pendingDatagramSize());
+    m_detect_sock->readDatagram(datagram.data(), datagram.size(),
+                       &sender, &senderPort);
+    qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+
+    for (int i = 0; i < datagram.length(); i ++) {
+        char c = datagram.at(i);
+        fprintf(stderr, "%c", isprint(c) ? c : '.');
+        if (i > 375) break;
+    }
+    fprintf(stderr, " ...]\n");
+
+    mapped_addr = this->getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+    qDebug()<<"S2 mapped addr:"<<mapped_addr;
+    
+    
+}
+
+void DtNatSrv::do_phase2()
+{
+
+}
+
+void DtNatSrv::do_phase3()
+{
+
+}
+
+
+QString DtNatSrv::getStunAddress(QByteArray resp, uint16_t attr_type)
+{
+    stun_buffer buf;
+    u08bits addr_buff[STUN_BUFFER_SIZE] = {0};
+
+    buf.len = resp.length();
+    memcpy(buf.buf, resp.data(), resp.length());
+
+    uint16_t t_attr_type;
+    const u08bits *attr_value;
+    int attr_len;
+    ioa_addr stun_addr;
+    stun_attr_ref raw_attr = stun_attr_get_first_str(buf.buf, buf.len);
+    for ( ; raw_attr ; raw_attr = stun_attr_get_next_str(buf.buf, buf.len, raw_attr)) {
+        t_attr_type = stun_attr_get_type(raw_attr);
+        attr_value = stun_attr_get_value(raw_attr);
+        attr_len = stun_attr_get_len(raw_attr);
+
+        if (t_attr_type == attr_type) {
+            stun_attr_get_addr_str(buf.buf, buf.len, raw_attr, &stun_addr, NULL);
+            addr_to_string(&stun_addr, (u08bits*)addr_buff);
+            break;
+        }
+    }
+
+    return QString((char*)addr_buff);
+}
+
+
+
+////////////////////////////////
+///
+///////////////////////////////
+
+DtNatCli::DtNatCli()
+    : DtNatBase()
+{
+}
+
+DtNatCli::~DtNatCli()
+{
+}
+
+#include <miniupnpc/miniupnpc.h>
+#include <miniupnpc/upnpcommands.h>
+void test_upnp()
+{
+    int err = 0;
+    int ret;
+    char lanaddr[64];
+    char externalIPAddress[40];
+    struct UPNPDev *updev = NULL, *d2;
+    struct UPNPUrls urls;
+    struct IGDdatas data;
+
+    updev = upnpDiscover(1000 * 2, NULL, NULL, 0, 0, &err);
+
+    qDebug()<<updev<<err;
+    d2 = updev;
+    while (d2 != NULL) {
+        qDebug()<<d2->descURL<<d2->st<<d2->scope_id;
+        d2 = d2->pNext;
+    }
+
+    ret = UPNP_GetValidIGD(updev->pNext, &urls, &data, lanaddr, sizeof(lanaddr));
+    qDebug()<<ret<<urls.controlURL<<urls.ipcondescURL<<urls.rootdescURL<<lanaddr;
+
+    ret = UPNP_GetExternalIPAddress(urls.controlURL, data.first.servicetype, externalIPAddress);
+    qDebug()<<ret<<externalIPAddress;
+
+    ret = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
+                              "37755", "37756", lanaddr, "dtn查at-123", "UDP", 0, NULL);
+    qDebug()<<ret;
+}
+
+void DtNatCli::init()
+{
+    //test_upnp();
+    //return;
+
+    m_detect_sock = new QUdpSocket();
+    m_detect_sock->bind(QHostAddress::AnyIPv4, 7755);
+
+    m_hole_sock = new QUdpSocket();
+
+    m_brg_sock = new QTcpSocket();
+    QObject::connect(m_brg_sock, &QTcpSocket::connected, this, &DtNatCli::onBrgConnected);
+    QObject::connect(m_brg_sock, &QTcpSocket::readyRead, this, &DtNatCli::onBrgReadyRead);
+    
+    m_brg_sock->connectToHost(NH_SERVER_ADDR, NH_SERVER_PORT);
+    m_brg_sock->waitForConnected();
+    qDebug()<<"brg connected";
+
+    // 
+    this->do_phase1();
+    
+    // write punch info of client
+
+    // goon init
+    QObject::connect(m_detect_sock, &QUdpSocket::readyRead, this, &DtNatCli::onDetectReadyRead);
+
+    m_hole_timer = new QTimer();
+    QObject::connect(m_hole_timer, &QTimer::timeout, this, &DtNatCli::onHoleTimeout);
+    m_hole_timer->start(1000 * 65);
+
+    // first
+    this->onHoleTimeout();
+}
+
+void DtNatCli::onHoleTimeout()
+{
+    qDebug()<<"";
+
+    QString peer_host = "123.124.163.241";
+    quint16 peer_port = 26199;
+    int num = 10;
+    
+    QUdpSocket *sock;
+    int tport;
+    int iret;
+    int cnter = 0;
+    int freed = 0;
+    QString cmd_str = QString("hole_cli;aaa;bbb;ccc;ddd;eee;%1").arg(qrand());
+    for (int i = 1025; i < 65536; i++) {
+        if (qrand() % 7 == 0) {
+            tport = i;
+
+            if (m_hole_peers.contains(i)) {
+                sock = m_hole_peers[i];
+                m_hole_peers.remove(i);
+                delete sock; sock = NULL;
+                freed ++;
+            }
+            
+            sock = new QUdpSocket();
+            QObject::connect(sock, &QUdpSocket::readyRead, this, &DtNatCli::onHoleReadyRead);
+            sock->bind(QHostAddress::AnyIPv4, tport);
+            m_hole_peers[i] = sock;
+            for (int j = 0; j < num; j ++) {
+                iret = sock->writeDatagram(cmd_str.toLatin1(), QHostAddress(peer_host), peer_port + j);
+                sock->waitForBytesWritten();
+            }
+            cnter ++;
+        } 
+    }
+        
+    qDebug()<<"sent port:"<<cnter<<m_hole_peers.size()<<freed;
+}
+
+void DtNatCli::onHoleReadyRead()
+{
+    QUdpSocket *sock = (QUdpSocket*)(sender());
+    qDebug()<<""<<sock;
+
+    u08bits rbuf[STUN_BUFFER_SIZE];
+
+    while (sock->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(sock->pendingDatagramSize());
+        QHostAddress sender;
+        quint16 senderPort;
+
+        sock->readDatagram(datagram.data(), datagram.size(),
+                                &sender, &senderPort);
+
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+
+        if (sender.toString() == "123.124.163.241") {
+            assert(1==2);
+        }
+        
+        for (int i = 0; i < datagram.length(); i ++) {
+            fprintf(stderr, "%c", datagram.at(i));
+        }
+        fprintf(stderr, "]\n");
+
+        // this->processResponse(datagram);
+        // processTheDatagram(datagram);
+    }
+    
+}
+
+void DtNatCli::onBrgConnected()
+{
+    qDebug()<<""<<sender();
+}
+
+void DtNatCli::onBrgReadyRead()
+{
+    qDebug()<<""<<sender();
+
+    // if server punch info
+    // punching it
+}
+
+void DtNatCli::onDetectReadyRead()
+{
+    qDebug()<<""<<sender();
+
+    QUdpSocket *sock = (QUdpSocket*)(sender());
+    qDebug()<<""<<sock;
+
+    u08bits rbuf[STUN_BUFFER_SIZE];
+
+    while (sock->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(sock->pendingDatagramSize());
+        QHostAddress sender;
+        quint16 senderPort;
+
+        sock->readDatagram(datagram.data(), datagram.size(),
+                                &sender, &senderPort);
+
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+        for (int i = 0; i < datagram.length(); i ++) {
+            fprintf(stderr, "%c", datagram.at(i));
+        }
+        fprintf(stderr, "]\n");
+
+        // this->processResponse(datagram);
+        // processTheDatagram(datagram);
+    }
+
+}
+
+void DtNatCli::do_phase1()
+{
+    qDebug()<<"do phase11111...";
+
+    stun_buffer tbuf;
+    stun_set_binding_request(&tbuf);
+    
+    QByteArray rdata = QByteArray((char*)tbuf.buf, tbuf.len);
+    qint64 bytes;
+    QByteArray datagram;
+    QHostAddress sender;
+    quint16 senderPort;
+    QString mapped_addr;
+    QString stun_addr;
+
+    for (int i = 0; i < m_stuns.size(); i++) {
+        stun_addr = m_stuns.at(i);
+
+        // F1 - F3
+        m_detect_sock->writeDatagram(rdata, QHostAddress(stun_addr.split(':').at(0)), stun_addr.split(':').at(1).toUShort());
+        m_detect_sock->waitForBytesWritten();
+
+        m_detect_sock->waitForReadyRead();
+        bytes = m_detect_sock->bytesAvailable();
+        qDebug()<<bytes;
+
+        datagram.resize(m_detect_sock->pendingDatagramSize());
+        m_detect_sock->readDatagram(datagram.data(), datagram.size(),
+                                    &sender, &senderPort);
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+        for (int i = 0; i < datagram.length(); i ++) {
+            char c = datagram.at(i);
+            fprintf(stderr, "%c", isprint(c) ? c : '.');
+            if (i > 375) break;
+        }
+        fprintf(stderr, " ...]\n");
+
+        mapped_addr = DtNatSrv::getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+        qDebug()<<"Sxx mapped addr:"<<stun_addr<<"==>"<<mapped_addr
+                << DtNatSrv::getStunAddress(datagram, STUN_ATTRIBUTE_MAPPED_ADDRESS);
+        m_mapped_addrs[i] = mapped_addr;
+    }
+
+    qDebug()<<m_mapped_addrs;
+
+    if (0) {
+        // F1
+        m_detect_sock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR1), STUN_SERVER_PORT1);
+        m_detect_sock->waitForBytesWritten();
+
+        m_detect_sock->waitForReadyRead();
+        bytes = m_detect_sock->bytesAvailable();
+        qDebug()<<bytes;
+
+        datagram.resize(m_detect_sock->pendingDatagramSize());
+        m_detect_sock->readDatagram(datagram.data(), datagram.size(),
+                                    &sender, &senderPort);
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+        
+        for (int i = 0; i < datagram.length(); i ++) {
+            char c = datagram.at(i);
+            fprintf(stderr, "%c", isprint(c) ? c : '.');
+            if (i > 375) break;
+        }
+        fprintf(stderr, " ...]\n");
+
+        mapped_addr = DtNatSrv::getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+        qDebug()<<"S1 mapped addr:"<<mapped_addr;
+        m_hole_addr_s1 = mapped_addr;
+
+        /// F3
+        m_detect_sock->writeDatagram(rdata, QHostAddress(STUN_SERVER_ADDR2), STUN_SERVER_PORT2);
+        m_detect_sock->waitForBytesWritten();
+
+        m_detect_sock->waitForReadyRead();
+        bytes = m_detect_sock->bytesAvailable();
+        qDebug()<<bytes;
+
+        datagram.resize(m_detect_sock->pendingDatagramSize());
+        m_detect_sock->readDatagram(datagram.data(), datagram.size(),
+                                    &sender, &senderPort);
+        qDebug()<<"read: "<<sender<<senderPort<<datagram.length()<<datagram.toHex();
+
+        for (int i = 0; i < datagram.length(); i ++) {
+            char c = datagram.at(i);
+            fprintf(stderr, "%c", isprint(c) ? c : '.');
+            if (i > 375) break;
+        }
+        fprintf(stderr, " ...]\n");
+
+        mapped_addr = DtNatSrv::getStunAddress(datagram, STUN_ATTRIBUTE_XOR_MAPPED_ADDRESS);
+        qDebug()<<"S2 mapped addr:"<<mapped_addr;
+        m_hole_addr_s2 = mapped_addr;
+
+        // check global ip
+        QString has1 = m_hole_addr_s1.split(':').at(0);
+        QString has2 = m_hole_addr_s2.split(':').at(0);
+
+        if (has1 == has2) {
+        } else {
+            qDebug()<<"you client has multi global ip: ???";
+        }
+
+    }
 }
