@@ -236,9 +236,11 @@ void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port)
 
 void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
 {
+    qDebug()<<len<<host<<port;
+
     ldns_pkt *t_pkt = NULL, *t_pkt2 = NULL;
     ldns_rr_list *t_rr_list = NULL;
-    ldns_rr *t_rr = NULL;
+    ldns_rr *t_rr = NULL, *t_rr2 = NULL;
     ldns_rdf *t_rdf = NULL;
     ldns_status t_status;
     char t_buff[256];
@@ -256,14 +258,17 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
     if (qit2) qit2->debug();
     else {
         qDebug()<<"can not find queued item for:"<<qit->m_qid<<m_relate_ipv6_query.contains(qit->m_qid);
+        qDebug()<<m_qrqueue.keys();
     }
 
-    for (int i = 0; i < ldns_rr_list_rr_count(t_rr_list); i ++) {
+    qDebug()<<"rrlistcount:"<<ldns_rr_list_rr_count(t_rr_list);
+    for (int i = ldns_rr_list_rr_count(t_rr_list) - 1; i >= 0 ; i --) {
         t_rr = ldns_rr_list_rr(t_rr_list, i);
-
+        
+        qDebug()<<i<<t_rr;
         switch (ldns_rr_type t = ldns_rr_get_type(t_rr)) {
         case LDNS_RR_TYPE_A:
-            qDebug()<<"got IPv4 ipaddr:";
+            qDebug()<<i<<"got IPv4 ipaddr:";
             if (qit2) {
                 qit2->m_got4 = true;
             }
@@ -274,8 +279,15 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
                 qDebug()<<"rdf size:"<<ldns_rdf_size(t_rdf);
                 inet_pton(AF_INET, "127.0.0.1", t_buff);
                 memcpy(ldns_rdf_data(t_rdf), t_buff, 4);
-                ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
                 rewrite_response = true;
+            }
+
+            // 已经处理过DNS劫持了，后面的IPv4地址可以忽略掉。但需要保证留下一个劫持IPv4地址
+            if (rewrite_response && i > 0) {
+                t_rr2 = ldns_rr_list_rr(t_rr_list, i - 1);
+                if (ldns_rr_get_type(t_rr2) == LDNS_RR_TYPE_A) {
+                    t_rr2 = ldns_rr_list_pop_rr(t_rr_list);
+                }
             }
             
             break;
@@ -292,8 +304,10 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
         }
     }
 
+    qDebug()<<"forward back to:"<<qit2<<rewrite_response;
     if (qit2) {
         if (rewrite_response) {
+            ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
             m_sock->writeDatagram(t_ptr, t_len, qit2->m_addr, qit2->m_port);
         } else {
             // 检测是否是relate ipv6 响应包
@@ -431,6 +445,7 @@ void KDNS::debugPacket(char *data, int len)
             <<"qr:"<<ldns_pkt_qr(t_pkt)
             <<"rd:"<<ldns_pkt_rd(t_pkt)
             <<"ra:"<<ldns_pkt_ra(t_pkt)
+            <<"rcode:"<<ldns_pkt_get_rcode(t_pkt)
             <<"qd:"<<ldns_pkt_qdcount(t_pkt)
             <<"an:"<<ldns_pkt_ancount(t_pkt)
             <<"question ptr:"<<ldns_pkt_question(t_pkt)
