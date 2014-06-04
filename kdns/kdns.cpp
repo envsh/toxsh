@@ -43,7 +43,7 @@ void KDNS::onReadyRead()
     
     QHostAddress addr;
     quint16 port;
-    char data[2560];
+    char data[512];
     qint64 iret;
     size_t ilen;
     char *ptr;
@@ -72,7 +72,7 @@ void KDNS::onFwdReadyRead()
     
     QHostAddress addr;
     quint16 port;
-    char data[2560];
+    char data[512];
     qint64 iret, irc;
     char *ptr;
     int naddrttls;
@@ -121,6 +121,7 @@ void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port)
         qDebug()<<"what problem???";
     } else {
         m_qrqueue[h] = qit;
+        qit = NULL;
     }
 
     t_rr_list = ldns_pkt_question(t_pkt);
@@ -139,6 +140,10 @@ void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port)
     }
 
     this->foward_resolve_query(data, len);
+
+    // cleanup 
+    ldns_pkt_free(t_pkt);
+    if (qit) delete qit;
 }
 
 void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
@@ -220,6 +225,15 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
             // 检测是否是relate ipv6 响应包
             m_sock->writeDatagram(data, len, qit2->m_addr, qit2->m_port);
         }
+    }
+
+    // cleanup
+    if (t_ptr) free(t_ptr);
+    ldns_pkt_free(t_pkt);
+    delete qit; qit = NULL;
+    if (qit2) {
+        m_qrqueue.remove(qit2->hash());
+        delete qit2;
     }
 }
 
@@ -403,6 +417,9 @@ void KDNS::debugPacket(char *data, int len)
     }
 
     fprintf(stdout, "\n");
+
+    // cleanup 
+    ldns_pkt_free(t_pkt);
 }
 
 /*
