@@ -1,3 +1,4 @@
+
 #include "commandhandler.h"
 
 CommandHandler::CommandHandler()
@@ -32,10 +33,16 @@ void CommandHandler::onNewCommand(QString cmd, int did)
         args << tl.at(i);
     }
 
-    qDebug()<<"running cmd:"<<cmd;
+    qDebug()<<"running cmd:"<<cmd<<did;
     // m_proc->start(prog, args);
 
-    m_proc->write(cmd.toLatin1() + "\n");
+    if (m_did == -1) {
+        m_did = did;
+    } else {
+        m_dids.enqueue(did);
+    }
+    QString rfmt_cmd = cmd + QString(";echo ENDOFCMD_%1").arg(did);
+    m_proc->write(rfmt_cmd.toLatin1() + "\n");
 }
 
 void CommandHandler::onProcError(QProcess::ProcessError error)
@@ -55,21 +62,39 @@ void CommandHandler::onProcError(QProcess::ProcessError error)
         break;
     }
 
-    emit this->commandResponeLine(0, msg);
+    emit this->commandResponeLine(m_did, msg);
 }
 
 void CommandHandler::onProcFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     qDebug()<<""<<exitCode;
     
-    emit this->commandResponeFinished(0);
+    emit this->commandResponeFinished(m_did);
+    m_did = -1;
 }
 
 void CommandHandler::onStdoutReadyRead()
 {
     QByteArray ba = m_proc->readAllStandardOutput();
+    int did = m_did;
 
-    emit this->commandResponeLine(0, QString(ba));
+    qint64 eoc = ba.indexOf("ENDOFCMD_");
+    if (eoc != -1) {
+        qDebug()<<"got end of cmd: "<<ba.mid(eoc + 9, 1); 
+        if (!m_dids.isEmpty()) {
+            m_did = m_dids.dequeue();
+        } else {
+            m_did = -1;
+        }
+        ba = ba.left(eoc);
+    } else {
+    }
+
+    if (ba.length() > 0) {
+        emit this->commandResponeLine(did, QString(ba));
+    } else {
+        qDebug()<<"empty line, maybe end of cmd."<<did<<ba;
+    }
 }
 
 void CommandHandler::onStderrReadyRead()
@@ -77,7 +102,7 @@ void CommandHandler::onStderrReadyRead()
     QByteArray ba = m_proc->readAllStandardError();
     qDebug()<<ba;
 
-    emit this->commandResponeLine(0, QString(ba));
+    emit this->commandResponeLine(m_did, QString(ba));
 }
 
 

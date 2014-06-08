@@ -25,6 +25,8 @@ private slots:
 
 private:
     QProcess *m_proc = NULL;
+    int m_did = -1;
+    QQueue<int> m_dids;
 };
 
 

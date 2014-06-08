@@ -1,4 +1,6 @@
 
+#include "status.hpp"
+
 #include "commandhandler.h"
 
 #include "server.h"
@@ -23,7 +25,9 @@ Server::Server()
     connect(core, &Core::connected, this, &Server::onConnected);
     connect(core, &Core::disconnected, this, &Server::onDisconnected);
     connect(core, &Core::friendRequestReceived, this, &Server::onFriendRequestReceived);
+    connect(core, &Core::friendAddressGenerated, this, &Server::onFriendAddressGenerated);
     connect(core, &Core::friendMessageReceived, this, &Server::messageReceived);
+    connect(core, &Core::friendStatusChanged, this, &Server::onFriendStatusChanged);
     /*
     connect(core, SIGNAL(friendStatusChanged(int, Status)), friendsWidget, SLOT(setStatus(int, Status)));
     connect(core, &Core::friendAddressGenerated, ourUserItem, &OurUserItemWidget::setFriendAddress);
@@ -80,6 +84,17 @@ void Server::onDisconnected()
     // ourUserItem->setStatus(Status::Offline);
 }
 
+void Server::onFriendAddressGenerated(QString friendAddress)
+{
+    qDebug()<<friendAddress;
+}
+
+void Server::onFriendStatusChanged(int friendId, Status status)
+{
+    StatusHelper::Info info;
+    qDebug()<<friendId<<StatusHelper::getInfo(status).name;
+}
+
 void Server::onFailedToStartCore()
 {
     qDebug()<<"";
@@ -103,6 +118,7 @@ void Server::messageReceived(int friendId, const QString& message)
 
 void Server::onCommandResponeLine(int did, QString oline)
 {
+    qDebug()<<did<<oline;
     core->sendMessage(did, oline);
 }
 

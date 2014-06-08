@@ -19,6 +19,8 @@ public:
     void onConnected();
     void onDisconnected();
     void onFriendRequestReceived(const QString &userId, const QString &message);
+    void onFriendAddressGenerated(QString friendAddress);
+    void onFriendStatusChanged(int friendId, Status status);
     void onFailedToStartCore();
 
     //
