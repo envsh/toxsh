@@ -31,6 +31,8 @@ public:
 
     // void executeSettingsDialog(QWidget* parent);
 
+    static QString getSettingsDirPath();
+
     struct DhtServer
     {
         QString name;
@@ -91,6 +93,23 @@ public:
     int getEmojiFontPointSize() const;
     void setEmojiFontPointSize(int value);
 
+    // ChatView
+    int getFirstColumnHandlePos() const;
+    void setFirstColumnHandlePos(const int pos);
+
+    int getSecondColumnHandlePosFromRight() const;
+    void setSecondColumnHandlePosFromRight(const int pos);
+
+    const QString &getTimestampFormat() const;
+    void setTimestampFormat(const QString &format);
+
+    bool isMinimizeOnCloseEnabled() const;
+    void setMinimizeOnClose(bool newValue);
+
+    // Privacy
+    bool isTypingNotificationEnabled() const;
+    void setTypingNotification(bool enabled);
+
 private:
     Settings();
     Settings(Settings &settings) = delete;
@@ -98,6 +117,8 @@ private:
 
     void save();
     void load();
+
+
 
     static const QString FILENAME;
 
@@ -121,6 +142,15 @@ private:
     bool customEmojiFont;
     QString emojiFontFamily;
     int     emojiFontPointSize;
+    bool minimizeOnClose;
+
+    // ChatView
+    int firstColumnHandlePos;
+    int secondColumnHandlePosFromRight;
+    QString timestampFormat;
+
+    // Privacy
+    bool typingNotification;
 
 signals:
     //void dataChanged();
@@ -128,6 +158,7 @@ signals:
     void logStorageOptsChanged();
     void smileyPackChanged();
     void emojiFontChanged();
+    void timestampFormatChanged();
 };
 
 #endif // SETTINGS_HPP

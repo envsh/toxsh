@@ -22,8 +22,8 @@ Server::Server()
 
     connect(core, &Core::connected, this, &Server::onConnected);
     connect(core, &Core::disconnected, this, &Server::onDisconnected);
-    connect(core, &Core::friendRequestRecieved, this, &Server::onFriendRequestRecieved);
-    connect(core, &Core::friendMessageRecieved, this, &Server::messageReceived);
+    connect(core, &Core::friendRequestReceived, this, &Server::onFriendRequestReceived);
+    connect(core, &Core::friendMessageReceived, this, &Server::messageReceived);
     /*
     connect(core, SIGNAL(friendStatusChanged(int, Status)), friendsWidget, SLOT(setStatus(int, Status)));
     connect(core, &Core::friendAddressGenerated, ourUserItem, &OurUserItemWidget::setFriendAddress);
@@ -54,7 +54,7 @@ Server::~Server()
 
 }
 
-void Server::onFriendRequestRecieved(const QString& userId, const QString& message)
+void Server::onFriendRequestReceived(const QString& userId, const QString& message)
 {
     qDebug()<<"userid:"<<userId<<",message"<<message;
     emit friendRequestAccepted(userId);

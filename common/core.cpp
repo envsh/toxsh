@@ -1,4 +1,3 @@
-
 /*
     Copyright (C) 2013 by Maxim Biro <nurupo.contributions@gmail.com>
 
@@ -18,14 +17,23 @@
 #include "core.hpp"
 #include "Settings/settings.hpp"
 
-#include <QtCore>
+#include <cstdint>
+
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <QtEndian>
 #include <QThread>
-#include <QTime>
+
+const QString Core::CONFIG_FILE_NAME = "data.tox";
 
 Core::Core() :
     tox(nullptr)
 {
     timer = new QTimer(this);
+    timer->setSingleShot(true);
     connect(timer, &QTimer::timeout, this, &Core::process);
     connect(&Settings::getInstance(), &Settings::dhtServerListChanged, this, &Core::bootstrapDht);
 }
@@ -33,24 +41,29 @@ Core::Core() :
 Core::~Core()
 {
     if (tox) {
+        saveConfiguration();
         tox_kill(tox);
     }
 }
 
 void Core::onFriendRequest(Tox*/* tox*/, uint8_t* cUserId, uint8_t* cMessage, uint16_t cMessageSize, void* core)
 {
-    qDebug()<<"new friend request"<<(char*)cUserId<<(char*)cMessage;
-    emit static_cast<Core*>(core)->friendRequestRecieved(CUserId::toString(cUserId), CString::toString(cMessage, cMessageSize));
+    emit static_cast<Core*>(core)->friendRequestReceived(CUserId::toString(cUserId), CString::toString(cMessage, cMessageSize));
 }
 
 void Core::onFriendMessage(Tox*/* tox*/, int friendId, uint8_t* cMessage, uint16_t cMessageSize, void* core)
 {
-    emit static_cast<Core*>(core)->friendMessageRecieved(friendId, CString::toString(cMessage, cMessageSize));
+    emit static_cast<Core*>(core)->friendMessageReceived(friendId, CString::toString(cMessage, cMessageSize));
 }
 
 void Core::onFriendNameChange(Tox*/* tox*/, int friendId, uint8_t* cName, uint16_t cNameSize, void* core)
 {
     emit static_cast<Core*>(core)->friendUsernameChanged(friendId, CString::toString(cName, cNameSize));
+}
+
+void Core::onFriendTypingChange(Tox*/* tox*/, int friendId, uint8_t isTyping, void *core)
+{
+    emit static_cast<Core*>(core)->friendTypingChanged(friendId, isTyping ? true : false);
 }
 
 void Core::onStatusMessageChanged(Tox*/* tox*/, int friendId, uint8_t* cMessage, uint16_t cMessageSize, void* core)
@@ -61,33 +74,30 @@ void Core::onStatusMessageChanged(Tox*/* tox*/, int friendId, uint8_t* cMessage,
 void Core::onUserStatusChanged(Tox*/* tox*/, int friendId, uint8_t userstatus, void* core)
 {
     Status status;
-    QString str_status;
     switch (userstatus) {
         case TOX_USERSTATUS_NONE:
             status = Status::Online;
-            str_status = "Online";
             break;
         case TOX_USERSTATUS_AWAY:
             status = Status::Away;
-            str_status = "away";
             break;
         case TOX_USERSTATUS_BUSY:
             status = Status::Busy;
-            str_status = "busy";
             break;
         default:
             status = Status::Online;
-            str_status = "Online";
             break;
     }
-    qDebug()<<friendId<<""<<str_status;
-
     emit static_cast<Core*>(core)->friendStatusChanged(friendId, status);
 }
 
 void Core::onConnectionStatusChanged(Tox*/* tox*/, int friendId, uint8_t status, void* core)
 {
-    emit static_cast<Core*>(core)->friendStatusChanged(friendId, status ? Status::Online : Status::Offline);
+    Status friendStatus = status ? Status::Online : Status::Offline;
+    emit static_cast<Core*>(core)->friendStatusChanged(friendId, friendStatus);
+    if (friendStatus == Status::Offline) {
+        static_cast<Core*>(core)->checkLastOnline(friendId);
+    }
 }
 
 void Core::onAction(Tox*/* tox*/, int friendId, uint8_t *cMessage, uint16_t cMessageSize, void *core)
@@ -103,7 +113,6 @@ void Core::acceptFriendRequest(const QString& userId)
     } else {
         emit friendAdded(friendId, userId);
     }
-    qDebug()<<"added friend:"<<friendId<<userId;
 }
 
 void Core::requestFriendship(const QString& friendAddress, const QString& message)
@@ -133,6 +142,13 @@ void Core::sendAction(int friendId, const QString &action)
     CString cMessage(action);
     int ret = tox_send_action(tox, friendId, cMessage.data(), cMessage.size());
     emit actionSentResult(friendId, action, ret);
+}
+
+void Core::sendTyping(int friendId, bool typing)
+{
+    int ret = tox_set_user_is_typing(tox, friendId, typing);
+    if (ret == -1)
+        emit failedToSetTyping(typing);
 }
 
 void Core::removeFriend(int friendId)
@@ -197,7 +213,7 @@ void Core::bootstrapDht()
     QList<Settings::DhtServer> dhtServerList = s.getDhtServerList();
 
     for (const Settings::DhtServer& dhtServer : dhtServerList) {
-       tox_bootstrap_from_address(tox, dhtServer.address.toLatin1().data(), 0, htons(dhtServer.port), CUserId(dhtServer.userId).data());
+       tox_bootstrap_from_address(tox, dhtServer.address.toLatin1().data(), 0, qToBigEndian(dhtServer.port), CUserId(dhtServer.userId).data());
     }
 }
 
@@ -209,6 +225,7 @@ void Core::process()
     fflush(stdout);
 #endif
     checkConnection();
+    timer->start(tox_do_interval(tox));
 }
 
 void Core::checkConnection()
@@ -218,10 +235,109 @@ void Core::checkConnection()
     if (tox_isconnected(tox) && !isConnected) {
         emit connected();
         isConnected = true;
-        qDebug()<<"connected to tox network";
     } else if (!tox_isconnected(tox) && isConnected) {
         emit disconnected();
         isConnected = false;
+    }
+}
+
+void Core::loadConfiguration()
+{
+    QString path = Settings::getSettingsDirPath() + '/' + CONFIG_FILE_NAME;
+
+    QFile configurationFile(path);
+
+    if (!configurationFile.exists()) {
+        qWarning() << "The Tox configuration file was not found";
+        return;
+    }
+
+    if (!configurationFile.open(QIODevice::ReadOnly)) {
+        qCritical() << "File " << path << " cannot be opened";
+        return;
+    }
+
+    qint64 fileSize = configurationFile.size();
+    if (fileSize > 0) {
+        QByteArray data = configurationFile.readAll();
+        tox_load(tox, reinterpret_cast<uint8_t *>(data.data()), data.size());
+    }
+
+    configurationFile.close();
+
+    loadFriends();
+}
+
+void Core::saveConfiguration()
+{
+    QString path = Settings::getSettingsDirPath();
+
+    QDir directory(path);
+
+    if (!directory.exists() && !directory.mkpath(directory.absolutePath())) {
+        qCritical() << "Error while creating directory " << path;
+        return;
+    }
+
+    path += '/' + CONFIG_FILE_NAME;
+    QSaveFile configurationFile(path);
+    if (!configurationFile.open(QIODevice::WriteOnly)) {
+        qCritical() << "File " << path << " cannot be opened";
+        return;
+    }
+
+    uint32_t fileSize = tox_size(tox);
+    if (fileSize > 0 && fileSize <= INT32_MAX) {
+        uint8_t *data = new uint8_t[fileSize];
+        tox_save(tox, data);
+        configurationFile.write(reinterpret_cast<char *>(data), fileSize);
+        configurationFile.commit();
+        delete[] data;
+    }
+}
+
+void Core::loadFriends()
+{
+    const uint32_t friendCount = tox_count_friendlist(tox);
+    if (friendCount > 0) {
+        // assuming there are not that many friends to fill up the whole stack
+        int32_t *ids = new int32_t[friendCount];
+        tox_get_friendlist(tox, ids, friendCount);
+        uint8_t clientId[TOX_CLIENT_ID_SIZE];
+        for (int32_t i = 0; i < static_cast<int32_t>(friendCount); ++i) {
+            if (tox_get_client_id(tox, ids[i], clientId) == 0) {
+                emit friendAdded(ids[i], CUserId::toString(clientId));
+
+                const int nameSize = tox_get_name_size(tox, ids[i]);
+                if (nameSize > 0) {
+                    uint8_t *name = new uint8_t[nameSize];
+                    if (tox_get_name(tox, ids[i], name) == nameSize) {
+                        emit friendUsernameLoaded(ids[i], CString::toString(name, nameSize));
+                    }
+                    delete[] name;
+                }
+
+                const int statusMessageSize = tox_get_status_message_size(tox, ids[i]);
+                if (statusMessageSize > 0) {
+                    uint8_t *statusMessage = new uint8_t[statusMessageSize];
+                    if (tox_get_status_message(tox, ids[i], statusMessage, statusMessageSize) == statusMessageSize) {
+                        emit friendStatusMessageLoaded(ids[i], CString::toString(statusMessage, statusMessageSize));
+                    }
+                    delete[] statusMessage;
+                }
+
+                checkLastOnline(ids[i]);
+            }
+
+        }
+        delete[] ids;
+    }
+}
+
+void Core::checkLastOnline(int friendId) {
+    const uint64_t lastOnline = tox_get_last_online(tox, friendId);
+    if (lastOnline > 0) {
+        emit friendLastSeenChanged(friendId, QDateTime::fromTime_t(lastOnline));
     }
 }
 
@@ -234,10 +350,13 @@ void Core::start()
         return;
     }
 
+    loadConfiguration();
+
     tox_callback_friend_request(tox, onFriendRequest, this);
     tox_callback_friend_message(tox, onFriendMessage, this);
     tox_callback_friend_action(tox, onAction, this);
     tox_callback_name_change(tox, onFriendNameChange, this);
+    tox_callback_typing_change(tox, onFriendTypingChange, this);
     tox_callback_status_message(tox, onStatusMessageChanged, this);
     tox_callback_user_status(tox, onUserStatusChanged, this);
     tox_callback_connection_status(tox, onConnectionStatusChanged, this);
@@ -245,11 +364,8 @@ void Core::start()
     uint8_t friendAddress[TOX_FRIEND_ADDRESS_SIZE];
     tox_get_address(tox, friendAddress);
 
-    // TODO server需要使用固定的地址
-    qDebug()<<"friend address:"<<CFriendAddress::toString(friendAddress);
     emit friendAddressGenerated(CFriendAddress::toString(friendAddress));
 
-    
     CString cUsername(Settings::getInstance().getUsername());
     tox_set_name(tox, cUsername.data(), cUsername.size());
 
@@ -258,8 +374,7 @@ void Core::start()
 
     bootstrapDht();
 
-    timer->setInterval(30);
-    timer->start();
+    timer->start(tox_do_interval(tox));
 }
 
 
@@ -331,7 +446,7 @@ QString Core::CFriendAddress::toString(uint8_t* cFriendAddress)
 
 Core::CString::CString(const QString& string)
 {
-    cString = new uint8_t[string.length() * MAX_SIZE_OF_UTF8_ENCODED_CHARACTER + 1]();
+    cString = new uint8_t[string.length() * MAX_SIZE_OF_UTF8_ENCODED_CHARACTER]();
     cStringSize = fromString(string, cString);
 }
 
@@ -352,17 +467,12 @@ uint16_t Core::CString::size()
 
 QString Core::CString::toString(uint8_t* cString, uint16_t cStringSize)
 {
-    return QString::fromUtf8(reinterpret_cast<char*>(cString), cStringSize - 1);
-}
-
-QString Core::CString::toString(uint8_t* cString)
-{
-    return QString::fromUtf8(reinterpret_cast<char*>(cString), -1);
+    return QString::fromUtf8(reinterpret_cast<char*>(cString), cStringSize);
 }
 
 uint16_t Core::CString::fromString(const QString& string, uint8_t* cString)
 {
     QByteArray byteArray = QByteArray(string.toUtf8());
     memcpy(cString, reinterpret_cast<uint8_t*>(byteArray.data()), byteArray.size());
-    return byteArray.size() + 1;
+    return byteArray.size();
 }

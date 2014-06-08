@@ -49,7 +49,7 @@ void Settings::load()
         return;
     }
 
-    QString filePath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + '/' + FILENAME;
+    QString filePath = getSettingsDirPath() + '/' + FILENAME;
 
     //if no settings file exist -- use the default one
     QFile file(filePath);
@@ -98,6 +98,14 @@ void Settings::load()
         customEmojiFont = s.value("customEmojiFont", true).toBool();
         emojiFontFamily = s.value("emojiFontFamily", "DejaVu Sans").toString();
         // emojiFontPointSize = s.value("emojiFontPointSize", QApplication::font().pointSize()).toInt();
+        firstColumnHandlePos = s.value("firstColumnHandlePos", 50).toInt();
+        secondColumnHandlePosFromRight = s.value("secondColumnHandlePosFromRight", 50).toInt();
+        timestampFormat = s.value("timestampFormat", "hh:mm").toString();
+        minimizeOnClose = s.value("minimizeOnClose", false).toBool();
+    s.endGroup();
+
+    s.beginGroup("Privacy");
+        typingNotification = s.value("typingNotification", false).toBool();
     s.endGroup();
 
     loaded = true;
@@ -105,7 +113,7 @@ void Settings::load()
 
 void Settings::save()
 {
-    QString filePath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + '/' + FILENAME;
+    QString filePath = getSettingsDirPath() + '/' + FILENAME;
 
     QSettings s(filePath, QSettings::IniFormat);
 
@@ -149,14 +157,31 @@ void Settings::save()
         s.setValue("customEmojiFont", customEmojiFont);
         s.setValue("emojiFontFamily", emojiFontFamily);
         s.setValue("emojiFontPointSize", emojiFontPointSize);
+        s.setValue("firstColumnHandlePos", firstColumnHandlePos);
+        s.setValue("secondColumnHandlePosFromRight", secondColumnHandlePosFromRight);
+        s.setValue("timestampFormat", timestampFormat);
+        s.setValue("minimizeOnClose", minimizeOnClose);
     s.endGroup();
+
+    s.beginGroup("Privacy");
+        s.setValue("typingNotification", typingNotification);
+    s.endGroup();
+}
+
+QString Settings::getSettingsDirPath()
+{
+    // workaround for https://bugreports.qt-project.org/browse/QTBUG-38845
+#ifdef Q_OS_WIN
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+#else
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + '/' + qApp->organizationName() + '/' + qApp->applicationName();
+#endif
 }
 
 /*
 void Settings::executeSettingsDialog(QWidget* parent)
 {
-    SettingsDialog dialog(parent);
-    if (dialog.exec() == QDialog::Accepted) {
+    if (SettingsDialog::showDialog(parent) == QDialog::Accepted) {
         save();
         //emit dataChanged();
     }
@@ -267,6 +292,37 @@ void Settings::setEmojiFontPointSize(int value)
     emit emojiFontChanged();
 }
 
+int Settings::getFirstColumnHandlePos() const
+{
+    return firstColumnHandlePos;
+}
+
+void Settings::setFirstColumnHandlePos(const int pos)
+{
+    firstColumnHandlePos = pos;
+}
+
+int Settings::getSecondColumnHandlePosFromRight() const
+{
+    return secondColumnHandlePosFromRight;
+}
+
+void Settings::setSecondColumnHandlePosFromRight(const int pos)
+{
+    secondColumnHandlePosFromRight = pos;
+}
+
+const QString &Settings::getTimestampFormat() const
+{
+    return timestampFormat;
+}
+
+void Settings::setTimestampFormat(const QString &format)
+{
+    timestampFormat = format;
+    emit timestampFormatChanged();
+}
+
 QString Settings::getEmojiFontFamily() const
 {
     return emojiFontFamily;
@@ -276,4 +332,24 @@ void Settings::setEmojiFontFamily(const QString &value)
 {
     emojiFontFamily = value;
     emit emojiFontChanged();
+}
+
+bool Settings::isMinimizeOnCloseEnabled() const
+{
+    return minimizeOnClose;
+}
+
+void Settings::setMinimizeOnClose(bool newValue)
+{
+    minimizeOnClose = newValue;
+}
+
+bool Settings::isTypingNotificationEnabled() const
+{
+    return typingNotification;
+}
+
+void Settings::setTypingNotification(bool enabled)
+{
+    typingNotification = enabled;
 }

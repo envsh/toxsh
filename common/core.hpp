@@ -19,15 +19,11 @@
 
 #include "status.hpp"
 
-#include <tox.h>
-#include <toxav.h>
-#include <DHT.h>
-#include <net_crypto.h>
-#include <network.h>
+#include <tox/tox.h>
 
+#include <QDateTime>
 #include <QObject>
 #include <QTimer>
-#include <QList>
 
 class Core : public QObject
 {
@@ -40,6 +36,7 @@ private:
     static void onFriendRequest(Tox* tox, uint8_t* cUserId, uint8_t* cMessage, uint16_t cMessageSize, void* core);
     static void onFriendMessage(Tox* tox, int friendId, uint8_t* cMessage, uint16_t cMessageSize, void* core);
     static void onFriendNameChange(Tox* tox, int friendId, uint8_t* cName, uint16_t cNameSize, void* core);
+    static void onFriendTypingChange(Tox* tox, int friendId, uint8_t isTyping, void* core);
     static void onStatusMessageChanged(Tox* tox, int friendId, uint8_t* cMessage, uint16_t cMessageSize, void* core);
     static void onUserStatusChanged(Tox* tox, int friendId, uint8_t userstatus, void* core);
     static void onConnectionStatusChanged(Tox* tox, int friendId, uint8_t status, void* core);
@@ -47,8 +44,16 @@ private:
 
     void checkConnection();
 
+    void loadConfiguration();
+    void saveConfiguration();
+    void loadFriends();
+
+    void checkLastOnline(int friendId);
+
     Tox* tox;
     QTimer* timer;
+
+    static const QString CONFIG_FILE_NAME;
 
     class CData
     {
@@ -103,7 +108,6 @@ private:
         uint16_t size();
 
         static QString toString(uint8_t* cMessage, uint16_t cMessageSize);
-        static QString toString(uint8_t* cMessage);
 
     private:
         const static int MAX_SIZE_OF_UTF8_ENCODED_CHARACTER = 4;
@@ -124,6 +128,7 @@ public slots:
 
     void sendMessage(int friendId, const QString& message);
     void sendAction(int friendId, const QString& action);
+    void sendTyping(int friendId, bool typing);
 
     void setUsername(const QString& username);
     void setStatusMessage(const QString& message);
@@ -137,18 +142,24 @@ signals:
     void connected();
     void disconnected();
 
-    void friendRequestRecieved(const QString& userId, const QString& message);
-    void friendMessageRecieved(int friendId, const QString& message);
+    void friendRequestReceived(const QString& userId, const QString& message);
+    void friendMessageReceived(int friendId, const QString& message);
 
     void friendAdded(int friendId, const QString& userId);
 
     void friendStatusChanged(int friendId, Status status);
     void friendStatusMessageChanged(int friendId, const QString& message);
     void friendUsernameChanged(int friendId, const QString& username);
+    void friendTypingChanged(int friendId, bool isTyping);
+
+    void friendStatusMessageLoaded(int friendId, const QString& message);
+    void friendUsernameLoaded(int friendId, const QString& username);
 
     void friendAddressGenerated(const QString& friendAddress);
 
     void friendRemoved(int friendId);
+
+    void friendLastSeenChanged(int friendId, const QDateTime& dateTime);
 
     void usernameSet(const QString& username);
     void statusMessageSet(const QString& message);
@@ -162,6 +173,7 @@ signals:
     void failedToSetUsername(const QString& username);
     void failedToSetStatusMessage(const QString& message);
     void failedToSetStatus(Status status);
+    void failedToSetTyping(bool typing);
 
     void actionReceived(int friendId, const QString& acionMessage);
 
