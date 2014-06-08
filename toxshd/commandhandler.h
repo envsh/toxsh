@@ -2,6 +2,7 @@
 #define _COMMANDHANDLER_H_
 
 #include <QtCore>
+#include <QtNetwork>
 
 class CommandHandler : public QObject
 {
@@ -23,10 +24,20 @@ private slots:
     void onStdoutReadyRead();
     void onStderrReadyRead();
 
+    // 
+    void onNewNotifier();
+    void onNotifierReadyRead();
+    
+    // 
+    bool current_proc_want_input();
+
 private:
     QProcess *m_proc = NULL;
+    QByteArray m_last_line;
+    QByteArray m_last_error;
     int m_did = -1;
     QQueue<int> m_dids;
+    QLocalServer  *m_cmd_done_notifier = NULL;
 };
 
 

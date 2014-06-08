@@ -17,6 +17,6 @@ add_executable(toxshd
   ../libtroh/debugoutput.cpp
 )
 
-qt5_use_modules(toxshd Core)
+qt5_use_modules(toxshd Core Network)
 
 
