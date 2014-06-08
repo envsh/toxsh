@@ -7,6 +7,8 @@
 // simple 
 // setenv("QT_MESSAGE_PATTERN", "[%{type}] %{appname} (%{file}:%{line}) T%{threadid} %{function} - %{message} ", 1);
 
+
+// TODO 优化
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     int tid = syscall(__NR_gettid);
@@ -18,16 +20,33 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
 
     QString mfunc = QString(context.function);
     tlist = mfunc.split(' ');
+    for (int i = tlist.size() - 1; i >= 0; i --) {
+        if (tlist.at(i).indexOf('(') != -1) {
+            tlist = tlist.at(i).split('(');
+            break;
+        }
+    }
+    /*
     if (tlist.at(0) == "static" || tlist.at(0) == "virtual") {
-        tlist = tlist.takeAt(2).split('(');
+        
+        if (tlist.size() >= 3) {
+            tlist = tlist.takeAt(2).split('(');
+        } else {
+            fprintf(stderr, "ctx list size: %d\n", tlist.size());
+            for (int i = 0 ; i < tlist.size(); i ++) {
+                fprintf(stderr, "ctx: %d, %s\n", i, tlist.at(i).toLocal8Bit().data());
+            }
+        }
     } else {
         tlist = tlist.takeAt(1).split('(');
     }
+    */
     mfunc = tlist.takeAt(0);
     
     // static void StunClient::debugStunResponse(QByteArray)
     // void StunClient::debugStunResponse(QByteArray)
     // virtual void StunClinet::aaa()
+    // virtual QProcess::~QProcess()
     if (1) {
         fprintf(stderr, "[%s] T(%u) %s:%u %s - %s\n", time_str.toLocal8Bit().data(),  tid,
                 hpath.toLocal8Bit().data(), context.line,

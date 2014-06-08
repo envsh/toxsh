@@ -244,6 +244,7 @@ void Core::checkConnection()
 void Core::loadConfiguration()
 {
     QString path = Settings::getSettingsDirPath() + '/' + CONFIG_FILE_NAME;
+    qDebug()<<path;
 
     QFile configurationFile(path);
 
