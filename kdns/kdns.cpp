@@ -9,11 +9,14 @@
 
 #include <ldns/ldns.h>
 
-// 这个程序使用的上游DNS服务器地址
+// 这个程序使用的上游DNS服务器地址, dnsmasq
 #define UPS_DNS_SERVER_ADDR "::1"
 #define UPS_DNS_SERVER_PORT 5353
 
-
+/*
+  TODO 内存漏泄，1周涨到400M。
+  测试中。。。
+ */
 KDNS::KDNS()
     : QObject()
 {
@@ -27,6 +30,7 @@ void KDNS::init()
 {
     m_fwd_sock = new QUdpSocket();
     QObject::connect(m_fwd_sock, &QUdpSocket::readyRead, this, &KDNS::onFwdReadyRead);
+    m_fwd_sock->connectToHost(UPS_DNS_SERVER_ADDR, UPS_DNS_SERVER_PORT);
 
     m_sock = new QUdpSocket();
     // m_sock->bind(QHostAddress::AnyIPv6, m_port);
@@ -189,7 +193,7 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
                 // a emu wrong ip, DNS劫持
                 t_rdf = ldns_rr_rdf(t_rr, 0);
                 qDebug()<<"rdf size:"<<ldns_rdf_size(t_rdf);
-                inet_pton(AF_INET, "127.0.0.1", t_buff);
+                inet_pton(AF_INET, "127.0.0.2", t_buff); // 可能本机开了服务的情况，防止发出错误请求
                 memcpy(ldns_rdf_data(t_rdf), t_buff, 4);
                 rewrite_response = true;
             }
@@ -199,6 +203,12 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
                 t_rr2 = ldns_rr_list_rr(t_rr_list, i - 1);
                 if (ldns_rr_get_type(t_rr2) == LDNS_RR_TYPE_A) {
                     t_rr2 = ldns_rr_list_pop_rr(t_rr_list);
+                    if (t_rr2) {
+                        ldns_rr_free(t_rr2); // cleanup
+                        t_rr2 = NULL;
+                    } else {
+                        qDebug()<<"null pop rr detected.";
+                    }
                 }
             }
             
@@ -216,13 +226,12 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
         }
     }
 
-    qDebug()<<"forward back to:"<<qit2<<rewrite_response;
+    qDebug()<<"forward back to:"<<qit2<<rewrite_response<<m_qrqueue.size();
     if (qit2) {
         if (rewrite_response) {
             ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
             m_sock->writeDatagram(t_ptr, t_len, qit2->m_addr, qit2->m_port);
         } else {
-            // 检测是否是relate ipv6 响应包
             m_sock->writeDatagram(data, len, qit2->m_addr, qit2->m_port);
         }
     }
@@ -258,6 +267,9 @@ bool KDNS::foward_relate_ipv6_query(ldns_pkt *pkt, ldns_rr *rr)
     ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
     this->foward_resolve_query(t_ptr, t_len);
     m_fwd_sock->waitForBytesWritten(); // hope that ipv6 first response
+
+    // cleanup
+    free(t_ptr);
     
     return true;
 }
@@ -306,6 +318,7 @@ bool KDNS::need_hijacking_domain(ldns_rr *rr)
     return false;
 }
 
+// unused now
 bool KDNS::do_hijacking_domain(ldns_pkt *pkt, ldns_rr *rr)
 {
     ldns_pkt *t_pkt = pkt;
@@ -318,7 +331,7 @@ bool KDNS::do_hijacking_domain(ldns_pkt *pkt, ldns_rr *rr)
     // a emu wrong ip, DNS劫持
     t_rdf = ldns_rr_rdf(t_rr, 0);
     qDebug()<<"rdf size:"<<ldns_rdf_size(t_rdf);
-    inet_pton(AF_INET, "127.0.0.1", t_buff);
+    inet_pton(AF_INET, "127.0.0.2", t_buff); // 可能本机开了服务的情况，防止发出错误请求
     memcpy(ldns_rdf_data(t_rdf), t_buff, 4);
     ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
     
