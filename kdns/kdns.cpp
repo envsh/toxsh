@@ -193,7 +193,7 @@ void KDNS::processResponse(char *data, int len, QHostAddress host, quint16 port)
                 // a emu wrong ip, DNS劫持
                 t_rdf = ldns_rr_rdf(t_rr, 0);
                 qDebug()<<"rdf size:"<<ldns_rdf_size(t_rdf);
-                inet_pton(AF_INET, "127.0.0.2", t_buff); // 可能本机开了服务的情况，防止发出错误请求
+                inet_pton(AF_INET, "127.0.0.1", t_buff); // 可能本机开了服务的情况，防止发出错误请求
                 memcpy(ldns_rdf_data(t_rdf), t_buff, 4);
                 rewrite_response = true;
             }
@@ -331,7 +331,7 @@ bool KDNS::do_hijacking_domain(ldns_pkt *pkt, ldns_rr *rr)
     // a emu wrong ip, DNS劫持
     t_rdf = ldns_rr_rdf(t_rr, 0);
     qDebug()<<"rdf size:"<<ldns_rdf_size(t_rdf);
-    inet_pton(AF_INET, "127.0.0.2", t_buff); // 可能本机开了服务的情况，防止发出错误请求
+    inet_pton(AF_INET, "127.0.0.", t_buff); // 可能本机开了服务的情况，防止发出错误请求
     memcpy(ldns_rdf_data(t_rdf), t_buff, 4);
     ldns_pkt2wire((uint8_t**)&t_ptr, t_pkt, &t_len);
     
