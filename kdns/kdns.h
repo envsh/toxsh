@@ -17,12 +17,17 @@ public:
 
     void init();
                
-    void processQuery(char *data, int len, QHostAddress host, quint16 port);
+    void processQuery(char *data, int len, QHostAddress host, quint16 port, QTcpSocket *sock);
     void processResponse(char *data, int len, QHostAddress host, quint16 port);
 
 public slots:
     void onReadyRead();
     void onFwdReadyRead();
+
+    void onTcpServerNewConnection();
+    void onTcpServerDisconnected();
+
+    void onTcpServerReadyRead();
 
 private:
     bool foward_resolve_query(char *data, int len);
@@ -35,12 +40,14 @@ private:
 
 private:
     QUdpSocket *m_sock = NULL;
+    QTcpServer *m_tcp_sock = NULL;
     static const quint16 m_port = 53;
     QUdpSocket *m_fwd_sock = NULL;
 
-    QHash<QString, QueueItem*> m_qrqueue; 
+    QHash<QString, QueueItem*> m_qrqueue; // item-hash => item
     QHash<quint16, bool> m_relate_ipv6_query;
     QHash<QString, bool> m_domain_has_ipv6;  // domain => hashipv6
+    QHash<QTcpSocket*, QueueItem*> m_jcqueue; // just connected, no data. when receive data, move to m_qrqueue
 };
 
 

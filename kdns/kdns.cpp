@@ -16,6 +16,7 @@
 /*
   TODO 内存漏泄，1周涨到400M。
   测试中。。。
+  TODO TCP 协议支持
  */
 KDNS::KDNS()
     : QObject()
@@ -32,13 +33,16 @@ void KDNS::init()
     QObject::connect(m_fwd_sock, &QUdpSocket::readyRead, this, &KDNS::onFwdReadyRead);
     m_fwd_sock->connectToHost(UPS_DNS_SERVER_ADDR, UPS_DNS_SERVER_PORT);
 
+    // udp dns server
     m_sock = new QUdpSocket();
+    QObject::connect(m_sock, &QUdpSocket::readyRead, this, &KDNS::onReadyRead);
     // m_sock->bind(QHostAddress::AnyIPv6, m_port);
     m_sock->bind(QHostAddress::Any, m_port);
 
-    QObject::connect(m_sock, &QUdpSocket::readyRead, this, &KDNS::onReadyRead);
-
-
+    // tcp dns server
+    m_tcp_sock = new QTcpServer();
+    QObject::connect(m_tcp_sock, &QTcpServer::newConnection, this, &KDNS::onTcpServerNewConnection);
+    m_tcp_sock->listen(QHostAddress::Any, m_port);
 }
 
 void KDNS::onReadyRead()
@@ -64,7 +68,7 @@ void KDNS::onReadyRead()
             qDebug()<<"error:"<<m_sock->errorString();
         } else {
             this->debugPacket(data, iret);
-            this->processQuery(data, iret, addr, port);
+            this->processQuery(data, iret, addr, port, NULL);
         }
     }
     qDebug()<<"read pkt count:"<<cnter;
@@ -101,7 +105,7 @@ void KDNS::onFwdReadyRead()
 }
 
 
-void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port)
+void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port, QTcpSocket *sock)
 {
     ldns_pkt *t_pkt = NULL, *t_pkt2 = NULL;
     ldns_rr_list *t_rr_list = NULL;
@@ -110,15 +114,24 @@ void KDNS::processQuery(char *data, int len, QHostAddress host, quint16 port)
     char t_buff[256];
     char *t_ptr = NULL;
     size_t t_len;
-    QueueItem *qit = new QueueItem();
 
+    t_status = ldns_wire2pkt(&t_pkt, (const uint8_t*)data, len);
+
+    if (t_status != LDNS_STATUS_OK) {
+        qDebug()<<"Invalid dns query pkt???"<<t_pkt<<t_status<<ldns_get_errorstr_by_id(t_status);
+        return;
+    }
+
+
+    QueueItem *qit = new QueueItem();
     qit->m_addr = host;
     qit->m_port = port;
     qit->m_query = QByteArray(data, len);
     qit->m_time = QDateTime::currentDateTime();
-    
-    t_status = ldns_wire2pkt(&t_pkt, (const uint8_t*)data, len);
+    qit->m_tcp_cli = sock;
+    qit->m_use_tcp = sock ? true : false;
     qit->m_qid = ldns_pkt_id(t_pkt);
+
 
     QString h = qit->hash();
     if (m_qrqueue.contains(h)) {
@@ -361,6 +374,49 @@ bool KDNS::fill_domain_has_ipv6(ldns_rr *rr)
     return true;
 }
 
+// tcp dns server
+void KDNS::onTcpServerNewConnection()
+{
+    qDebug()<<""<<sender();
+    QTcpSocket *sock = m_tcp_sock->nextPendingConnection();
+    
+    QueueItem *qit = new QueueItem;
+    qit->m_tcp_cli = sock;
+    
+    m_jcqueue.insert(sock, qit);
+
+    QObject::connect(sock, &QTcpSocket::readyRead, this, &KDNS::onTcpServerReadyRead);
+    QObject::connect(sock, &QTcpSocket::disconnected, this, &KDNS::onTcpServerDisconnected);
+}
+
+void KDNS::onTcpServerDisconnected()
+{
+    qDebug()<<""<<sender();
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+
+    sock->deleteLater();
+}
+
+void KDNS::onTcpServerReadyRead()
+{
+    qDebug()<<""<<sender();
+    QTcpSocket *sock = (QTcpSocket*)(sender());
+
+    QByteArray ba = sock->readAll();
+    qDebug()<<"tcp req:"<<ba.length();
+
+    char *data = ba.data();
+    qint64 iret = ba.length();
+    QHostAddress addr;
+    quint16 port = 0;
+
+    if (true) {
+        this->debugPacket(data, iret);
+        this->processQuery(data, iret, addr, port, sock);
+    }
+}
+
+// debuggggg
 void KDNS::debugPacket(char *data, int len)
 {
     ldns_pkt *t_pkt = NULL, *t_pkt2 = NULL;
@@ -373,6 +429,13 @@ void KDNS::debugPacket(char *data, int len)
     size_t t_len;
 
     t_status = ldns_wire2pkt(&t_pkt, (const uint8_t*)data, len);
+
+    qDebug()<<"status:"<<t_status<<"dlen:"<<len;
+
+    if (t_status != LDNS_STATUS_OK) {
+        qDebug()<<"Invalid dns query pkt???"<<t_pkt<<t_status<<ldns_get_errorstr_by_id(t_status);
+        return;
+    }
 
     qDebug()<<"ps:"<<ldns_pkt_size(t_pkt)
             <<"qid:"<<ldns_pkt_id(t_pkt)

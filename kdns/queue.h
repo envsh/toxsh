@@ -17,12 +17,14 @@ public:
 
 public:
     QHostAddress m_addr;
-    quint16 m_port;
+    quint16 m_port = 0;
     QByteArray m_query;
     QDateTime m_time;
-    int m_qid;
-    bool m_got4;
-    bool m_got6;
+    int m_qid = -1;
+    bool m_got4 = false;
+    bool m_got6 = false;
+    bool m_use_tcp = false;
+    QTcpSocket *m_tcp_cli = NULL;
 };
 
 #endif /* _QUEUE_H_ */
