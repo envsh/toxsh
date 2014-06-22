@@ -5,6 +5,8 @@
 #include <network/GeoIpResolver.h>
 #include <network/GeoIpRecord.h>
 
+#include "dummy.h"
+
 #include "dhtproc.h"
 
 #include "ui_dhtmon.h"
@@ -25,6 +27,8 @@ DhtMon::DhtMon()
     m_win->listView->setModel(m_nodes_model);
 
     QObject::connect(m_win->listView, &QListView::clicked, this, &DhtMon::onNodeClicked);
+
+    cross_test();
 }
 
 DhtMon::~DhtMon()
