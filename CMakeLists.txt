@@ -13,6 +13,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR on)
 set(CMAKE_AUTOMOC on)
 
 find_package(Qt5Core)
+find_package(Qt5Network)
+find_package(Qt5Gui)
+find_package(Qt5Widgets)
 
 # TODO use pkg_check_module
 include_directories("/serv/stow/ptox/include" "/serv/stow/ptox/include/tox"
@@ -20,7 +23,7 @@ include_directories("/serv/stow/ptox/include" "/serv/stow/ptox/include/tox"
 link_directories("/serv/stow/ptox/lib")
 link_libraries(-ltoxcore)
 
-
+add_subdirectory(toxmon)
 add_subdirectory(toxshd)
 add_subdirectory(webshd)
 add_subdirectory(webshc)
@@ -30,4 +33,5 @@ add_subdirectory(p2psh)
 add_subdirectory(dtnat)
 #add_subdirectory(nathlp)
 add_subdirectory(kdns)
+
 
