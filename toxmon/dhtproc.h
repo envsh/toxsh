@@ -20,8 +20,11 @@ signals:
     void connected(int conn);
     void dhtSizeChanged(int size);
 
+    void closeNodes(const QStringList &nodes);
+
 private slots:
     void process();
+    void analysis();
 
 private:
     QTimer *m_timer = NULL;
