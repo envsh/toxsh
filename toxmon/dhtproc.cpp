@@ -31,8 +31,9 @@ void DhtProc::start()
 
     QByteArray hexpubkey = QByteArray((const char *)m_dht->self_public_key, sizeof(m_dht->self_public_key)).toHex();
     qDebug()<<"pubkey:"<<hexpubkey.length()<<hexpubkey;
-    emit this->pubkeyDone(hexpubkey);
+    emit this->pubkeyDone(hexpubkey.toUpper());
     
+    //  37.187.20.216 33445 4FD54CFD426A338399767E56FD0F44F5E35FA8C38C8E87C8DC3FEAC0160F8E17
     QString bs_ip = "37.187.20.216";
     QString bs_port = "33445";
     QString bs_pubkey = "4FD54CFD426A338399767E56FD0F44F5E35FA8C38C8E87C8DC3FEAC0160F8E17";
@@ -48,6 +49,59 @@ void DhtProc::stop()
 {
     
 }
+
+static uint8_t zeroes_cid[CLIENT_ID_SIZE] = {0};
+static int get_dht_friend_count(DHT *dht)
+{
+    int rfc = 0;
+
+    for (int i = 0; i < dht->num_friends; i ++) {
+        for (int j = 0; j < MAX_FRIEND_CLIENTS; j ++) {
+            Client_data *client = &dht->friends_list[i].client_list[j];
+
+            if (memcmp(client->client_id, zeroes_cid, CLIENT_ID_SIZE) == 0) {
+                continue;
+            }
+            rfc ++;
+        }
+    }
+
+    return rfc;
+}
+
+static int get_dht_client_count(DHT *dht)
+{
+    int rcc = 0;
+
+    for (int i = 0; i < LCLIENT_LIST; i ++) {
+        Client_data *client = &dht->close_clientlist[i];
+        
+        if (memcmp(client->client_id, zeroes_cid, CLIENT_ID_SIZE) == 0) {
+            continue;
+        }
+
+        rcc ++;
+    }
+
+    return rcc;
+}
+
+static int get_ping_array_count(Ping_Array *pa)
+{
+    int cnt = 0;
+
+    for (int i = 0; i < DHT_PING_ARRAY_SIZE; i ++) {
+        Ping_Array_Entry *ae = &pa->entries[i];
+
+        if (ae->time <= 0) {
+            continue;
+        }
+        cnt ++;
+    }
+
+    return cnt;
+}
+
 
 void DhtProc::process()
 {
@@ -80,6 +134,15 @@ void DhtProc::process()
         emit this->dhtSizeChanged(dht_size);
         m_dht_size = dht_size;
     }
+
+    this->recordNodes();
+
+    int friend_count = get_dht_friend_count(m_dht);
+    int client_count = get_dht_client_count(m_dht);
+    int ping_array_size = m_dht->dht_ping_array.total_size;
+    ping_array_size = get_ping_array_count(&m_dht->dht_ping_array);
+    int harden_ping_array_size = get_ping_array_count(&m_dht->dht_harden_ping_array);
+    emit dhtNodesChanged(friend_count, client_count, ping_array_size, m_pinged.size());
 
     this->analysis();
 
@@ -118,4 +181,76 @@ void DhtProc::analysis()
     }
 
     emit this->closeNodes(nodes);
+}
+
+/* Maximum newly announced nodes to ping per TIME_TO_PING seconds. */
+#define MAX_TO_PING 8
+
+struct PING {
+    DHT *dht;
+
+    Ping_Array  ping_array;
+    Node_format to_ping[MAX_TO_PING];
+    uint64_t    last_to_ping;
+};
+
+void DhtProc::recordNodes()
+{
+    DHT *dht = m_dht;
+    QString host;
+
+    int rfc = 0;
+
+    for (int i = 0; i < dht->num_friends; i ++) {
+        for (int j = 0; j < MAX_FRIEND_CLIENTS; j ++) {
+            Client_data *client = &dht->friends_list[i].client_list[j];
+
+            if (memcmp(client->client_id, zeroes_cid, CLIENT_ID_SIZE) == 0) {
+                continue;
+            }
+            rfc ++;
+
+            host = QString(ip_ntoa(&client->assoc4.ip_port.ip));
+            host += QString(":%1").arg(client->assoc4.ip_port.port);
+            this->m_pinged.insert(host, 1);
+        }
+    }
+
+    int rcc = 0;
+
+    for (int i = 0; i < LCLIENT_LIST; i ++) {
+        Client_data *client = &dht->close_clientlist[i];
+        
+        if (memcmp(client->client_id, zeroes_cid, CLIENT_ID_SIZE) == 0) {
+            continue;
+        }
+
+        rcc ++;
+
+        host = QString(ip_ntoa(&client->assoc4.ip_port.ip));
+        host += QString(":%1").arg(client->assoc4.ip_port.port);
+        this->m_pinged.insert(host, 1);
+        
+    }
+
+    for (int i = 0; i < MAX_TO_PING; i ++) {
+        Node_format *node = &dht->ping->to_ping[i];
+
+        host = QString(ip_ntoa(&node->ip_port.ip));
+        host += QString(":%1").arg(node->ip_port.port);
+        this->m_pinged.insert(host, 1);        
+    }
+
+    int cnt = 0;
+
+    for (int i = 0; i < DHT_PING_ARRAY_SIZE; i ++) {
+        Ping_Array_Entry *ae = &dht->dht_ping_array.entries[i];
+
+        if (ae->time <= 0) {
+            continue;
+        }
+        cnt ++;
+
+    }
+
 }

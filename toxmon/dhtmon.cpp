@@ -41,6 +41,7 @@ void DhtMon::onStart()
     QObject::connect(m_proc, &DhtProc::pubkeyDone, this, &DhtMon::onPubkeyDone);
     QObject::connect(m_proc, &DhtProc::connected, this, &DhtMon::onConnected);
     QObject::connect(m_proc, &DhtProc::dhtSizeChanged, this, &DhtMon::onDhtSizeChanged);
+    QObject::connect(m_proc, &DhtProc::dhtNodesChanged, this, &DhtMon::onDhtNodesChanged);
     QObject::connect(m_proc, &DhtProc::closeNodes, this, &DhtMon::onCloseNodesArrived);
 
     m_proc->start();
@@ -90,6 +91,14 @@ void DhtMon::onConnected(int conn)
 void DhtMon::onDhtSizeChanged(int size)
 {
     m_win->lineEdit_3->setText(QString("%1").arg(size));
+}
+
+void DhtMon::onDhtNodesChanged(int friendCount, int clientCount, int ping_array_size, int harden_ping_array_size)
+{
+    m_win->lineEdit_6->setText(QString("%1/%2").arg(friendCount).arg(MAX_FRIEND_CLIENTS * LCLIENT_LIST));
+    m_win->lineEdit_7->setText(QString("%1/%2").arg(clientCount).arg(LCLIENT_LIST));
+    m_win->lineEdit_8->setText(QString("%1/%2/%3").arg(ping_array_size).arg(harden_ping_array_size)
+                               .arg(DHT_PING_ARRAY_SIZE));
 }
 
 void DhtMon::onCloseNodesArrived(const QStringList &nodes)

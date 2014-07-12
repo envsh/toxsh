@@ -28,6 +28,7 @@ public slots:
     void onPubkeyDone(QByteArray pubkey);
     void onConnected(int conn);
     void onDhtSizeChanged(int size);
+    void onDhtNodesChanged(int friendCount, int clientCount, int ping_array_size, int harden_ping_array_size);
     void onCloseNodesArrived(const QStringList &nodes);
 
 private:
@@ -35,6 +36,7 @@ private:
     DhtProc *m_proc = NULL;
     QStringList m_nodes;
     QStringListModel *m_nodes_model = NULL;
+    QHash<QString, int> m_pinged; // ping过程的节点列表
 };
 
 #endif /* _DHTMON_H_ */
