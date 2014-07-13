@@ -1,9 +1,10 @@
 
-// #include <network/NetViewer.h>
-
-#include <network/GeoIpDatabase.h>
+// #include <network/GeoIpDatabase.h>
 #include <network/GeoIpResolver.h>
 #include <network/GeoIpRecord.h>
+
+//
+#include <network/NetViewer.h>
 
 #include "dummy.h"
 
@@ -29,6 +30,13 @@ DhtMon::DhtMon()
     QObject::connect(m_win->listView, &QListView::clicked, this, &DhtMon::onNodeClicked);
 
     cross_test();
+
+    // NetViewer *nv = new NetViewer;
+    // nv->show();
+    TorMapImageView *miv = new TorMapImageView;
+    // miv->show();
+    m_win->gridLayout->addWidget(miv); // no scroll now
+    // m_win->scrollArea->setWidget(miv); 
 }
 
 DhtMon::~DhtMon()
@@ -56,25 +64,27 @@ void DhtMon::onNodeClicked(const QModelIndex &idx)
 {
     QVariant data = m_nodes_model->data(idx, Qt::DisplayRole);
     qDebug()<<idx<<data;
-QString addr = data.toString();
-QString host = addr.split(':').at(0);
+    QString addr = data.toString();
+    QString host = addr.split(':').at(0);
 
-GeoIpResolver ipres;
- ipres.setUseLocalDatabase(true);
-bool bret = ipres.setLocalDatabase("/usr/share/GeoIP/GeoIP.dat");
+    GeoIpResolver *ipres = new GeoIpResolver;
+    ipres->setUseLocalDatabase(true);
+    QString dbpath = "/usr/share/GeoIP/GeoIP.dat";
+    bool bret = ipres->setLocalDatabase(dbpath);
 
-GeoIpRecord iprec = ipres.resolve(QHostAddress(host));
- qDebug()<<bret<<iprec.isValid();
+    GeoIpRecord iprec = ipres->resolve(QHostAddress(host));
+    qDebug()<<bret<<iprec.isValid();
+    delete ipres;
 
- QString geo_desc = QString("host:%1\n"
-                            "city: %2\n"
-                            "country: %3\n"
-                            "region: %4\n")
-     .arg(host).arg(iprec.city()).arg(iprec.country()).arg(iprec.region());
+    QString geo_desc = QString("host:%1\n"
+                               "city: %2\n"
+                               "country: %3\n"
+                               "region: %4\n")
+        .arg(host).arg(iprec.city()).arg(iprec.country()).arg(iprec.region());
 
- qDebug()<<geo_desc;
+    qDebug()<<geo_desc;
 
- m_win->plainTextEdit_2->setPlainText(geo_desc);
+    m_win->plainTextEdit_2->setPlainText(geo_desc);
 }
 
 ////////////
