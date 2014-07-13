@@ -10,6 +10,7 @@ namespace Ui {
 };
 
 class DhtProc;
+class TorMapImageView;
 
 class DhtMon : public QMainWindow
 {
@@ -23,6 +24,9 @@ public slots:
     void onStop();
 
     void onNodeClicked(const QModelIndex &idx);
+    void onZoomIn();
+    void onZoomOut();
+    void onZoomRestore();
 
     // from proc
     void onPubkeyDone(QByteArray pubkey);
@@ -37,6 +41,7 @@ private:
     QStringList m_nodes;
     QStringListModel *m_nodes_model = NULL;
     QHash<QString, int> m_pinged; // ping过程的节点列表
+    TorMapImageView *m_miv = NULL;
 };
 
 #endif /* _DHTMON_H_ */

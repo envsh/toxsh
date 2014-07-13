@@ -1,4 +1,6 @@
 
+#include <RouterDescriptor.h>
+
 // #include <network/GeoIpDatabase.h>
 #include <network/GeoIpResolver.h>
 #include <network/GeoIpRecord.h>
@@ -37,6 +39,12 @@ DhtMon::DhtMon()
     // miv->show();
     m_win->gridLayout->addWidget(miv); // no scroll now
     // m_win->scrollArea->setWidget(miv); 
+    m_miv = miv;
+
+    QObject::connect(m_win->toolButton, &QToolButton::clicked, this, &DhtMon::onZoomOut);
+    QObject::connect(m_win->toolButton_2, &QToolButton::clicked, this, &DhtMon::onZoomIn);
+    QObject::connect(m_win->toolButton_3, &QToolButton::clicked, this, &DhtMon::onZoomRestore);
+
 }
 
 DhtMon::~DhtMon()
@@ -65,7 +73,9 @@ void DhtMon::onNodeClicked(const QModelIndex &idx)
     QVariant data = m_nodes_model->data(idx, Qt::DisplayRole);
     qDebug()<<idx<<data;
     QString addr = data.toString();
-    QString host = addr.split(':').at(0);
+    QStringList ip_port = addr.split(':');
+    QString host = ip_port.at(0);
+    QString port = ip_port.at(1);
 
     GeoIpResolver *ipres = new GeoIpResolver;
     ipres->setUseLocalDatabase(true);
@@ -85,7 +95,34 @@ void DhtMon::onNodeClicked(const QModelIndex &idx)
     qDebug()<<geo_desc;
 
     m_win->plainTextEdit_2->setPlainText(geo_desc);
+
+    //
+    QStringList rlist;
+    rlist << QString("router name%1 %1 %2 %2 %2").arg(host).arg(port);
+    rlist << QString("fingerprint %1").arg(QString(addr.toLatin1().toHex()));
+    RouterDescriptor rdesc(rlist); 
+
+    m_miv->deselectAll();
+    m_miv->addRouter(rdesc, iprec);
+    m_miv->selectRouter(rdesc.id()); // TODO 高亮动态效果
 }
+
+void DhtMon::onZoomIn()
+{
+    m_miv->zoomIn();
+}
+
+void DhtMon::onZoomOut()
+{
+    m_miv->zoomOut();
+}
+
+void DhtMon::onZoomRestore()
+{
+    m_miv->resetZoomPoint();
+}
+
+
 
 ////////////
 void DhtMon::onPubkeyDone(QByteArray pubkey)
