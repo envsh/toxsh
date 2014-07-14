@@ -353,7 +353,7 @@ void Core::start()
 
     loadConfiguration();
 
-    tox_callback_friend_request(tox, onFriendRequest, this);
+    tox_callback_friend_request(tox, &onFriendRequest, this);
     tox_callback_friend_message(tox, onFriendMessage, this);
     tox_callback_friend_action(tox, onAction, this);
     tox_callback_name_change(tox, onFriendNameChange, this);
