@@ -11,7 +11,7 @@
 
 // 这个程序使用的上游DNS服务器地址, dnsmasq
 #define UPS_DNS_SERVER_ADDR "::1"
-#define UPS_DNS_SERVER_PORT 5353
+#define UPS_DNS_SERVER_PORT 53
 
 /*
   TODO 内存漏泄，1周涨到400M。

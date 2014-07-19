@@ -41,7 +41,7 @@ private:
 private:
     QUdpSocket *m_sock = NULL;
     QTcpServer *m_tcp_sock = NULL;
-    static const quint16 m_port = 53;
+    static const quint16 m_port = 5353;
     QUdpSocket *m_fwd_sock = NULL;
 
     QHash<QString, QueueItem*> m_qrqueue; // item-hash => item
