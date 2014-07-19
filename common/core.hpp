@@ -45,7 +45,9 @@ private:
     void checkConnection();
 
     void loadConfiguration();
+public:
     void saveConfiguration();
+private:
     void loadFriends();
 
     void checkLastOnline(int friendId);

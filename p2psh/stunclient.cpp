@@ -336,7 +336,7 @@ void StunClient::processResponse(QByteArray resp, QString peer_addr)
     if (!stun_is_command_message(&buf)) {
         qDebug()<<resp.length()<<("The response is not a STUN message")<<peer_addr;
         // should be a relayed raw UDP packet to peerA
-        emit packetRecieved(resp, peer_addr);
+        emit packetReceived(resp, peer_addr);
         return;
     }
 
@@ -366,7 +366,7 @@ void StunClient::processResponse(QByteArray resp, QString peer_addr)
         qDebug()<<"is chan msg:"<<stun_is_channel_message_str(t_value, &blen, &chan_no, 0);
         qDebug()<<"chan no:"<<chan_no<<blen<<xor_peer_addr;
 
-        emit this->packetRecieved(QByteArray((char*)t_value + 4, blen - 4), xor_peer_addr);
+        emit this->packetReceived(QByteArray((char*)t_value + 4, blen - 4), xor_peer_addr);
 
         return;
     }

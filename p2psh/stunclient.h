@@ -30,7 +30,7 @@ public slots:
 
 signals:
     void mappedAddressRecieved(QString addr);
-    void packetRecieved(QByteArray ba, QString peer_addr);
+    void packetReceived(QByteArray ba, QString peer_addr);
     void allocateDone(QString relayed_addr);
     void createPermissionDone();
     void stunError();

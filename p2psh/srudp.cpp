@@ -10,7 +10,7 @@ Srudp::Srudp(StunClient *stun)
     : QObject()
 {
     m_stun_client = stun;
-    QObject::connect(m_stun_client, &StunClient::packetRecieved, this, &Srudp::onRawPacketRecieved);
+    QObject::connect(m_stun_client, &StunClient::packetReceived, this, &Srudp::onRawPacketReceived);
 }
 
 Srudp::~Srudp()
@@ -116,7 +116,7 @@ QByteArray Srudp::readDatagram(QHostAddress &addr, quint16 &port)
 }
 
 
-void Srudp::onRawPacketRecieved(QByteArray pkt, QString peer_addr)
+void Srudp::onRawPacketReceived(QByteArray pkt, QString peer_addr)
 {
     qDebug()<<(sender())<<pkt.length()<<peer_addr;
     QJsonDocument jdoc = QJsonDocument::fromJson(pkt);
@@ -141,7 +141,7 @@ void Srudp::onRawPacketRecieved(QByteArray pkt, QString peer_addr)
     this->rawProtoPacketHandler(jobj);
 }
 
-void Srudp::onPacketRecieved(QJsonObject jobj)
+void Srudp::onPacketReceived(QJsonObject jobj)
 {
     // handle ack pkt
     if (jobj.value("opt").toInt() & OPT_ACK) {
@@ -455,7 +455,7 @@ bool Srudp::rawProtoPacketHandler(QJsonObject jobj)
     case CMD_NOOP:
         break;
     case CMD_APP:
-        this->onPacketRecieved(jobj);
+        this->onPacketReceived(jobj);
         break;
     default:
         qDebug()<<"unknown cmd:"<<cmd<<jobj;

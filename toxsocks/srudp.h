@@ -5,6 +5,7 @@
 #include <QtNetwork>
 
 class StunClient;
+class ToxNet;
 
 class SruPacket
 {
@@ -31,7 +32,7 @@ class Srudp : public QObject
 {
     Q_OBJECT;
 public:
-    Srudp(StunClient *stun);
+    Srudp(ToxNet *net);
     virtual ~Srudp();
 
     bool sendto(QByteArray data, QString host, quint16 port);
@@ -40,8 +41,8 @@ public:
     QByteArray readDatagram(QHostAddress &addr, quint16 &port);
 
 public slots:
-    void onRawPacketRecieved(QByteArray pkt, QString peer_addr);
-    void onPacketRecieved(QJsonObject jobj);
+    void onRawPacketReceived(QByteArray pkt, QString peer_addr);
+    void onPacketReceived(QJsonObject jobj);
     // lost packet retrive
     void onRetranLostPacketFinished(QNetworkReply *reply);
 
@@ -60,6 +61,7 @@ private:
 
 private:
     // StunClient *m_stun_client = NULL;
+    ToxNet *m_net = NULL;
     qint64 m_out_last_pkt_seq = 0;
     qint64 m_in_last_pkt_seq = 0;
     QString m_last_pkt_id;
