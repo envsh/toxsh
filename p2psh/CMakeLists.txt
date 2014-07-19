@@ -1,4 +1,6 @@
 include_directories("../dtnat/client" "../dtnat/common" "../dtnat/server" "../dtnat" "../libtroh")
+add_definitions(-DSRUDP_STUN)
+
 add_executable(p2pshc
   cmain.cpp
   xshcli.cpp

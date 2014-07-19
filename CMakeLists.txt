@@ -23,6 +23,7 @@ include_directories("/serv/stow/ptox/include" "/serv/stow/ptox/include/tox"
 link_directories("/serv/stow/ptox/lib")
 link_libraries(-ltoxcore)
 
+add_subdirectory(toxsocks)
 add_subdirectory(toxmon)
 add_subdirectory(toxshd)
 add_subdirectory(webshd)
