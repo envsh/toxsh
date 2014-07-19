@@ -78,6 +78,13 @@
         <item>
          <widget class="QLineEdit" name="lineEdit"/>
         </item>
+        <item>
+         <widget class="QToolButton" name="toolButton_4">
+          <property name="text">
+           <string>Save</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>

@@ -102,6 +102,25 @@ static int get_ping_array_count(Ping_Array *pa)
     return cnt;
 }
 
+static void print_friend_nat_state(DHT *dht)
+{
+    int rfc = 0;
+
+    for (int i = 0; i < dht->num_friends; i ++) {
+        for (int j = 0; j < MAX_FRIEND_CLIENTS; j ++) {
+            Client_data *client = &dht->friends_list[i].client_list[j];
+
+            if (memcmp(client->client_id, zeroes_cid, CLIENT_ID_SIZE) == 0) {
+                continue;
+            }
+            rfc ++;
+
+            NAT *nat = &dht->friends_list[i].nat;
+            qDebug()<<"punching:"<<nat->hole_punching<<",tries:"<<nat->tries
+                    <<nat->punching_timestamp<<nat->recvNATping_timestamp;
+        }
+    }
+}
 
 void DhtProc::process()
 {
@@ -145,6 +164,7 @@ void DhtProc::process()
     emit dhtNodesChanged(friend_count, client_count, ping_array_size, m_pinged.size());
 
     this->analysis();
+    print_friend_nat_state(m_dht);
 
     m_timer->start(300);
 }
