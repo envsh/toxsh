@@ -16,6 +16,8 @@ public:
     ToxNet();
     virtual ~ToxNet();
 
+    void addFriend(QString hexUserId);
+
     void onConnected();
     void onDisconnected();
     void onFriendRequestReceived(const QString &userId, const QString &message);
@@ -35,6 +37,10 @@ signals:
     void friendRequestAccepted(const QString& userId);
     void friendRequested(const QString& friendAddress, const QString& message);
     void packetReceived(QByteArray pkt, QString peer_addr);
+    void peerConnected(int friendId); // for upper info
+    void peerDisconnected(int friendId);
+    void netConnected();
+    void netDisconnected();
 
 private:
     Core* core = nullptr;

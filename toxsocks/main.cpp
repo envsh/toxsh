@@ -4,6 +4,7 @@
 #include "debugoutput.h"
 
 #include "tunneld.h"
+#include "tunnelc.h"
 
 int main(int argc, char **argv)
 {
@@ -14,7 +15,8 @@ int main(int argc, char **argv)
         Tunneld *tund = new Tunneld;
         tund->init();
     } else if (argc == 2 && strcmp(argv[1], "client") == 0) {
-
+        Tunnelc *tunc = new Tunnelc;
+        tunc->init();
     } else {
         qDebug()<<"tunnel server | client";
     } 

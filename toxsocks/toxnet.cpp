@@ -58,6 +58,11 @@ ToxNet::~ToxNet()
 
 }
 
+void ToxNet::addFriend(QString hexUserId)
+{
+    core->requestFriendship(hexUserId, "this is tox tunnel client");
+}
+
 void ToxNet::onFriendRequestReceived(const QString& userId, const QString& message)
 {
     qDebug()<<"userid:"<<userId<<",message"<<message;
@@ -76,25 +81,33 @@ void ToxNet::onConnected()
 {
     qDebug()<<"Status::Online";
     // ourUserItem->setStatus(Status::Online);
-    core->saveConfiguration();
+    core->saveConfiguration1();
+
+    emit netConnected();
 }
 
 void ToxNet::onDisconnected()
 {
     qDebug()<<"Status::Offline";
     // ourUserItem->setStatus(Status::Offline);
+    emit netDisconnected();
 }
 
 void ToxNet::onFriendAddressGenerated(QString friendAddress)
 {
     qDebug()<<friendAddress;
-    core->saveConfiguration();
+    core->saveConfiguration1();
 }
 
 void ToxNet::onFriendStatusChanged(int friendId, Status status)
 {
     StatusHelper::Info info;
     qDebug()<<friendId<<StatusHelper::getInfo(status).name;
+    if (status == Status::Online) {
+        emit peerConnected(friendId);
+    } else {
+        emit peerDisconnected(friendId);
+    }
 }
 
 void ToxNet::onFailedToStartCore()

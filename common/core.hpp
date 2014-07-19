@@ -32,6 +32,10 @@ public:
     explicit Core();
     ~Core();
 
+public: // for outer use
+    void saveConfiguration1() {saveConfiguration();}
+    // void getFriendAddress(int friendId)
+
 private:
     static void onFriendRequest(Tox* tox, const uint8_t* cUserId, const uint8_t* cMessage, uint16_t cMessageSize, void* core);
     static void onFriendMessage(Tox* tox, int friendId, const uint8_t *cMessage, uint16_t cMessageSize, void* core);
@@ -45,9 +49,7 @@ private:
     void checkConnection();
 
     void loadConfiguration();
-public:
     void saveConfiguration();
-private:
     void loadFriends();
 
     void checkLastOnline(int friendId);
