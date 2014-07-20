@@ -17,6 +17,7 @@ void Tunnelc::init()
 {
     m_net = new ToxNet;
     m_rudp = new Srudp(m_net);
+    m_rudp->setClientMode(true);
 
     QObject::connect(m_net, &ToxNet::netConnected, this, &Tunnelc::onTunnelConnected);
     QObject::connect(m_net, &ToxNet::netDisconnected, this, &Tunnelc::onTunnelDisconnected);

@@ -53,8 +53,17 @@ void Tunneld::onPeerDisconnected(int friendId)
 void Tunneld::onPeerReadyRead()
 {
     qDebug()<<"";
-}
 
+    QHostAddress addr;
+    quint16 port;
+
+    while (m_rudp->hasPendingDatagrams()) {
+        QByteArray ba = m_rudp->readDatagram(addr, port);
+        qDebug()<<"read balen:"<<ba.length();
+
+        m_sock->write(ba);
+    }
+}
 
 void Tunneld::onDestConnected()
 {
@@ -64,11 +73,15 @@ void Tunneld::onDestConnected()
 
 void Tunneld::onDestDisconnected()
 {
-
+    qDebug()<<"";
 }
 
 void Tunneld::onDestReadyRead()
 {
+    qDebug()<<"";
+    
+    QByteArray ba = m_sock->readAll();
 
+    m_rudp->sendto(ba, QString("127.0.0.1:6789"));
 }
 

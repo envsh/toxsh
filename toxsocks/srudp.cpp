@@ -113,6 +113,7 @@ QByteArray Srudp::readDatagram(QHostAddress &addr, quint16 &port)
         QByteArray pkt = QByteArray::fromHex(hex_pkt);
         data = pkt;
         peer_addr = jobj.value("peer_addr").toString();
+        peer_addr = "127.0.0.1:5678"; // for debuging
         addr.setAddress(peer_addr.split(':').at(0));
         port = peer_addr.split(':').at(1).toUShort();
     }
@@ -184,6 +185,7 @@ void Srudp::onPacketReceived(QJsonObject jobj)
         } else {
             // m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
         }
+        m_net->sendMessage(data);
         qDebug()<<"sent ACK:"<<jobj.value("seq")<<m_proto_host<<m_proto_port;
     }
 
@@ -427,6 +429,7 @@ bool Srudp::ping()
     } else {
         // m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
     }
+    m_net->sendMessage(data);
 
     return true;    
 }
@@ -569,6 +572,7 @@ bool Srudp::protoPingHandler(QJsonObject jobj)
     } else {
         // m_stun_client->sendIndication(QString("%1:%2").arg(m_proto_host).arg(m_proto_port), data.toLatin1());
     }
+    m_net->sendMessage(data);
 
     return true;
 }
@@ -683,6 +687,8 @@ bool Srudp::schedPrepareSendto(QString peer_addr, QJsonObject jobj)
 
 bool Srudp::schedNextSendto()
 {
+    qDebug()<<m_proto_sched_queue.size();
+
     if (m_proto_sched_queue.isEmpty()) {
         int t_sched_count = this->m_proto_sched_queue_max_size;
         int sched_count = qMin(t_sched_count, m_proto_send_queue.size());
@@ -720,7 +726,7 @@ bool Srudp::schedRealSendto(QJsonObject jobj)
     } else {
         // m_stun_client->sendIndication(peer_addr, npkt.toLatin1());
     }
-    
+    m_net->sendMessage(npkt.toLatin1());
 
     return true;
 }

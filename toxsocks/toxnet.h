@@ -27,11 +27,14 @@ public:
 
     //
     void messageReceived(int friendId, const QString& message);
+    void sendMessage(QString msg);
     
 public slots:
+    void onMessageSentResult(int friendId, QString part, int msgId);
     // cmd resp
     void onCommandResponeLine(int did, QString oline);
     void onCommandResponeFinished(int did);
+
 
 signals:
     void friendRequestAccepted(const QString& userId);

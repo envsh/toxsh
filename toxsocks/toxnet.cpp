@@ -28,6 +28,7 @@ ToxNet::ToxNet()
     connect(core, &Core::friendAddressGenerated, this, &ToxNet::onFriendAddressGenerated);
     connect(core, &Core::friendMessageReceived, this, &ToxNet::messageReceived);
     connect(core, &Core::friendStatusChanged, this, &ToxNet::onFriendStatusChanged);
+    connect(core, &Core::messageSentResult, this, &ToxNet::onMessageSentResult);
     /*
     connect(core, SIGNAL(friendStatusChanged(int, Status)), friendsWidget, SLOT(setStatus(int, Status)));
     connect(core, &Core::friendAddressGenerated, ourUserItem, &OurUserItemWidget::setFriendAddress);
@@ -130,6 +131,16 @@ void ToxNet::messageReceived(int friendId, const QString& message)
 
     // m_hcmd->onNewCommand(message, friendId);
     emit packetReceived(message.toLatin1(), QString());
+}
+
+void ToxNet::sendMessage(QString msg)
+{
+    this->onCommandResponeLine(0, msg);
+}
+
+void ToxNet::onMessageSentResult(int friendId, QString part, int msgId)
+{
+    qDebug()<<friendId<<part.length()<<msgId;
 }
 
 void ToxNet::onCommandResponeLine(int did, QString oline)
