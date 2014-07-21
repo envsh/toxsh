@@ -21,6 +21,7 @@ void Tunnelc::init()
 
     QObject::connect(m_net, &ToxNet::netConnected, this, &Tunnelc::onTunnelConnected);
     QObject::connect(m_net, &ToxNet::netDisconnected, this, &Tunnelc::onTunnelDisconnected);
+    QObject::connect(m_rudp, &Srudp::readyRead, this, &Tunnelc::onTunnelReadyRead);
 
     m_serv = new QTcpServer;
     QObject::connect(m_serv, &QTcpServer::newConnection, this, &Tunnelc::onNewConnection);
@@ -43,9 +44,25 @@ void Tunnelc::onTunnelDisconnected()
     qDebug()<<"";
 }
 
+static QTcpSocket * g_peer_sock = NULL;
+void Tunnelc::onTunnelReadyRead()
+{
+    qDebug()<<"";
+
+    QHostAddress addr;
+    quint16 port;
+
+    while (m_rudp->hasPendingDatagrams()) {
+        QByteArray ba = m_rudp->readDatagram(addr, port);
+        g_peer_sock->write(ba);
+    }
+}
+
 void Tunnelc::onNewConnection()
 {
     QTcpSocket *sock = m_serv->nextPendingConnection();
+    g_peer_sock = sock;
+
     QObject::connect(sock, &QTcpSocket::readyRead, this, &Tunnelc::onPeerReadyRead);
     QObject::connect(sock, &QTcpSocket::disconnected, this, &Tunnelc::onPeerDisconnected);
 }

@@ -16,10 +16,10 @@ public:
 
     void init();
 
-public:
 public slots:
     void onTunnelConnected();
     void onTunnelDisconnected();
+    void onTunnelReadyRead();
     
 private slots:
     void onNewConnection();
