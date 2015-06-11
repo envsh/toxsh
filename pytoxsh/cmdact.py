@@ -19,6 +19,7 @@ class CmdAct(QObject):
 
     def __init__(self, parent = None):
         super(CmdAct, self).__init__(parent)
+        self.builtin_cmds = ['/help', '/kill']
         self.cmds = []
         self.proc = QProcess()
         self.proc.finished.connect(self.onFinished)
@@ -34,6 +35,9 @@ class CmdAct(QObject):
     def onNewMessage(self, peer, msg):
         qDebug(peer)
         qDebug(msg)
+
+        if msg in self.builtin_cmds: return self.actBuiltins(peer, msg)
+        
         self.peerid = peer
 
         self.toxkit.sendMessage(peer, '+ ' + msg)
@@ -62,6 +66,15 @@ class CmdAct(QObject):
 
     def onFinished(self, exitCode, exitStatus):
         self.actNext()
+        return
+
+    def actBuiltins(self, peer, cmd):
+        if cmd == '/help':
+            self.toxkit.sendMessage(peer, 'help not ready.')
+        elif cmd == '/kill':
+            self.proc.terminate()
+        else:
+            qDebug('not impled: ' + cmd)
         return
     
 

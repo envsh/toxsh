@@ -37,6 +37,7 @@ class ToxSettings():
         self.path = self.sdir + '/qtox.ini'
         self.qsets = QSettings(self.path, QSettings.IniFormat)
         self.data = self.sdir + '/tkdata'
+        self.friend_list = QSettings(self.sdir + '/toxkit.friend.lst', QSettings.IniFormat)
         
         return
 
@@ -73,6 +74,37 @@ class ToxSettings():
         
         return n
 
+    def saveFriends(self, friends):
+        self.friend_list.beginGroup('FriendList')
+        fn = len(friends)
+        self.friend_list.setValue('size', str(fn))
+        i = 0
+        for fid in friends:
+            self.friend_list.setValue(str(i), fid)
+            i += 1
+        
+        return
+
+    def loadFriends(self):
+        self.friend_list.beginGroup('FriendList')
+        fn = self.friend_list.value('size')
+        if fn == None: fn = 0
+        else: fn = int(fn)
+
+        friends = []
+        if fn > 0:
+            for i in range(0, fn):
+                fid = self.friend_list.value(str(i))
+                qDebug(fid)
+                friends.append(fid)
+        else:
+            friends = ['398C8161D038FD328A573FFAA0F5FAAF7FFDE5E8B4350E7D15E6AFD0B993FC529FA90C343627',
+                       '4610913CF8D2BC6A37C93A680E468060E10335178CA0D23A33B9EABFCDF81A46DF5DDE32954A',
+                       '2645081363C7E8B5090523098A563D3BE3A6D92227B251E55FE42FBBA277500DC80EF1F7CF4A',
+            ]
+
+        return friends
+
 
 class ToxSlots(Tox):
     def __init__(self, opts):
@@ -84,18 +116,32 @@ class ToxSlots(Tox):
         
         return
 
-    # def on_friend_request(self, pubkey, data):
-    #     qDebug(str(pubkey))
-    #     qDebug(str(data))
-    #     if self.fwd_friend_request != None:
-    #         self.fwd_friend_request(pubkey, data)
-    #     return
+    def on_file_recv(self, *args):
+        qDebug('hehre')
+        print(args)
+        self.file_control(args[0], args[1], 0)
+        #self.file_control(args[0], args[1], 2)
+        return
+    def on_file_recv_control(self, *args):
+        qDebug('herhe')
+        print(args)
+        return
+    def on_file_recv_chunk(self, *args):
+        qDebug('herhe')
+        print(args[0:3])
+        if args[3] is None: qDebug('finished')
+        else: qDebug(str(len(args[3])))
+        return
 
-    # def on_connection_status(self):
-    #     qDebug('hereh')
-    #     if self.fwd_connection_status != None:
-    #         self.fwd_connection_status()
-    #     return
+    def on_friend_request(self, *args):
+        qDebug('herhe')
+        print(args)
+        return
+
+    def on_connection_status(self, *args):
+        qDebug('herhe')
+        print(args)
+        return
 
 ### 支持qt signal slots
 class QToxKit(QThread):
@@ -113,6 +159,7 @@ class QToxKit(QThread):
         self.bootstrapStartTime = None
         self.bootstrapFinishTime = None
         self.first_connected = True
+        self.friends = []
         
         self.tox = Tox(self.opts)
         self.tox = None
@@ -135,6 +182,8 @@ class QToxKit(QThread):
         return
 
     def makeTox(self):
+        self.friends = self.sets.loadFriends()
+        
         self.opts.savedata_data = self.sets.getSaveData()
         print(type(self.opts.savedata_data))
         print(len(self.opts.savedata_data), self.opts.savedata_data[0:32])
@@ -152,6 +201,9 @@ class QToxKit(QThread):
         self.tox.on_connection_status = self.onConnectStatus
         self.tox.on_friend_message = self.onFriendMessage
         self.tox.on_user_status = self.onFriendStatus
+
+        # file callbacks
+        # self.tox.on_file_recv = self.onFileRecv
         
         return
     
@@ -195,6 +247,9 @@ class QToxKit(QThread):
         qDebug(str(pubkey))
         qDebug(str(data))
 
+        self.friends.append(pubkey)
+        self.saveFriends(self.friends)
+        
         fnum = self.tox.friend_add_norequest(pubkey)
         qDebug(str(fnum))
         
@@ -215,11 +270,7 @@ class QToxKit(QThread):
         # 为什么friend count是0个呢？，难道是因为没有记录吗？
         # 果然是这个样子的
         
-        friends = ['398C8161D038FD328A573FFAA0F5FAAF7FFDE5E8B4350E7D15E6AFD0B993FC529FA90C343627',
-                   '4610913CF8D2BC6A37C93A680E468060E10335178CA0D23A33B9EABFCDF81A46DF5DDE32954A',
-                   '2645081363C7E8B5090523098A563D3BE3A6D92227B251E55FE42FBBA277500DC80EF1F7CF4A',
-        ]
-
+        friends = self.friends
         if status is True and self.first_connected:
             self.first_connected = False
             for friend in friends:
@@ -243,7 +294,22 @@ class QToxKit(QThread):
         qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
         return
 
+    def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
+        qDebug('on file recv:')
+        qDebug(str(friend_number))
+        qDebug(str(file_number))
+        qDebug(str(kind))
+        qDebug(str(file_size))
+        qDebug(str(filename))
+        
+        return
+
     def sendMessage(self, fid, msg):
-        fno = self.tox.get_friend_id(fid)
-        self.tox.friend_send_message(fno, msg)
+        fno = self.tox.friend_by_public_key(fid)
+        mlen = 1372 - 2
+        pos = 0
+        while pos < len(msg):
+            msgn = msg[pos:(pos + mlen)]
+            pos = pos + mlen
+            self.tox.friend_send_message(fno, msgn)
         return
