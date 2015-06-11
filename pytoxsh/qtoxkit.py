@@ -64,6 +64,8 @@ class ToxSettings():
         return data.data()
 
     def saveData(self, data):
+        if len(data) == 0: return 0
+        
         fp = QFile(self.data)
         fp.open(QIODevice.ReadWrite | QIODevice.Truncate)
         n = fp.write(data)
@@ -127,7 +129,7 @@ class QToxKit(QThread):
         # self.exec_()
         while self.stopped != True:
             self.itimeout()
-            QThread.msleep(self.tox.do_interval() * 9)
+            QThread.msleep(self.tox.iteration_interval() * 9)
 
         qDebug('toxkit thread exit.')
         return
@@ -138,10 +140,10 @@ class QToxKit(QThread):
         print(len(self.opts.savedata_data), self.opts.savedata_data[0:32])
         
         self.tox = ToxSlots(self.opts)
-        myaddr = self.tox.get_address()
-        self.tox.set_name('tki.' + myaddr[0:5])
-        print(str(self.tox.get_address()))
-        newdata = self.tox.save()
+        myaddr = self.tox.self_get_address()
+        self.tox.self_set_name('tki.' + myaddr[0:5])
+        print(str(self.tox.self_get_address()))
+        newdata = self.tox.get_savedata()
         print(len(newdata), newdata[0:32])
         self.sets.saveData(newdata)
 
@@ -168,16 +170,16 @@ class QToxKit(QThread):
             srv = dhtsrvs[rnd]
             #qDebug('bootstrap from:' + str(rndsrvs) +  str(srv))
             qDebug('bootstrap from: %s %d %s' % (srv.addr, srv.port, srv.pubkey))
-            bsret = self.tox.bootstrap_from_address(srv.addr, srv.port, srv.pubkey)
+            bsret = self.tox.bootstrap(srv.addr, srv.port, srv.pubkey)
             rlyret = self.tox.add_tcp_relay(srv.addr, srv.port, srv.pubkey)
 
         return
     
     def itimeout(self):
-        civ = self.tox.do_interval()
+        civ = self.tox.iteration_interval()
 
-        self.tox.do()
-        conned = self.tox.isconnected()
+        self.tox.iterate()
+        conned = self.tox.self_get_connection_status()
         #qDebug('hehre' + str(conned))
         
         if conned != self.connected:
@@ -193,7 +195,7 @@ class QToxKit(QThread):
         qDebug(str(pubkey))
         qDebug(str(data))
 
-        fnum = self.tox.add_friend_norequest(pubkey)
+        fnum = self.tox.friend_add_norequest(pubkey)
         qDebug(str(fnum))
         
         # self.tox.send_message(fnum, 'hehe accept')
@@ -208,7 +210,7 @@ class QToxKit(QThread):
 
     def onSelfConnectStatus(self, status):
         qDebug('my status: %s' % str(status))
-        fnum = self.tox.count_friendlist()
+        fnum = self.tox.self_get_friend_list_size()
         qDebug('friend count: %d' % fnum)
         # 为什么friend count是0个呢？，难道是因为没有记录吗？
         # 果然是这个样子的
@@ -221,7 +223,7 @@ class QToxKit(QThread):
         if status is True and self.first_connected:
             self.first_connected = False
             for friend in friends:
-                self.tox.add_friend_norequest(friend)
+                self.tox.friend_add_norequest(friend)
         
         return
     
@@ -232,7 +234,7 @@ class QToxKit(QThread):
         #print(u8msg) # ok, python utf8 string
         qDebug(u8msg.encode('utf-8')) # should ok, python utf8 bytes
         
-        fid = self.tox.get_client_id(fno)
+        fid = self.tox.friend_get_public_key(fno)
         print('hehre: fnum=%s, fid=%s, msg=' % (str(fno), str(fid)), u8msg)
         self.newMessage.emit(fid, msg)
         return
@@ -243,5 +245,5 @@ class QToxKit(QThread):
 
     def sendMessage(self, fid, msg):
         fno = self.tox.get_friend_id(fid)
-        self.tox.send_message(fno, msg)
+        self.tox.friend_send_message(fno, msg)
         return

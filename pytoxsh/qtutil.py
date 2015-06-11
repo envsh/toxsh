@@ -30,13 +30,15 @@ def qt_debug_handler(tp, ctx, msg):
     tmstr = now.toString("yyyy-MM-dd hh:mm:ss")
 
     fn = ''
-    if ctx.file == None: # for qt internal msg
-        fn = 'qtinternal'
-        pass
-    else:
-        fn = ctx.file.encode('utf-8')
-        fnl = ctx.file.split('/')
-        fn = fnl[len(fnl)-1]
+    try:
+        if ctx.file is None: # for qt internal msg
+            fn = 'qtinternal'
+        else:
+            fn = ctx.file.encode('utf-8')
+            fnl = ctx.file.split('/')
+            fn = fnl[len(fnl)-1]
+    except:
+        fn = 'errfh'
 
     line = ctx.line
     function = ctx.function
