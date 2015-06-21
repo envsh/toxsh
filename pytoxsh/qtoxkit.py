@@ -31,13 +31,27 @@ class ToxDhtServer():
         self.name = ''
         return
 
+import os
 class ToxSettings():
-    def __init__(self):
-        self.sdir = '/home/gzleo/.config/tox';
-        self.path = self.sdir + '/qtox.ini'
+    def __init__(self, identifier = 'anon'):
+        self.ident = identifier
+        # $HOME/.config/toxkit/{identifier}/
+        self.bdir = '%s/.config/toxkit' % os.getenv('HOME')
+        self.sdir = self.bdir + '/%s' % self.ident
+        self.path = self.bdir + '/qtox.ini'
         self.qsets = QSettings(self.path, QSettings.IniFormat)
         self.data = self.sdir + '/tkdata'
         self.friend_list = QSettings(self.sdir + '/toxkit.friend.lst', QSettings.IniFormat)
+
+        if not os.path.exists(self.bdir):
+            os.mkdir(self.bdir)
+
+        if not os.path.exists(self.sdir):
+            os.mkdir(self.sdir)
+
+        if not os.path.exists(self.path):
+            # copy current path qtox.ini to dst
+            pass
         
         return
 
@@ -106,9 +120,9 @@ class ToxSettings():
         return friends
 
 
-class ToxSlots(Tox):
+class ToxSlot(Tox):
     def __init__(self, opts):
-        super(ToxSlots, self).__init__(opts)
+        super(ToxSlot, self).__init__(opts)
         self.opts = opts
 
         #self.fwd_friend_request = None
@@ -122,6 +136,7 @@ class ToxSlots(Tox):
         self.file_control(args[0], args[1], 0)
         #self.file_control(args[0], args[1], 2)
         return
+    # friend_number, file_number, control
     def on_file_recv_control(self, *args):
         qDebug('herhe')
         print(args)
@@ -132,7 +147,14 @@ class ToxSlots(Tox):
         if args[3] is None: qDebug('finished')
         else: qDebug(str(len(args[3])))
         return
-
+    # (0, 0, 86373, 1371)
+    def on_file_chunk_request(self, *args):
+        qDebug(str(args))
+        data = '%1371s' % 'abcdefg'
+        ret = self.file_send_chunk(args[0], args[1], args[2], data)
+        qDebug(str(ret))
+        return
+    
     def on_friend_request(self, *args):
         qDebug('herhe')
         print(args)
@@ -147,15 +169,21 @@ class ToxSlots(Tox):
 class QToxKit(QThread):
     friendRequest = pyqtSignal('QString', 'QString')
     connectChanged = pyqtSignal(bool)
+    connected = pyqtSignal()
+    disconnected = pyqtSignal()
     newMessage = pyqtSignal('QString', 'QString')
+    friendConnected = pyqtSignal('QString')
+    fileRecvControl = pyqtSignal('QString', 'QString', int)
+    fileRecv = pyqtSignal('QString', int, int, 'QString')
     
-    def __init__(self, parent = None):
+    
+    def __init__(self, identifier = 'anon', parent = None):
         super(QToxKit, self).__init__(parent)
-        self.sets = ToxSettings()
+        self.sets = ToxSettings(identifier)
 
         self.opts = ToxOptions()
         self.stopped = False
-        self.connected = False
+        self.is_connected = False
         self.bootstrapStartTime = None
         self.bootstrapFinishTime = None
         self.first_connected = True
@@ -188,7 +216,7 @@ class QToxKit(QThread):
         print(type(self.opts.savedata_data))
         print(len(self.opts.savedata_data), self.opts.savedata_data[0:32])
         
-        self.tox = ToxSlots(self.opts)
+        self.tox = ToxSlot(self.opts)
         myaddr = self.tox.self_get_address()
         self.tox.self_set_name('tki.' + myaddr[0:5])
         print(str(self.tox.self_get_address()))
@@ -196,11 +224,12 @@ class QToxKit(QThread):
         print(len(newdata), newdata[0:32])
         self.sets.saveData(newdata)
 
-        # callbacks
+        # callbacks，获取回调方法的控制
         self.tox.on_friend_request = self.fwdFriendRequest
         self.tox.on_connection_status = self.onConnectStatus
         self.tox.on_friend_message = self.onFriendMessage
         self.tox.on_user_status = self.onFriendStatus
+        self.tox.on_file_recv_control = self.onFileRecvControl
 
         # file callbacks
         # self.tox.on_file_recv = self.onFileRecv
@@ -234,12 +263,14 @@ class QToxKit(QThread):
         conned = self.tox.self_get_connection_status()
         #qDebug('hehre' + str(conned))
         
-        if conned != self.connected:
-            qDebug('connect status changed: %d -> %d' % (self.connected, conned))
+        if conned != self.is_connected:
+            qDebug('connect status changed: %d -> %d' % (self.is_connected, conned))
             if conned is True: self.bootstrapFinishTime = QDateTime.currentDateTime()
-            self.connected = conned
+            self.is_connected = conned
             self.connectChanged.emit(conned)
             self.onSelfConnectStatus(conned)
+            if conned is True: self.connected.emit()
+            if conned is False: self.disconnected.emit()
            
         return
 
@@ -263,6 +294,11 @@ class QToxKit(QThread):
         
         return
 
+    def isConnected(self):
+        conned = self.tox.self_get_connection_status()
+        if conned == 1: return True
+        return False
+    
     def onSelfConnectStatus(self, status):
         qDebug('my status: %s' % str(status))
         fnum = self.tox.self_get_friend_list_size()
@@ -292,6 +328,9 @@ class QToxKit(QThread):
 
     def onFriendStatus(self, fno, status):
         qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
+        fid = self.tox.friend_get_public_key(fno)
+        if status == 0: self.friendConnected.emit(fid)
+        
         return
 
     def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
@@ -301,6 +340,9 @@ class QToxKit(QThread):
         qDebug(str(kind))
         qDebug(str(file_size))
         qDebug(str(filename))
+
+        friend_pubkey = self.tox.friend_get_public_key(friend_number)
+        self.fileRecv.emit(friend_pubkey, file_number, file_size, filename)
         
         return
 
@@ -312,4 +354,27 @@ class QToxKit(QThread):
             msgn = msg[pos:(pos + mlen)]
             pos = pos + mlen
             self.tox.friend_send_message(fno, msgn)
+        return
+
+    def fileControl(self, friend_pubkey, file_number, control):
+        friend_number = self.tox.friend_by_public_key(friend_pubkey)
+        self.tox.file_control(friend_number, file_number, control)
+        
+        return
+    
+    def sendFile(self, fid, fsize, fname):
+        fno = self.tox.friend_by_public_key(fid)
+        file_id = fname
+        self.tox.file_send(fno, 0, fsize, file_id, fname)
+        return
+
+    def onFileRecvControl(self, friend_number, file_number, control):
+        friend_id = self.tox.friend_get_public_key(friend_number)
+        file_id = '%128s' % ' '
+        ret = self.tox.file_get_file_id(friend_number, file_number, file_id)
+        qDebug(file_id)
+        qDebug(str(len(file_id)))
+
+        self.fileRecvControl.emit(friend_id, file_id, control)
+        
         return
