@@ -33,7 +33,8 @@ class ToxDhtServer():
 
 import os
 class ToxSettings():
-    def __init__(self, identifier = 'anon'):
+    def __init__(self, identifier = 'anon', persist = True):
+        self.persist = persist
         self.ident = identifier
         # $HOME/.config/toxkit/{identifier}/
         self.bdir = '%s/.config/toxkit' % os.getenv('HOME')
@@ -43,15 +44,16 @@ class ToxSettings():
         self.data = self.sdir + '/tkdata'
         self.friend_list = QSettings(self.sdir + '/toxkit.friend.lst', QSettings.IniFormat)
 
-        if not os.path.exists(self.bdir):
-            os.mkdir(self.bdir)
+        if persist is True:
+            if not os.path.exists(self.bdir):
+                os.mkdir(self.bdir)
 
-        if not os.path.exists(self.sdir):
-            os.mkdir(self.sdir)
+            if not os.path.exists(self.sdir):
+                os.mkdir(self.sdir)
 
-        if not os.path.exists(self.path):
-            # copy current path qtox.ini to dst
-            pass
+            if not os.path.exists(self.path):
+                # copy current path qtox.ini to dst
+                pass
         
         return
 
@@ -67,10 +69,13 @@ class ToxSettings():
             dhtsrv.pubkey = self.qsets.value('%d/userId' % i)
             dhtsrv.name = self.qsets.value('%d/name' % i)
             dhtsrvs.append(dhtsrv)
-            
+
+        self.qsets.endGroup()
         return dhtsrvs
 
     def getSaveData(self):
+        if self.persist is False: return b''
+        
         print(self.data)
         fp = QFile(self.data)
         fp.open(QIODevice.ReadOnly)
@@ -79,6 +84,7 @@ class ToxSettings():
         return data.data()
 
     def saveData(self, data):
+        if self.persist is False: return 0
         if len(data) == 0: return 0
         
         fp = QFile(self.data)
@@ -89,6 +95,8 @@ class ToxSettings():
         return n
 
     def saveFriends(self, friends):
+        if self.persist is False: return
+        
         self.friend_list.beginGroup('FriendList')
         fn = len(friends)
         self.friend_list.setValue('size', str(fn))
@@ -96,10 +104,12 @@ class ToxSettings():
         for fid in friends:
             self.friend_list.setValue(str(i), fid)
             i += 1
-        
+        self.friend_list.endGroup()
         return
 
     def loadFriends(self):
+        if self.persist is False: return []
+        
         self.friend_list.beginGroup('FriendList')
         fn = self.friend_list.value('size')
         if fn == None: fn = 0
@@ -109,14 +119,21 @@ class ToxSettings():
         if fn > 0:
             for i in range(0, fn):
                 fid = self.friend_list.value(str(i))
-                qDebug(fid)
+                #qDebug(fid)
                 friends.append(fid)
-        else:
-            friends = ['398C8161D038FD328A573FFAA0F5FAAF7FFDE5E8B4350E7D15E6AFD0B993FC529FA90C343627',
-                       '4610913CF8D2BC6A37C93A680E468060E10335178CA0D23A33B9EABFCDF81A46DF5DDE32954A',
-                       '2645081363C7E8B5090523098A563D3BE3A6D92227B251E55FE42FBBA277500DC80EF1F7CF4A',
-            ]
+                
+        qDebug('load friend done: %d' % len(friends))
+        
+        ###
+        hcfriends = ['398C8161D038FD328A573FFAA0F5FAAF7FFDE5E8B4350E7D15E6AFD0B993FC529FA90C343627',
+                   '4610913CF8D2BC6A37C93A680E468060E10335178CA0D23A33B9EABFCDF81A46DF5DDE32954A',
+                   '2645081363C7E8B5090523098A563D3BE3A6D92227B251E55FE42FBBA277500DC80EF1F7CF4A',
+        ]
 
+        for f in hcfriends:
+            if f not in friends: friends.append(f)
+
+        self.friend_list.endGroup()
         return friends
 
 
@@ -160,26 +177,28 @@ class ToxSlot(Tox):
         print(args)
         return
 
-    def on_connection_status(self, *args):
+    def on_friend_connection_status(self, *args):
         qDebug('herhe')
         print(args)
         return
 
 ### 支持qt signal slots
+### 支持永久存储与不存储
 class QToxKit(QThread):
-    friendRequest = pyqtSignal('QString', 'QString')
     connectChanged = pyqtSignal(bool)
     connected = pyqtSignal()
     disconnected = pyqtSignal()
+    friendRequest = pyqtSignal('QString', 'QString')
+    friendAdded = pyqtSignal('QString')
     newMessage = pyqtSignal('QString', 'QString')
     friendConnected = pyqtSignal('QString')
     fileRecvControl = pyqtSignal('QString', 'QString', int)
     fileRecv = pyqtSignal('QString', int, int, 'QString')
     
     
-    def __init__(self, identifier = 'anon', parent = None):
+    def __init__(self, identifier = 'anon', persist = True, parent = None):
         super(QToxKit, self).__init__(parent)
-        self.sets = ToxSettings(identifier)
+        self.sets = ToxSettings(identifier, persist)
 
         self.opts = ToxOptions()
         self.stopped = False
@@ -213,7 +232,7 @@ class QToxKit(QThread):
         self.friends = self.sets.loadFriends()
         
         self.opts.savedata_data = self.sets.getSaveData()
-        print(type(self.opts.savedata_data))
+        qDebug(str(type(self.opts.savedata_data)))
         print(len(self.opts.savedata_data), self.opts.savedata_data[0:32])
         
         self.tox = ToxSlot(self.opts)
@@ -226,7 +245,7 @@ class QToxKit(QThread):
 
         # callbacks，获取回调方法的控制
         self.tox.on_friend_request = self.fwdFriendRequest
-        self.tox.on_connection_status = self.onConnectStatus
+        self.tox.on_friend_connection_status = self.onFriendConnectStatus
         self.tox.on_friend_message = self.onFriendMessage
         self.tox.on_user_status = self.onFriendStatus
         self.tox.on_file_recv_control = self.onFileRecvControl
@@ -244,16 +263,30 @@ class QToxKit(QThread):
         while True:
             rnd = qrand() % sz
             rndsrvs[rnd] = 1
-            if len(rndsrvs) >= 5: break
+            if len(rndsrvs) >= 2: break
 
-        qDebug('selected srvs:' + str(rndsrvs))
-        for rnd in rndsrvs:
-            srv = dhtsrvs[rnd]
-            #qDebug('bootstrap from:' + str(rndsrvs) +  str(srv))
-            qDebug('bootstrap from: %s %d %s' % (srv.addr, srv.port, srv.pubkey))
-            bsret = self.tox.bootstrap(srv.addr, srv.port, srv.pubkey)
-            rlyret = self.tox.add_tcp_relay(srv.addr, srv.port, srv.pubkey)
+        mylonode = ['127.0.0.1', 33445,
+                     'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+        bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
+        rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
+        qDebug('bootstrap from: %s %d %s' % (mylonode[0], mylonode[1], mylonode[2]))
 
+
+        #myvpsnode = ['104.238.150.157', 33445,
+        #             '886568B282E280AEC7661EF3F1A2AAE809D11FB37F9E81E7D2D0758BC73B0943']
+        #bsret = self.tox.bootstrap(myvpsnode[0], myvpsnode[1], myvpsnode[2])
+        #rlyret = self.tox.add_tcp_relay(myvpsnode[0], myvpsnode[1], myvpsnode[2])
+        #qDebug('bootstrap from: %s %d %s' % (myvpsnode[0], myvpsnode[1], myvpsnode[2]))
+        
+        #qDebug('selected srvs:' + str(rndsrvs))
+        #for rnd in rndsrvs:
+        #    srv = dhtsrvs[rnd]
+        #    #qDebug('bootstrap from:' + str(rndsrvs) +  str(srv))
+        #    qDebug('bootstrap from: %s %d %s' % (srv.addr, srv.port, srv.pubkey))
+        #    bsret = self.tox.bootstrap(srv.addr, srv.port, srv.pubkey)
+        #    rlyret = self.tox.add_tcp_relay(srv.addr, srv.port, srv.pubkey)
+
+        
         return
     
     def itimeout(self):
@@ -279,18 +312,18 @@ class QToxKit(QThread):
         qDebug(str(data))
 
         self.friends.append(pubkey)
-        self.saveFriends(self.friends)
-        
+        self.sets.saveFriends(self.friends)
+
         fnum = self.tox.friend_add_norequest(pubkey)
         qDebug(str(fnum))
-        
+
+        self.friendAdded.emit(pubkey)
         # self.tox.send_message(fnum, 'hehe accept')
-        
+
         return
     
-    def onConnectStatus(self, fno, status):
+    def onFriendConnectStatus(self, fno, status):
         qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
-        
         
         return
 
@@ -311,10 +344,18 @@ class QToxKit(QThread):
             self.first_connected = False
             for friend in friends:
                 self.tox.friend_add_norequest(friend)
-        
+            qDebug('add old friend: %d' % len(friends))
+            # self.connected.emit()
+
+        return
+
+    def friendAdd(self, friendId, msg):
+        rc = self.tox.friend_add(friendId, msg)
+        qDebug(str(rc))
         return
     
     def onFriendMessage(self, fno, msg):
+        qDebug('here')
         u8msg = msg.encode('utf8') # str ==> bytes
         #print(u8msg)
         u8msg = str(u8msg, encoding='utf8')
