@@ -27,8 +27,8 @@ class ToxNetTunSrv(QObject):
     def __init__(self, parent = None):
         super(ToxNetTunSrv, self).__init__(parent)
         self.toxkit = None # QToxKit
-        self.cons = {}  # sock => toxsock, toxsock => sock
-        self.chans = {} #
+        self.cons = {}  # peer => con
+        self.chans = {} # sock => chan, toxsock => chan
         #self.host = '127.0.0.1'
         #self.port = 80
         self.chano = 0
@@ -111,13 +111,21 @@ class ToxNetTunSrv(QObject):
 
             self.chans[sock] = chan
             self.chans[chan.chano] = chan
+            pass
 
         if jmsg['cmd'] == 'write':
             chan = self.chans[jmsg['chano']]
             self._tcpWrite(chan, jmsg['data'])
             pass
+
+        if jmsg['cmd'] == 'close':
+            chano = jmsg['chano']
+            if chano in self.chans:
+                chan = self.chans[chano]
+                self.chans.pop(chano)
+                chan.sock.close()
+            pass
         
-        #有可能产生消息积压，如果调用端不读取的话
         return
 
     # @param data bytes | QByteArray
@@ -168,14 +176,37 @@ class ToxNetTunSrv(QObject):
             'cmdno': chan.cmdno,
         }
 
-        reply = json.JSONEncoder(reply).encode(reply)
+        reply = json.JSONEncoder().encode(reply)
 
         self.toxkit.sendMessage(chan.con.peer, reply)
         
         return
             
     def _onTcpDisconnected(self):
-        qDebug('here')
+        qDebug('here %d' % len(self.chans))
+        sock = self.sender()
+
+        if sock not in self.chans:
+            qDebug('maybe already closed123')
+            return
+
+        chan = self.chans[sock]
+        chano = chan.chano
+
+        if chano not in self.chans:
+            qDebug('maybe already closed222')
+            self.chans.pop(sock)
+            return
+
+        cmdno = self._nextCmdno()
+        msg = {
+            'cmd': 'close',
+            'chano': chan.chano,
+            'cmdno': cmdno,
+        }
+        
+        msg = json.JSONEncoder().encode(msg)
+        self.toxkit.sendMessage(chan.con.peer, msg)
         
         return
     
@@ -191,6 +222,7 @@ class ToxNetTunSrv(QObject):
         return
 
     def _tcpWrite(self, chan, data):
+        qDebug('hrehe')
         sock = chan.sock
         rawdata = QByteArray.fromHex(data)
 

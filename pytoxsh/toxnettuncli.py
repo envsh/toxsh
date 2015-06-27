@@ -114,9 +114,11 @@ class ToxNetTunCli(QObject):
         qDebug(str(jmsg))
         
         if jmsg['cmd'] == 'connect':
-            chan = self.chans[jmsg['cmdno']]
+            cmdnokey = 'cmdno_%d' % jmsg['cmdno']
+            chan = self.chans[cmdnokey]
             chan.chano = jmsg['chano']
             self.chans[chan.chano] = chan
+            self.chans.pop(cmdnokey)
 
             while chan.sock.bytesAvailable() > 0:
                 bcc = chan.sock.read(128)
@@ -128,7 +130,15 @@ class ToxNetTunCli(QObject):
             chan = self.chans[jmsg['chano']]
             self._tcpWrite(chan, jmsg['data'])
             pass
-        
+
+        if jmsg['cmd'] == 'close':
+            chano = jmsg['chano']
+            if chano in self.chans:
+                chan = self.chans[chano]
+                self.chans.pop(chano)
+                chan.sock.close()
+            pass
+
         #有可能产生消息积压，如果调用端不读取的话
         return
 
@@ -167,7 +177,7 @@ class ToxNetTunCli(QObject):
         chan.host = rec.remote_host
         chan.port = rec.remote_port
         chan.cmdno = self._nextCmdno()
-        self.chans[chan.cmdno] = chan
+        self.chans['cmdno_%d' % chan.cmdno] = chan
         self.chans[sock] = chan
 
         req = {
@@ -185,6 +195,29 @@ class ToxNetTunCli(QObject):
 
     def _onTcpDisconnected(self):
         qDebug('here')
+        sock = self.sender()
+        if sock not in self.chans:
+            qDebug('maybe already closed')
+            return
+
+        chan = self.chans[sock]
+        chano = chan.chano
+
+        if chano not in self.chans:
+            qDebug('maybe already closed222')
+            self.chans.pop(sock)
+            return
+        
+        cmdno = self._nextCmdno()
+        msg = {
+            'cmd': 'close',
+            'chano': chan.chano,
+            'cmdno': cmdno,
+        }
+        
+        msg = json.JSONEncoder().encode(msg)
+        self.toxkit.sendMessage(chan.con.peer, msg)
+
         return
     
     def _onTcpReadyRead(self):
