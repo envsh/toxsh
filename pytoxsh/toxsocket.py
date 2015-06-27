@@ -14,55 +14,89 @@ class ToxConnection():
         self.c2s_sock = ''
         self.s2c_sock = ''
         self.peer = None
-        self.peer = _srvpeer
-        self.toxkit = None
+        #self.peer = _srvpeer
+        #self.toxkit = None
         
         return
 
+class ToxChannel():
+    def __init__(self):
 
+        return
+
+_toxkit = None
+def _toxkit_inst():
+    if _toxkit is None: _toxkit = QToxKit()
+    return _toxkit
+
+# 一个ToxSocket代表着。。。
 class ToxSocket(QObject):
     connected = pyqtSignal()
     disconnected = pyqtSignal()
-    readyRead = pyqtSignal()
+    readyRead = pyqtSignal('QString')
 
     def __init__(self, parent = None):
         super(ToxSocket, self).__init__(parent)
-        self.msgs = []
-        
+        self.msgs = {}
+
+        self.toxkit = None # QToxKit
         self.has_pending_onnect = False
-        self.pc_host = ''
-        self.pc_port = 0
         self.toxcon = ToxConnection()
+        self.toxcons = {}   # peer => ToxConnection
 
         self.con_file_name = 'toxnet_socket_over_toxfile_%s_%d.vrt'
         self.con_file_name = 'toxsockfile_client_%s_%d.vrt'
         #self.conn_file_name = 'toxsockfile_server_%s_%d.vrt'
 
+        #self.xinit()
         return
-    
-    def connectToHost(self, host, port):
+
+    def xinit(self):
+        # 多toxcli实例模式，不存储
         toxkit = QToxKit('toxcli', False)
         toxkit.connected.connect(self._toxnetConnected)
         toxkit.disconnected.connect(self._toxnetDisconnected)
+        toxkit.friendAdded.connect(self._toxnetFriendAdded)
         toxkit.friendConnected.connect(self._toxnetFriendConnected)
         toxkit.newMessage.connect(self._toxnetFriendMessage)
-        self.toxcon.toxkit = toxkit
+        self.toxkit = toxkit
+
+        return
+    def connectToHost(self, host, port, peer):
+
+        con = ToxConnection()
+        con.host = host
+        con.port = port
+        con.peer = peer
+
+        self.toxcons[peer] = con
+
+        reqmsg = 'from toxtun node (%s:%d)' % (host, port)
+        self.toxkit.friendAdd(peer, reqmsg)
 
         return
 
-    def setFD(self, toxcon):
-        self.toxcon = toxcon
-        toxkit = toxcon.toxkit
+    # server模式调用
+    def setFD(self, toxkit, clipeer):
         
         toxkit.connected.connect(self._toxnetConnected)
         toxkit.disconnected.connect(self._toxnetDisconnected)
         toxkit.friendConnected.connect(self._toxnetFriendConnected)
         toxkit.newMessage.connect(self._toxnetFriendMessage)
 
-        sock = toxcon.sock
+        con = ToxConnection()
+        #con.host = tohost
+        #con.port = toport
+        con.peer = clipeer
+        self.toxcons[clipeer] = con
+
+        return
+
+    def _toxnetFriendAdded(self, fid):
+        qDebug('hehe:' + fid)
+        con = self.toxcons[fid]
         
         return
-    
     def _toxnetFriendConnected(self, fid):
         qDebug('herhe:' + fid)
         qDebug('herhe:' + self.pc_host)
@@ -76,9 +110,8 @@ class ToxSocket(QObject):
     def _toxnetConnected(self):
         qDebug('herhe')
         #self.has_pending_onnect = False
-        #self.connectToHost(self.pc_host, self.pc_port)
 
-        self.toxcon.toxkit.friendAdd(_srvpeer, 'from tox cli')
+        #self.toxcon.toxkit.friendAdd(_srvpeer, 'from tox cli')
         
         return
     def _toxnetDisconnected(self):
@@ -87,8 +120,12 @@ class ToxSocket(QObject):
 
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
-        self.msgs.append(msg)
-        self.readyRead.emit()
+
+        # dispatch的过程
+        if friendId in self.toxcons:
+            if friendId not in self.msgs: self.msgs[friendId] = []
+            self.msgs[friendId].append(msgs)
+            self.readyRead.emit(friendId)
         #有可能产生消息积压，如果调用端不读取的话
         return
     
@@ -101,10 +138,11 @@ class ToxSocket(QObject):
         
         return
     
-    def read(self):
-        msg = self.msgs.pop()
-        return msg
-
+    def read(self, peer):
+        if peer in self.msgs:
+            msg = self.msgs[peer].pop()
+            return msg
+        return None
     def readAll(self):
         return
 
@@ -312,6 +350,12 @@ class _ToxConnection3():
         self.toxkit = other.toxkit
         return
 
+
+class ToxServerRouter(QObject):
+    def __init__(self, parent = None):
+        
+        return
+    
 # ToxServer的作用说明
 # 是一个被连接端，有固定的toxid
 # 它收到被连接（加好友）事件，把这个连接转发到本地真实的tcp server上
@@ -323,7 +367,7 @@ class ToxServer(QObject):
     
     def __init__(self, parent = None):
         super(ToxServer, self).__init__(parent)
-        #self.toxkit = None # QToxKit
+        self.toxkit = None # QToxKit
         #self.srv = QTcpServer()
         #self.srv = None
         self.toxcon = _ToxConnection3()
@@ -343,6 +387,7 @@ class ToxServer(QObject):
         toxkit.friendAdded.connect(self._onFriendAdded)
         toxkit.newMessage.connect(self._onNewMessage)
         self.toxcon.toxkit = toxkit
+        self.toxkit = toxkit
         
         return
 
@@ -412,9 +457,21 @@ class ToxServer(QObject):
         toxcon = self.newcons.pop()
 
         toxsock = ToxSocket()
-        toxsock.setFD(toxcon)
+        toxsock.setFD(self.toxkit, toxcon.peer)
+        toxsock.readyRead.connect(self._onToxNetReadyRead)
 
+        self.cons[toxsock] = toxcon
         return toxsock
+
+    def _onToxNetReadyRead(self, peer):
+        qDebug(peer)
+        toxsock = self.sender()
+        con = self.cons[toxsock]
+
+        bcc = toxsock.read(peer)
+        qDebug(str(len(bcc)))
+        
+        return
 
 class _TestToxServer(QObject):
     def __init__(self):
