@@ -6,26 +6,8 @@ from PyQt5.QtNetwork import *
 
 import qtutil
 from qtoxkit import *
-# from toxsocket import *
-from toxtunconfig import *
+from toxtunutils import *
 
-class ToxConnection():
-    def __init__(self):
-        self.srv = None # QTcpServer
-        self.peer = None
-        return
-
-class ToxChannel():
-    def __init__(self, con, sock):
-        self.con = con
-        self.sock = sock #
-        self.host = ''
-        self.port = 0
-        self.chano = 0
-        self.cmdno = 0
-        self.rdlen = 0
-        self.wrlen = 0
-        return
 
 class ToxNetTunCli(QObject):
     def __init__(self, parent = None):
@@ -36,6 +18,7 @@ class ToxNetTunCli(QObject):
         self.cons = {}
         self.chans = {}
         self.cmdno = 0
+        
         return
 
     def start(self):
@@ -54,6 +37,7 @@ class ToxNetTunCli(QObject):
         toxkit.connected.connect(self._toxnetConnected)
         toxkit.disconnected.connect(self._toxnetDisconnected)
         toxkit.friendAdded.connect(self._toxnetFriendAdded)
+        toxkit.friendConnectionStatus.connect(self._toxnetFriendConnectionStatus)
         toxkit.friendConnected.connect(self._toxnetFriendConnected)
         toxkit.newMessage.connect(self._toxnetFriendMessage)
         
@@ -65,7 +49,7 @@ class ToxNetTunCli(QObject):
         i = 0
         for rec in self.cfg.recs:
             srv = QTcpServer()
-            srv.newConnection.connect(self._onNewConnection)
+            srv.newConnection.connect(self._onNewTcpConnection)
             ok = srv.listen(QHostAddress.Any, rec.local_port)
             qDebug(str(ok))
             self.tcpsrvs[i] = srv
@@ -101,9 +85,36 @@ class ToxNetTunCli(QObject):
 
         
         return
+
+    def _toxnetFriendConnectionStatus(self, fid, status):
+        if status is True: self._toxnetOnlinePostHandler(fid)
+        else: self._toxnetOfflinePostHandler(fid)
+        return
     def _toxnetFriendConnected(self, fid):
         qDebug('herhe:' + fid)
         
+        return
+
+    def _toxnetOnlinePostHandler(self, peer):
+        qDebug('here')
+        # 找到所有有offline_buffers的chan,并重新发送消息
+        for tpeer in self.chans:
+            if tpeer != peer: continue
+            chan = self.chans[tpeer]
+            chan.offline_times[chan.offline_count].append(QDateTime.currentDateTime())
+            self._toxnetResendOfflineMessages(chan)
+            pass
+        return
+
+    def _toxnetOfflinePostHandler(self, peer):
+        qDebug('here')
+        # 找到所有chan,写入offline相关时间信息
+        for tpeer in self.chans:
+            if tpeer != peer: continue
+            chan = self.chans[tpeer]
+            chan.offline_count += 1
+            chan.offline_times[chan.offline_count] = [QDateTime.currentDateTime()]
+            pass
         return
 
     def _toxnetFriendMessage(self, friendId, msg):
@@ -156,7 +167,31 @@ class ToxNetTunCli(QObject):
         }
 
         msg = json.JSONEncoder().encode(msg)
-        self.toxkit.sendMessage(chan.con.peer, msg)
+
+        haspending = len(chan.offline_buffers) > 0
+        status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
+        if status > 0 and haspending is False:
+            self.toxkit.sendMessage(chan.con.peer, msg)
+        else:
+            self._toxnetWriteoffline(chan, msg)
+        return
+
+    def _toxnetWriteOffline(self, chan, msg):
+        qDebug('here')
+        chan.offline_buffers.append(msg)
+        
+        return
+
+    def _toxnetResendOfflineMessages(self, chan):
+        qDebug('here')
+
+        cnter = 0
+        while cnter < 10000 and len(chan.offline_buffers) > 0:
+            msg = chan.offline_buffers.pop()
+            self.toxkit.sendMessage(chan.con.peer, msg)
+            cnter += 1
+            pass
+        qDebug('resend bufcnt: %d' % cnter)
         
         return
     
@@ -164,7 +199,7 @@ class ToxNetTunCli(QObject):
         self.cmdno = self.cmdno +1
         return self.cmdno
     
-    def _onNewConnection(self):
+    def _onNewTcpConnection(self):
         srv = self.sender()
         rec = self.tcpsrvs[srv]
 
@@ -202,7 +237,8 @@ class ToxNetTunCli(QObject):
 
         chan = self.chans[sock]
         chano = chan.chano
-
+        qDebug(chan.debugInfo())
+        
         if chano not in self.chans:
             qDebug('maybe already closed222')
             self.chans.pop(sock)
@@ -228,13 +264,17 @@ class ToxNetTunCli(QObject):
         qDebug(str(chan.chano))
         if chan.chano == 0: return
 
+        cnter = 0
+        tlen = 0
         while sock.bytesAvailable() > 0:
             bcc = chan.sock.read(128)
             print(bcc)
             self._toxnetWrite(chan, bcc)
             chan.rdlen += len(bcc)
+            cnter += 1
+            tlen += len(bcc)
 
-        qDebug('XDR: sock->toxnet: %d' % chan.rdlen)
+        qDebug('XDR: sock->toxnet: %d/%d, %d' % (tlen, chan.rdlen, cnter))
         # bcc = sock.readAll()
         # toxsock.write(bcc)
         return

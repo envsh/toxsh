@@ -241,12 +241,16 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
+        cnter = 0
+        tlen = 0
         while sock.bytesAvailable() > 0:
             bcc = sock.read(128)
             self._toxnetWrite(chan, bcc)
             chan.rdlen += len(bcc)
+            cnter += 1
+            tlen += len(bcc)
             
-        qDebug('XDR: sock->toxnet: %d/%d' % (len(bcc), chan.rdlen))
+        qDebug('XDR: sock->toxnet: %d/%d, %d' % (tlen, chan.rdlen, cnter))
         return
 
     def _tcpWrite(self, chan, data):

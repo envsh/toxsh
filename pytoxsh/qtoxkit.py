@@ -192,6 +192,7 @@ class QToxKit(QThread):
     friendAdded = pyqtSignal('QString')
     newMessage = pyqtSignal('QString', 'QString')
     friendConnected = pyqtSignal('QString')
+    friendConnectionStatus = pyqtSignal('QString', bool)
     fileRecvControl = pyqtSignal('QString', 'QString', int)
     fileRecv = pyqtSignal('QString', int, int, 'QString')
     
@@ -238,7 +239,7 @@ class QToxKit(QThread):
         self.tox = ToxSlot(self.opts)
         myaddr = self.tox.self_get_address()
         self.tox.self_set_name('tki.' + myaddr[0:5])
-        print(str(self.tox.self_get_address()))
+        qDebug(str(self.tox.self_get_address()))
         newdata = self.tox.get_savedata()
         print(len(newdata), newdata[0:32])
         self.sets.saveData(newdata)
@@ -309,26 +310,6 @@ class QToxKit(QThread):
            
         return
 
-    def fwdFriendRequest(self, pubkey, data):
-        qDebug(str(pubkey))
-        qDebug(str(data))
-
-        self.friends.append(pubkey)
-        self.sets.saveFriends(self.friends)
-
-        fnum = self.tox.friend_add_norequest(pubkey)
-        qDebug(str(fnum))
-
-        self.friendAdded.emit(pubkey)
-        # self.tox.send_message(fnum, 'hehe accept')
-
-        return
-    
-    def onFriendConnectStatus(self, fno, status):
-        qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
-        
-        return
-
     def isConnected(self):
         conned = self.tox.self_get_connection_status()
         if conned == 1: return True
@@ -349,6 +330,28 @@ class QToxKit(QThread):
             qDebug('add old friend: %d' % len(friends))
             # self.connected.emit()
 
+        return
+
+    def fwdFriendRequest(self, pubkey, data):
+        qDebug(str(pubkey))
+        qDebug(str(data))
+
+        self.friends.append(pubkey)
+        self.sets.saveFriends(self.friends)
+
+        fnum = self.tox.friend_add_norequest(pubkey)
+        qDebug(str(fnum))
+
+        self.friendAdded.emit(pubkey)
+        # self.tox.send_message(fnum, 'hehe accept')
+
+        return
+    
+    def onFriendConnectStatus(self, fno, status):
+        qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
+        friend_pubkey = self.tox.friend_get_public_key(fno)
+        self.friendConnectionStatus.emit(friend_pubkey, status)
+        if status is True: self.friendConnected.emit(friend_pubkey)
         return
 
     def friendAdd(self, friendId, msg):
@@ -372,9 +375,14 @@ class QToxKit(QThread):
     def onFriendStatus(self, fno, status):
         qDebug('hehre: fnum=%s, status=%s' % (str(fno), str(status)))
         fid = self.tox.friend_get_public_key(fno)
-        if status == 0: self.friendConnected.emit(fid)
+        #if status == 0: self.friendConnected.emit(fid)
         
         return
+
+    def friendGetConnectionStatus(self, friend_pubkey):
+        friend_number = self.tox.friend_by_public_key(friend_pubkey)
+        status = self.tox.friend_get_connection_status(friend_number)
+        return status
 
     def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
         qDebug('on file recv:')
