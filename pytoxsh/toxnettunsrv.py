@@ -21,6 +21,8 @@ class ToxChannel():
         self.port = 0
         self.chano = 0
         self.cmdno = 0
+        self.rdlen = 0
+        self.wrlen = 0
         return
     
 class ToxNetTunSrv(QObject):
@@ -154,6 +156,7 @@ class ToxNetTunSrv(QObject):
         sock = QTcpSocket()
         sock.connected.connect(self._onTcpConnected)
         sock.disconnected.connect(self._onTcpDisconnected)
+        sock.error.connect(self._onTcpError)
         sock.readyRead.connect(self._onTcpReadyRead)
 
         sock.connectToHost(QHostAddress(self.host), self.port)
@@ -209,6 +212,29 @@ class ToxNetTunSrv(QObject):
         self.toxkit.sendMessage(chan.con.peer, msg)
         
         return
+
+    def _onTcpError(self, error):
+        sock = self.sender()
+        qDebug('herhe %s' %  sock.errorString())
+        chan = self.chans[sock]
+        chano = chan.chano
+
+        if chano not in self.chans:
+            qDebug('maybe already closed333')
+            self.chans.pop(sock)
+            return
+
+        cmdno = self._nextCmdno()
+        msg = {
+            'cmd': 'close',
+            'chano': chan.chano,
+            'cmdno': cmdno,
+        }
+        
+        msg = json.JSONEncoder().encode(msg)
+        self.toxkit.sendMessage(chan.con.peer, msg)
+        
+        return
     
     def _onTcpReadyRead(self):
         qDebug('here')
@@ -218,17 +244,20 @@ class ToxNetTunSrv(QObject):
         while sock.bytesAvailable() > 0:
             bcc = sock.read(128)
             self._toxnetWrite(chan, bcc)
-        
+            chan.rdlen += len(bcc)
+            
+        qDebug('XDR: sock->toxnet: %d/%d' % (len(bcc), chan.rdlen))
         return
 
     def _tcpWrite(self, chan, data):
         qDebug('hrehe')
         sock = chan.sock
-        rawdata = QByteArray.fromHex(data)
 
+        rawdata = QByteArray.fromHex(data)
         print(rawdata)
         n = sock.write(rawdata)
-        qDebug(str(n))
+        chan.wrlen += n
+        qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
         
         return
 

@@ -228,17 +228,26 @@ class ToxNetTunCli(QObject):
         qDebug(str(chan.chano))
         if chan.chano == 0: return
 
-        bcc = sock.readAll()
-        #toxsock.write(bcc)
+        while sock.bytesAvailable() > 0:
+            bcc = chan.sock.read(128)
+            print(bcc)
+            self._toxnetWrite(chan, bcc)
+            chan.rdlen += len(bcc)
 
+        qDebug('XDR: sock->toxnet: %d' % chan.rdlen)
+        # bcc = sock.readAll()
+        # toxsock.write(bcc)
         return
 
     def _tcpWrite(self, chan, data):
         sock = chan.sock
+        chan = self.chans[sock]        
         rawdata = QByteArray.fromHex(data)
 
         n = sock.write(rawdata)
-        qDebug(str(n))
+        chan.wrlen += n
+        qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
+        
         return
     
 def main():

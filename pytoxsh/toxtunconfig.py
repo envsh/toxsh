@@ -1,4 +1,6 @@
 
+# TODO 压缩，提高传输效率
+# 稳定性，传输一半掉线后的处理
 
 _srvpeer = '6BA28AC06C1D57783FE017FA9322D0B356E61404C92155A04F64F3B19C75633E8BDDEFFA4856'
 
@@ -22,9 +24,9 @@ class ToxTunConfig():
     def load(self):
         rec = ToxTunRecord()
         rec.local_host = '*'
-        rec.local_port = 8080
+        rec.local_port = 8115
         rec.remote_host = '127.0.0.1'
-        rec.remote_port = 80
+        rec.remote_port = 8118
         rec.remote_pubkey = _srvpeer
         self.recs.append(rec)
 

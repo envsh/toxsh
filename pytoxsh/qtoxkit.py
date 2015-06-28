@@ -263,7 +263,7 @@ class QToxKit(QThread):
         while True:
             rnd = qrand() % sz
             rndsrvs[rnd] = 1
-            if len(rndsrvs) >= 2: break
+            if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
                      'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
@@ -277,14 +277,16 @@ class QToxKit(QThread):
         #bsret = self.tox.bootstrap(myvpsnode[0], myvpsnode[1], myvpsnode[2])
         #rlyret = self.tox.add_tcp_relay(myvpsnode[0], myvpsnode[1], myvpsnode[2])
         #qDebug('bootstrap from: %s %d %s' % (myvpsnode[0], myvpsnode[1], myvpsnode[2]))
-        
-        #qDebug('selected srvs:' + str(rndsrvs))
-        #for rnd in rndsrvs:
-        #    srv = dhtsrvs[rnd]
-        #    #qDebug('bootstrap from:' + str(rndsrvs) +  str(srv))
-        #    qDebug('bootstrap from: %s %d %s' % (srv.addr, srv.port, srv.pubkey))
-        #    bsret = self.tox.bootstrap(srv.addr, srv.port, srv.pubkey)
-        #    rlyret = self.tox.add_tcp_relay(srv.addr, srv.port, srv.pubkey)
+
+        localrun = False # just for convient
+        qDebug('selected srvs:' + str(rndsrvs))
+        for rnd in rndsrvs:
+            if localrun is True: continue
+            srv = dhtsrvs[rnd]
+            #qDebug('bootstrap from:' + str(rndsrvs) +  str(srv))
+            qDebug('bootstrap from: %s %d %s' % (srv.addr, srv.port, srv.pubkey))
+            bsret = self.tox.bootstrap(srv.addr, srv.port, srv.pubkey)
+            rlyret = self.tox.add_tcp_relay(srv.addr, srv.port, srv.pubkey)
 
         
         return
