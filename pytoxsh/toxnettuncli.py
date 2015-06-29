@@ -99,6 +99,7 @@ class ToxNetTunCli(QObject):
         qDebug('here')
         # 找到所有有offline_buffers的chan,并重新发送消息
         for tpeer in self.chans:
+            qDebug('%s==?%s' % (tpeer, peer))
             if tpeer != peer: continue
             chan = self.chans[tpeer]
             chan.offline_times[chan.offline_count].append(QDateTime.currentDateTime())
@@ -110,6 +111,7 @@ class ToxNetTunCli(QObject):
         qDebug('here')
         # 找到所有chan,写入offline相关时间信息
         for tpeer in self.chans:
+            qDebug('%s==?%s' % (tpeer, peer))
             if tpeer != peer: continue
             chan = self.chans[tpeer]
             chan.offline_count += 1
@@ -252,7 +254,13 @@ class ToxNetTunCli(QObject):
         }
         
         msg = json.JSONEncoder().encode(msg)
-        self.toxkit.sendMessage(chan.con.peer, msg)
+
+        haspending = len(chan.offline_buffers) > 0
+        status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
+        if status > 0 and haspending is False:
+            self.toxkit.sendMessage(chan.con.peer, msg)
+        else:
+            self._toxnetWriteOffline(chan, msg)
 
         return
     
