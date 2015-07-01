@@ -7,6 +7,7 @@ from PyQt5.QtNetwork import *
 import qtutil
 from qtoxkit import *
 from toxtunutils import *
+from srudp import *
 
 
 class ToxNetTunCli(QObject):
@@ -15,8 +16,8 @@ class ToxNetTunCli(QObject):
         self.cfg = ToxTunConfig('./toxtun.ini')
         self.toxkit = None # QToxKit
         self.tcpsrvs = {}  # id => srv
-        self.cons = {}
-        self.chans = {}
+        self.cons = {}     # peer => con
+        self.chans = {}   # sock => chan, rudp => chan
         self.cmdno = 0
         
         return
@@ -87,6 +88,8 @@ class ToxNetTunCli(QObject):
         return
 
     def _toxnetFriendConnectionStatus(self, fid, status):
+
+        return  # drop offline handler
         if status is True: self._toxnetOnlinePostHandler(fid)
         else: self._toxnetOfflinePostHandler(fid)
         return
@@ -122,11 +125,10 @@ class ToxNetTunCli(QObject):
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
 
-        # dispatch的过程
-        jmsg = json.JSONDecoder().decode(msg)
-        qDebug(str(jmsg))
-        
-        if jmsg['cmd'] == 'connect':
+
+        opkt = SruPacket2.decode(msg)
+        if opkt.msg_type == 'SYN2':
+            jmsg = opkt.extra
             cmdnokey = 'cmdno_%d' % jmsg['cmdno']
             chan = self.chans[cmdnokey]
             chan.chano = jmsg['chano']
@@ -138,7 +140,11 @@ class ToxNetTunCli(QObject):
                 print(bcc)
                 self._toxnetWrite(chan, bcc)
             pass
-
+        
+        # dispatch的过程
+        jmsg = json.JSONDecoder().decode(msg)
+        qDebug(str(jmsg))
+        
         if jmsg['cmd'] == 'write':
             chan = self.chans[jmsg['chano']]
             self._tcpWrite(chan, jmsg['data'])
@@ -217,16 +223,13 @@ class ToxNetTunCli(QObject):
         self.chans['cmdno_%d' % chan.cmdno] = chan
         self.chans[sock] = chan
 
-        req = {
-            'cmd': 'connect',
-            'host': chan.host,
-            'port': chan.port,
-            'cmdno': chan.cmdno,
-        }
+        udp = Srudp()
+        chan.rudp = udp
 
-        req = json.JSONEncoder().encode(req)
+        extra = {'cmdno': chan.cmdno, 'host': chan.host, 'port': chan.port}
+        pkt = udp.mkcon(extra)
         
-        self.toxkit.sendMessage(con.peer, req)
+        self.toxkit.sendMessage(con.peer, pkt)
                 
         return
 

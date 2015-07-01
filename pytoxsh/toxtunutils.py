@@ -1,6 +1,7 @@
 
 
 from PyQt5.QtCore import *
+from srudp import *
 
 _srvpeer = '6BA28AC06C1D57783FE017FA9322D0B356E61404C92155A04F64F3B19C75633E8BDDEFFA4856'
 
@@ -90,6 +91,7 @@ class ToxTunChannel():
         self.port = 0
         self.chano = 0
         self.cmdno = 0  #
+        self.rudp = None
 
         self.offline_buffers = []  # bytes/QByteArray
         self.offline_buffer_max_size = 1000  # about 1M

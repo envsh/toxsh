@@ -8,6 +8,7 @@ import qtutil
 from qtoxkit import *
 #from toxsocket import *
 from toxtunutils import *
+from srudp import *
 
 
 class ToxNetTunSrv(QObject):
@@ -62,6 +63,8 @@ class ToxNetTunSrv(QObject):
         return
 
     def _toxnetFriendConnectionStatus(self, fid, status):
+
+        return  # drop offline handler
         if status is True: self._toxnetOnlinePostHandler(fid)
         else: self._toxnetOfflinePostHandler(fid)
         return
@@ -111,12 +114,11 @@ class ToxNetTunSrv(QObject):
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
         con = self.cons[friendId]
-        
-        # dispatch的过程
-        jmsg = json.JSONDecoder().decode(msg)
-        qDebug(str(jmsg))
 
-        if jmsg['cmd'] == 'connect':
+        opkt = SruPacket2.decode(msg)
+
+        if opkt.msg_type == 'SYN':
+            jmsg = opkt.extra
             host = jmsg['host']
             port = jmsg['port']
             
@@ -134,7 +136,18 @@ class ToxNetTunSrv(QObject):
 
             self.chans[sock] = chan
             self.chans[chan.chano] = chan
+
+            udp = Srudp()
+            chan.rudp = udp
+
+            ropkt = udp.buf_recv_pkt(msg)
+            self.toxkit.sendMessage(chan.con.peer, ropkt)
+            
             pass
+                    
+        # dispatch的过程
+        jmsg = json.JSONDecoder().decode(msg)
+        qDebug(str(jmsg))
 
         if jmsg['cmd'] == 'write':
             chan = self.chans[jmsg['chano']]
