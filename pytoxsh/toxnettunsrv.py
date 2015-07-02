@@ -154,6 +154,11 @@ class ToxNetTunSrv(QObject):
             self.toxkit.sendMessage(chan.con.peer, ropkt)
             
             pass
+        elif opkt.msg_type == 'FIN1':
+            jmsg = opkt.extra
+            chan = self.chans[jmsg['chano']]
+            ropkt = chan.rudp.buf_recv_pkt(msg)
+            self.toxkit.sendMessage(chan.con.peer, ropkt)
         else:
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
@@ -225,7 +230,7 @@ class ToxNetTunSrv(QObject):
         return
 
     def _toxchanDisconnected(self):
-
+        qDebug('here')
         return
 
     def _onTcpConnected(self):

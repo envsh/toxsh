@@ -177,6 +177,7 @@ class Srudp(QObject):
         if self.state == 'SYN_SENT':
             if opkt.msg_type == 'SYN2' and opkt.ack == (self.selfisn + 1) and opkt.seq > 0:
                 self.peerisn = opkt.seq
+                self.peerseq = opkt.seq + 2
                 self.state = 'ESTAB'
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'SYN_ACK'
@@ -188,7 +189,13 @@ class Srudp(QObject):
                 return ropkt.encode()
             else: qDebug('proto error, except SYN_ACK pkt')
         elif self.state == 'ESTAB':
-            if opkt.msg_type == 'DATA':
+            if opkt.msg_type == 'FIN1':  # 服务器端行发送关闭请求
+                ropkt = SruPacket2()
+                ropkt.msg_type = 'FIN2'
+                ropkt.extra = opkt.extra
+                self.state = 'CLOSE_WAIT'
+                return ropkt.encode()
+            elif opkt.msg_type == 'DATA':
                 qDebug('got data: %s' % opkt.encode())
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'DATA_ACK'
@@ -202,6 +209,7 @@ class Srudp(QObject):
                 return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
+            else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
             if opkt.msg_type == 'FIN2':
@@ -218,6 +226,15 @@ class Srudp(QObject):
             pass
         elif self.state == 'TIME_WAIT':
             qDebug('here')
+            pass
+        elif self.state == 'CLOSE_WAIT':
+            qDebug('omited')
+            pass
+        elif self.state == 'LAST_ACK':
+            if opkt.msg_type == 'FIN2':
+                self.state = 'CLOSED'
+                qDebug('cli peer closed.')
+                self.disconnected.emit()
             pass
         elif self.state == 'CLOSED':
             qDebug('here')
@@ -269,6 +286,20 @@ class Srudp(QObject):
                 return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
+            else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
+            pass
+        elif self.state == 'FIN1':
+            if opkt.msg_type == 'FIN2':
+                self.state = 'FIN2'
+            pass
+        elif self.state == 'FIN2':
+            if opkt.msg_type == 'FIN1':
+                self.state = 'TIME_WAIT'
+
+                ropkt = SruPacket2()
+                ropkt.msg_type = 'FIN2'
+                ropkt.extra = opkt.extra
+                return ropkt.encode()
             pass
         elif self.state == 'CLOSE_WAIT':
             qDebug('omited')
@@ -300,7 +331,8 @@ class Srudp(QObject):
             loss_pkts.append(cnter)
             cnter += 1
         if len(loss_pkts) > 0: self.rcvlosspkts += loss_pkts
-        qDebug('loss pkts: %d' % len(loss_pkts))
+        qDebug('loss pkts: %d, peerseq=%d, rcvseq=%d, maxrcvseq=%d' %
+               (len(loss_pkts), self.peerseq, self.rcvseq, self.maxrcvseq))
         self.lossPacket.emit()
 
         

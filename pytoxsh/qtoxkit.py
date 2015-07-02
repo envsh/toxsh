@@ -31,7 +31,7 @@ class ToxDhtServer():
         self.name = ''
         return
 
-import os
+import os, distutils.file_util
 class ToxSettings():
     def __init__(self, identifier = 'anon', persist = True):
         self.persist = persist
@@ -40,6 +40,7 @@ class ToxSettings():
         self.bdir = '%s/.config/toxkit' % os.getenv('HOME')
         self.sdir = self.bdir + '/%s' % self.ident
         self.path = self.bdir + '/qtox.ini'
+
         self.qsets = QSettings(self.path, QSettings.IniFormat)
         self.data = self.sdir + '/tkdata'
         self.friend_list = QSettings(self.sdir + '/toxkit.friend.lst', QSettings.IniFormat)
@@ -53,6 +54,9 @@ class ToxSettings():
 
             if not os.path.exists(self.path):
                 # copy current path qtox.ini to dst
+                srcfile = os.path.dirname(__file__) + '/../etc/qtox.ini'
+                distutils.file_util.copy_file(srcfile, self.path)
+                self.qsets = QSettings(self.path, QSettings.IniFormat)
                 pass
         
         return
@@ -267,7 +271,8 @@ class QToxKit(QThread):
             if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
-                     'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
         qDebug('bootstrap from: %s %d %s' % (mylonode[0], mylonode[1], mylonode[2]))
