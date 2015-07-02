@@ -29,7 +29,7 @@ class ToxTunConfig():
         rec.local_host = '*'
         rec.local_port = 8115
         rec.remote_host = '127.0.0.1'
-        rec.remote_port = 8118
+        rec.remote_port = 8116
         rec.remote_pubkey = _srvpeer
         self.recs.append(rec)
 

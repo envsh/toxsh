@@ -98,6 +98,8 @@ class Srudp(QObject):
     bytesWritten = pyqtSignal()
     newConnection = pyqtSignal()
 
+    lossPacket = pyqtSignal()
+
     def __init__(self, parent = None):
         super(Srudp, self).__init__(parent);
         self.selfisn = 0
@@ -110,8 +112,12 @@ class Srudp(QObject):
         self.rcvwins = {}  # 确认窗口，外部可读取的
         self.sndpkts = {}  # 发送缓冲区
         self.sndwins = {}  # 发送窗口
+        self.rcvseq = 0  # 确认已经接收的包序号
+        self.maxrcvseq = 0  # 接收到的包中最大包序号
+        self.rcvlosspkts = []   # 丢失的包序号
+        self.sndseq = 0  # 确认已发送的包序号
+        
         self.mode = 'SERVER'  # SERVER|CLIENT
-
         self.pendCons = []    # pending connectoins
 
         return
@@ -143,7 +149,7 @@ class Srudp(QObject):
 
         jspkt = opkt.encode()
         return jspkt
-    
+
     def buf_recv_pkt(self, jspkt):
         opkt = SruPacket2.decode(jspkt)
 
@@ -156,8 +162,16 @@ class Srudp(QObject):
             qDebug('srudp mode error: %s' % self.mode)
         return res
 
-    def buf_send_pkt(self):
-        return
+    def buf_send_pkt(self, data, extra):
+        opkt = SruPacket2()
+        opkt.msg_type = 'DATA'
+        opkt.seq = self.selfseq
+        self.selfseq += 1
+        opkt.data = data
+        opkt.extra = extra
+
+        jspkt = opkt.encode()
+        return jspkt
 
     def _statemachine_client(self, opkt):
         if self.state == 'SYN_SENT':
@@ -176,6 +190,18 @@ class Srudp(QObject):
         elif self.state == 'ESTAB':
             if opkt.msg_type == 'DATA':
                 qDebug('got data: %s' % opkt.encode())
+                ropkt = SruPacket2()
+                ropkt.msg_type = 'DATA_ACK'
+                ropkt.seq = opkt.seq
+                ropkt.ack = opkt.seq+1
+                ropkt.extra = opkt.extra
+                self.rcvpkts[opkt.seq] = opkt
+                if opkt.seq > self.maxrcvseq: self.maxrcvseq = opkt.seq
+                QTimer.singleShot(1, self._on_recv_data)
+                qDebug('hehre')
+                return ropkt.encode()
+            elif opkt.msg_type == 'DATA_ACK':
+                qDebug('acked data.')
             pass
         elif self.state == 'FIN1':
             if opkt.msg_type == 'FIN2':
@@ -191,8 +217,10 @@ class Srudp(QObject):
                 return ropkt.encode()
             pass
         elif self.state == 'TIME_WAIT':
+            qDebug('here')
             pass
         elif self.state == 'CLOSED':
+            qDebug('here')
             pass
         else: qDebug('proto error: %s ' % self.state)
         
@@ -229,6 +257,18 @@ class Srudp(QObject):
                 return ropkt.encode()
             elif opkt.msg_type == 'DATA':
                 qDebug('got data. %s' % opkt.encode())
+                ropkt = SruPacket2()
+                ropkt.msg_type = 'DATA_ACK'
+                ropkt.seq = opkt.seq
+                ropkt.ack = opkt.seq+1
+                ropkt.extra = opkt.extra
+                self.rcvpkts[opkt.seq] = opkt
+                if opkt.seq > self.maxrcvseq: self.maxrcvseq = opkt.seq
+                QTimer.singleShot(1, self._on_recv_data)
+                qDebug('hehre')
+                return ropkt.encode()
+            elif opkt.msg_type == 'DATA_ACK':
+                qDebug('acked data.')
             pass
         elif self.state == 'CLOSE_WAIT':
             qDebug('omited')
@@ -236,12 +276,81 @@ class Srudp(QObject):
         elif self.state == 'LAST_ACK':
             if opkt.msg_type == 'FIN2':
                 self.state = 'CLOSED'
+                qDebug('srv peer closed.')
+                self.disconnected.emit()
             pass
         elif self.state == 'CLOSED':
+            qDebug('already closed connection')
             pass
         else: qDebug('unkown state: %s' % self.state)
         return
+
+    # 接收窗口相关控制，包检测控制
+    # 
+    def _on_recv_data(self):
+        if self.rcvseq == 0: self.rcvseq = self.peerseq
+
+        # 查找loss的包
+        loss_pkts = []
+        cnter = self.rcvseq
+        while cnter < (self.rcvseq + 20) and cnter <= self.maxrcvseq:
+            if cnter in self.rcvpkts:
+                cnter += 1
+                continue
+            loss_pkts.append(cnter)
+            cnter += 1
+        if len(loss_pkts) > 0: self.rcvlosspkts += loss_pkts
+        qDebug('loss pkts: %d' % len(loss_pkts))
+        self.lossPacket.emit()
+
+        
+        # 查找readyread的包
+        ready_pkts = []
+        cnter = self.rcvseq
+        while cnter < self.rcvseq + 20 and cnter <= self.maxrcvseq:
+            if cnter in self.rcvpkts:
+                ready_pkts.append(self.rcvpkts[cnter])
+            else: break
+            cnter += 1
+
+        qDebug('ready read pkts: %d' % len(ready_pkts))
+        if len(ready_pkts) > 0:
+            for opkt in ready_pkts:
+                self.rcvwins[opkt.seq] = opkt
+                self.rcvpkts.pop(opkt.seq)
+                if opkt.seq in self.rcvlosspkts: self.rcvlosspkts.remove(opkt.seq)
+            self.rcvseq = max(self.rcvwins.keys()) + 1
+            self.readyRead.emit()
+            
+        return
+
     
+    # 发送窗口相关控制，包重发控制
+    def _on_sent_data(self):
+
+        return
+
+    def getLossPackets(self):
+        return self.rcvlosspkts
+
+    def readPacket(self):
+        if len(self.rcvwins) > 0:
+            mkey = min(self.rcvwins.keys())
+            opkt = self.rcvwins.pop(mkey)
+            return opkt
+        return None
+
+################
+class SrudTransport():
+    def __init__(self):
+        return
+
+
+class SrudControl():
+    def __init__(self):
+        return
+
+
 ###############
 class SruPacket():
     # CLIENT_ISN = 0  # random 32b integer

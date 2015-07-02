@@ -30,10 +30,6 @@ class ToxNetTunCli(QObject):
 
     def _startToxNet(self):
         toxkit = QToxKit('toxcli', False)
-        #toxsock.connected.connect(self._onToxConnected)
-        #toxsock.disconnected.connect(self._onToxDisconnected)
-        #toxsock.readyRead.connect(self._onToxReadyReady)
-        #toxsock.connectToHost('127.0.0.1', 80)
 
         toxkit.connected.connect(self._toxnetConnected)
         toxkit.disconnected.connect(self._toxnetDisconnected)
@@ -122,10 +118,37 @@ class ToxNetTunCli(QObject):
             pass
         return
 
+    def _toxchanConnected(self):
+        qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+        while chan.sock.bytesAvailable() > 0:
+            bcc = chan.sock.read(128)
+            print(bcc)
+            #self._toxnetWrite(chan, bcc)
+            data = QByteArray(bcc).toHex().data().decode('utf8')
+            extra = {'chano': chan.chano}
+            jspkt = udp.buf_send_pkt(data, extra)
+            self.toxkit.sendMessage(chan.con.peer, jspkt)
+        
+        return
+
+    def _toxchanDisconnected(self):
+        qDebug('here')
+
+        return
+
+    def _toxchanReadyRead(self):
+        qDebug('here')
+        return
+
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
 
-
+        tmsg = json.JSONDecoder().decode(msg)
+        qDebug(str(tmsg))
+        
+        # dispatch的过程
         opkt = SruPacket2.decode(msg)
         if opkt.msg_type == 'SYN2':
             jmsg = opkt.extra
@@ -135,28 +158,39 @@ class ToxNetTunCli(QObject):
             self.chans[chan.chano] = chan
             self.chans.pop(cmdnokey)
 
-            while chan.sock.bytesAvailable() > 0:
-                bcc = chan.sock.read(128)
-                print(bcc)
-                self._toxnetWrite(chan, bcc)
-            pass
-        
-        # dispatch的过程
-        jmsg = json.JSONDecoder().decode(msg)
-        qDebug(str(jmsg))
-        
-        if jmsg['cmd'] == 'write':
-            chan = self.chans[jmsg['chano']]
-            self._tcpWrite(chan, jmsg['data'])
-            pass
+            ropkt = chan.rudp.buf_recv_pkt(msg)    #  connected signal and flowto 
+            self.toxkit.sendMessage(chan.con.peer, ropkt)
 
-        if jmsg['cmd'] == 'close':
-            chano = jmsg['chano']
-            if chano in self.chans:
-                chan = self.chans[chano]
-                self.chans.pop(chano)
-                chan.sock.close()
+            #while chan.sock.bytesAvailable() > 0:
+            #    bcc = chan.sock.read(128)
+            #    print(bcc)
+            #    self._toxnetWrite(chan, bcc)
             pass
+        elif opkt.msg_type == 'DATA':
+            jmsg = opkt.extra
+            chan = self.chans[jmsg['chano']]
+            chan.rudp.buf_recv_pkt(msg)
+            qDebug('here')
+            pass
+        else:
+            jmsg = opkt.extra
+            chan = self.chans[jmsg['chano']]
+            chan.rudp.buf_recv_pkt(msg)
+            qDebug('here')
+        
+        # dispatch的过程        
+        #if jmsg['cmd'] == 'write':
+        #    chan = self.chans[jmsg['chano']]
+        #    self._tcpWrite(chan, jmsg['data'])
+        #    pass
+
+        #if jmsg['cmd'] == 'close':
+        #    chano = jmsg['chano']
+        #    if chano in self.chans:
+        #        chan = self.chans[chano]
+        #        self.chans.pop(chano)
+        #        chan.sock.close()
+        #    pass
 
         #有可能产生消息积压，如果调用端不读取的话
         return
@@ -225,6 +259,9 @@ class ToxNetTunCli(QObject):
 
         udp = Srudp()
         chan.rudp = udp
+        self.chans[udp] = chan
+        udp.connected.connect(self._toxchanConnected, Qt.QueuedConnection)
+        udp.disconnected.connect(self._toxchanDisconnected)
 
         extra = {'cmdno': chan.cmdno, 'host': chan.host, 'port': chan.port}
         pkt = udp.mkcon(extra)
@@ -250,20 +287,16 @@ class ToxNetTunCli(QObject):
             return
         
         cmdno = self._nextCmdno()
-        msg = {
-            'cmd': 'close',
-            'chano': chan.chano,
-            'cmdno': cmdno,
-        }
-        
-        msg = json.JSONEncoder().encode(msg)
+        extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
+        jspkt = chan.rudp.mkdiscon(extra)
+        self.toxkit.sendMessage(chan.con.peer, jspkt)
 
-        haspending = len(chan.offline_buffers) > 0
-        status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
-        if status > 0 and haspending is False:
-            self.toxkit.sendMessage(chan.con.peer, msg)
-        else:
-            self._toxnetWriteOffline(chan, msg)
+        #haspending = len(chan.offline_buffers) > 0
+        #status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
+        #if status > 0 and haspending is False:
+        #    self.toxkit.sendMessage(chan.con.peer, msg)
+        #else:
+        #    self._toxnetWriteOffline(chan, msg)
 
         return
     
