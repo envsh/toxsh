@@ -64,9 +64,6 @@ class ToxNetTunSrv(QObject):
 
     def _toxnetFriendConnectionStatus(self, fid, status):
 
-        return  # drop offline handler
-        if status is True: self._toxnetOnlinePostHandler(fid)
-        else: self._toxnetOfflinePostHandler(fid)
         return
     
     def _toxnetFriendConnected(self, fid):
@@ -77,30 +74,6 @@ class ToxNetTunSrv(QObject):
             con.peer = fid
             self.cons[fid] = con
         
-        return
-
-    def _toxnetOnlinePostHandler(self, peer):
-        qDebug('here')
-        # 找到所有有offline_buffers的chan,并重新发送消息
-        for tpeer in self.chans:
-            qDebug('%s==?%s' % (tpeer, peer))
-            if tpeer != peer: continue
-            chan = self.chans[tpeer]
-            chan.offline_times[chan.offline_count].append(QDateTime.currentDateTime())
-            self._toxnetResendOfflineMessages(chan)
-            pass
-        return
-
-    def _toxnetOfflinePostHandler(self, peer):
-        qDebug('here')
-        # 找到所有chan,写入offline相关时间信息
-        for tpeer in self.chans:
-            qDebug('%s==?%s' % (tpeer, peer))
-            if tpeer != peer: continue
-            chan = self.chans[tpeer]
-            chan.offline_count += 1
-            chan.offline_times[chan.offline_count] = [QDateTime.currentDateTime()]
-            pass
         return
 
     def _nextChano(self):
@@ -198,25 +171,6 @@ class ToxNetTunSrv(QObject):
         
         return
 
-    def _toxnetWriteOffline(self, chan, msg):
-        qDebug('here')
-        chan.offline_buffers.append(msg)
-        
-        return
-
-    def _toxnetResendOfflineMessages(self, chan):
-        qDebug('here')
-
-        cnter = 0
-        while cnter < 10000 and len(chan.offline_buffers) > 0:
-            msg = chan.offline_buffers.pop()
-            self.toxkit.sendMessage(chan.con.peer, msg)
-            cnter += 1
-            pass
-        qDebug('resend bufcnt: %d' % cnter)
-        
-        return
-
     def _toxchanReadyRead(self):
         qDebug('here')
         udp = self.sender()
@@ -240,15 +194,7 @@ class ToxNetTunSrv(QObject):
         chan = self.chans[sock]
 
         reply = {'cmd': 'connect', 'res': True, 'chano': chan.chano, 'cmdno': chan.cmdno, }
-
-        #reply = json.JSONEncoder().encode(reply)
-        #haspending = len(chan.offline_buffers) > 0
-        #status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
-        #if status > 0 and haspending is False:
         #    self.toxkit.sendMessage(chan.con.peer, reply)
-        #else:
-        #    self._toxnetWriteOffline(chan, reply)
-        
         return
             
     def _onTcpDisconnected(self):
@@ -274,13 +220,6 @@ class ToxNetTunSrv(QObject):
         jspkt = chan.rudp.mkdiscon(extra)
         self.toxkit.sendMessage(chan.con.peer, jspkt)
 
-        #msg = json.JSONEncoder().encode(msg)
-        #haspending = len(chan.offline_buffers) > 0
-        #status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
-        #if status > 0 and haspending is False:
-        #    self.toxkit.sendMessage(chan.con.peer, msg)
-        #else:
-        #    self._toxnetWriteOffline(chan, msg)
         return
 
     def _onTcpError(self, error):
@@ -301,9 +240,6 @@ class ToxNetTunSrv(QObject):
         jspkt = chan.rudp.mkdiscon(extra)
         self.toxkit.sendMessage(chan.con.peer, jspkt)
 
-        # msg = json.JSONEncoder().encode(msg)
-        # self.toxkit.sendMessage(chan.con.peer, msg)
-        
         return
     
     def _onTcpReadyRead(self):

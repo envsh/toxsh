@@ -85,37 +85,10 @@ class ToxNetTunCli(QObject):
 
     def _toxnetFriendConnectionStatus(self, fid, status):
 
-        return  # drop offline handler
-        if status is True: self._toxnetOnlinePostHandler(fid)
-        else: self._toxnetOfflinePostHandler(fid)
         return
     def _toxnetFriendConnected(self, fid):
         qDebug('herhe:' + fid)
         
-        return
-
-    def _toxnetOnlinePostHandler(self, peer):
-        qDebug('here')
-        # 找到所有有offline_buffers的chan,并重新发送消息
-        for tpeer in self.chans:
-            qDebug('%s==?%s' % (tpeer, peer))
-            if tpeer != peer: continue
-            chan = self.chans[tpeer]
-            chan.offline_times[chan.offline_count].append(QDateTime.currentDateTime())
-            self._toxnetResendOfflineMessages(chan)
-            pass
-        return
-
-    def _toxnetOfflinePostHandler(self, peer):
-        qDebug('here')
-        # 找到所有chan,写入offline相关时间信息
-        for tpeer in self.chans:
-            qDebug('%s==?%s' % (tpeer, peer))
-            if tpeer != peer: continue
-            chan = self.chans[tpeer]
-            chan.offline_count += 1
-            chan.offline_times[chan.offline_count] = [QDateTime.currentDateTime()]
-            pass
         return
 
     def _toxnetFriendMessage(self, friendId, msg):
@@ -182,31 +155,7 @@ class ToxNetTunCli(QObject):
 
         msg = json.JSONEncoder().encode(msg)
 
-        haspending = len(chan.offline_buffers) > 0
-        status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
-        if status > 0 and haspending is False:
-            self.toxkit.sendMessage(chan.con.peer, msg)
-        else:
-            self._toxnetWriteoffline(chan, msg)
-        return
-
-    def _toxnetWriteOffline(self, chan, msg):
-        qDebug('here')
-        chan.offline_buffers.append(msg)
-        
-        return
-
-    def _toxnetResendOfflineMessages(self, chan):
-        qDebug('here')
-
-        cnter = 0
-        while cnter < 10000 and len(chan.offline_buffers) > 0:
-            msg = chan.offline_buffers.pop()
-            self.toxkit.sendMessage(chan.con.peer, msg)
-            cnter += 1
-            pass
-        qDebug('resend bufcnt: %d' % cnter)
-        
+        self.toxkit.sendMessage(chan.con.peer, msg)
         return
 
     def _toxchanConnected(self):
@@ -295,13 +244,6 @@ class ToxNetTunCli(QObject):
         extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
         jspkt = chan.rudp.mkdiscon(extra)
         self.toxkit.sendMessage(chan.con.peer, jspkt)
-
-        #haspending = len(chan.offline_buffers) > 0
-        #status = self.toxkit.friendGetConnectionStatus(chan.con.peer)
-        #if status > 0 and haspending is False:
-        #    self.toxkit.sendMessage(chan.con.peer, msg)
-        #else:
-        #    self._toxnetWriteOffline(chan, msg)
 
         return
     

@@ -93,9 +93,6 @@ class ToxTunChannel():
         self.cmdno = 0  #
         self.rudp = None
 
-        self.offline_buffers = []  # bytes/QByteArray
-        self.offline_buffer_max_size = 1000  # about 1M
-
         # extra info, like stats, time, speed
         self.pktnum = 0
         self.rdlen = 0
