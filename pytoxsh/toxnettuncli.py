@@ -114,7 +114,8 @@ class ToxNetTunCli(QObject):
         elif opkt.msg_type == 'DATA':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            chan.rudp.buf_recv_pkt(msg)
+            jspkt = chan.rudp.buf_recv_pkt(msg)
+            self.toxkit.sendMessage(chan.con.peer, jspkt)
             qDebug('here')
             pass
         elif opkt.msg_type == 'FIN1':

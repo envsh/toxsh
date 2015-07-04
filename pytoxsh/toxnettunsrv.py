@@ -98,6 +98,7 @@ class ToxNetTunSrv(QObject):
             port = jmsg['port']
             
             sock = QTcpSocket()
+            sock.setReadBufferSize(567)
             sock.connected.connect(self._onTcpConnected)
             sock.disconnected.connect(self._onTcpDisconnected)
             sock.readyRead.connect(self._onTcpReadyRead)
@@ -113,10 +114,15 @@ class ToxNetTunSrv(QObject):
             self.chans[sock] = chan
             self.chans[chan.chano] = chan
 
+            transport = ToxTunTransport(self.toxkit, chan.con.peer)
+            chan.transport = transport
+            
             udp = Srudp()
             chan.rudp = udp
             self.chans[udp] = chan
+            udp.setTransport(transport)
             udp.readyRead.connect(self._toxchanReadyRead, Qt.QueuedConnection)
+            udp.bytesWritten.connect(self._toxchanBytesWritten, Qt.QueuedConnection)
             udp.disconnected.connect(self._toxchanDisconnected, Qt.QueuedConnection)
 
             
@@ -132,6 +138,11 @@ class ToxNetTunSrv(QObject):
             chan = self.chans[jmsg['chano']]
             ropkt = chan.rudp.buf_recv_pkt(msg)
             self.toxkit.sendMessage(chan.con.peer, ropkt)
+        elif opkt.msg_type == 'DATA':
+            jmsg = opkt.extra
+            chan = self.chans[jmsg['chano']]
+            jspkt = chan.rudp.buf_recv_pkt(msg)
+            self.toxkit.sendMessage(chan.con.peer, jspkt)
         else:
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
@@ -183,6 +194,14 @@ class ToxNetTunSrv(QObject):
             
         return
 
+    def _toxchanBytesWritten(self):
+        udp = self.sender()
+        chan =self.chans[udp]
+
+        chan.sock.readyRead.emit()
+        
+        return
+
     def _toxchanDisconnected(self):
         qDebug('here')
         return
@@ -217,8 +236,8 @@ class ToxNetTunSrv(QObject):
         msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
 
         extra = msg
-        jspkt = chan.rudp.mkdiscon(extra)
-        self.toxkit.sendMessage(chan.con.peer, jspkt)
+        #jspkt = chan.rudp.mkdiscon(extra)
+        #self.toxkit.sendMessage(chan.con.peer, jspkt)
 
         return
 
@@ -237,8 +256,8 @@ class ToxNetTunSrv(QObject):
         msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
         
         extra = msg
-        jspkt = chan.rudp.mkdiscon(extra)
-        self.toxkit.sendMessage(chan.con.peer, jspkt)
+        # jspkt = chan.rudp.mkdiscon(extra)
+        # self.toxkit.sendMessage(chan.con.peer, jspkt)
 
         return
     
@@ -247,15 +266,22 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
+        extra = {'chano': chan.chano}
         cnter = 0
         tlen = 0
         while sock.bytesAvailable() > 0:
-            bcc = sock.read(128)
-            self._toxnetWrite(chan, bcc)
-            chan.rdlen += len(bcc)
-            cnter += 1
-            tlen += len(bcc)
-            
+            #bcc = sock.read(128)
+            #self._toxnetWrite(chan, bcc)
+            bcc = sock.peek(128)
+            encbcc = chan.transport.encodeData(bcc)
+            res = chan.rudp.attemp_send(encbcc, extra)
+            if res is True:
+                bcc1 = sock.read(128)
+                chan.rdlen += len(bcc)
+                cnter += 1
+                tlen += len(bcc)
+            else: break
+                
         qDebug('XDR: sock->toxnet: %d/%d, %d' % (tlen, chan.rdlen, cnter))
         return
 

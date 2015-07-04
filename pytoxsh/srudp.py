@@ -31,6 +31,54 @@ class SruConst():
     RUDP_SYN_SENT = 0x3
 
 
+################
+class SrudTransport():
+    def __init__(self):
+        self.support_binary = False  # 是否支持二进制流
+        return
+
+    # @param data string
+    # @return True | False
+    def send(self, data): return False
+
+    # @param data bytes | QByteArray
+    def encodeData(self, data):  return None
+
+    # @param data bytes | QByteArray
+    def encodeHex(self, data):
+        if type(data) == bytes: data = QByteArray(data)
+        data = data.toHex().data().decode('utf8')
+        return data
+
+    def decodeData(self, data): return None
+    def decodeHex(self, data):
+        data = QByteArray.fromHex(QByteArray(data)).data()
+        return data
+    
+class SrudControl():
+    def __init__(self):
+        return
+
+# TODO 移动到transport.py
+class ToxTunTransport(SrudTransport):
+    def __init__(self, tk, peer):
+        super(ToxTunTransport, self).__init__()
+        self.toxkit = None  # QToxKit instance
+        self.peer = ''  # peerid, friend id
+
+        self.toxkit = tk
+        self.peer = peer
+        return
+
+    def send(self, data):
+        # try except
+        self.toxkit.sendMessage(self.peer, data)
+        return False
+
+    def encodeData(self, data): return self.encodeHex(data)
+    def decodeData(self, data): return self.decodeHex(data)
+
+##################
 class SruUtils():
     def randISN():
         import random
@@ -120,8 +168,12 @@ class Srudp(QObject):
         self.mode = 'SERVER'  # SERVER|CLIENT
         self.pendCons = []    # pending connectoins
 
+        self.transport = SrudTransport()  # SrudTrasnport 子类实例
         return
 
+    def setTransport(self, transport):
+        self.transport = transport
+        return
 
     def mkcon(self, extra):
         self.mode = 'CLIENT'
@@ -209,6 +261,9 @@ class Srudp(QObject):
                 return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
+                tpkt = self.sndwins.pop(opkt.seq)
+                self.attemp_flush()
+                self.bytesWritten.emit()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
@@ -286,6 +341,9 @@ class Srudp(QObject):
                 return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
+                tpkt = self.sndwins.pop(opkt.seq)
+                self.attemp_flush()
+                self.bytesWritten.emit()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
@@ -356,12 +414,46 @@ class Srudp(QObject):
             
         return
 
-    
+
     # 发送窗口相关控制，包重发控制
-    def _on_sent_data(self):
+    def attemp_send(self, data, extra):
+        ccc_buf_size = 10
+        ccc_win_size = 10
 
+        res = False
+        if len(self.sndpkts) < ccc_buf_size:
+            res = True
+            jspkt = self.buf_send_pkt(data, extra)
+            opkt = SruPacket2.decode(jspkt)
+            self.sndpkts[opkt.seq] = opkt
+            pass
+
+        self.attemp_flush()
+        return res
+
+    def attemp_flush(self):
+        ccc_buf_size = 10
+        ccc_win_size = 10
+
+        if len(self.sndwins) >= ccc_win_size: return
+        
+        dkeys = self.sndpkts.keys()
+        keys = []
+        for key in dkeys: keys.append(key)
+        wrcnt = 0
+        while len(keys) > 0 and len(self.sndwins) < ccc_win_size:
+            key = min(keys)
+            opkt = self.sndpkts[key]
+            self.sndwins[key] = opkt
+            self.sndpkts.pop(key)
+            keys.remove(key)
+            # keys.pop(key)
+            wrcnt += 1
+            self.transport.send(opkt.encode())
+        qDebug('send net count: %d, win: %d, buf: %d' %
+               (wrcnt, len(self.sndwins), len(self.sndpkts)))
         return
-
+    
     def getLossPackets(self):
         return self.rcvlosspkts
 
@@ -372,15 +464,6 @@ class Srudp(QObject):
             return opkt
         return None
 
-################
-class SrudTransport():
-    def __init__(self):
-        return
-
-
-class SrudControl():
-    def __init__(self):
-        return
 
 
 ###############

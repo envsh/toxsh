@@ -271,8 +271,8 @@ class QToxKit(QThread):
             if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
-                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
-                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    # '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+                    'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
         qDebug('bootstrap from: %s %d %s' % (mylonode[0], mylonode[1], mylonode[2]))
