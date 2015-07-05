@@ -471,10 +471,13 @@ class Srudp(QObject):
         return
 
 
+    # 好像只能使用窗口28,再多容易导致tox掉线
+    CCC_BUF_SIZE = 20
+    CCC_WIN_SIZE = 20
     # 发送窗口相关控制，包重发控制
     def attemp_send(self, data, extra):
-        ccc_buf_size = 10
-        ccc_win_size = 10
+        ccc_buf_size = Srudp.CCC_BUF_SIZE
+        ccc_win_size = Srudp.CCC_WIN_SIZE
 
         res = False
         if len(self.sndpkts) < ccc_buf_size:
@@ -487,8 +490,8 @@ class Srudp(QObject):
         return res
 
     def attemp_flush(self):
-        ccc_buf_size = 10
-        ccc_win_size = 10
+        ccc_buf_size = Srudp.CCC_BUF_SIZE
+        ccc_win_size = Srudp.CCC_WIN_SIZE
 
         if len(self.sndwins) >= ccc_win_size: return
         

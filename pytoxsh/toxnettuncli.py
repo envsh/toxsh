@@ -219,6 +219,7 @@ class ToxNetTunCli(QObject):
         self.chans[sock] = chan
 
         transport = ToxTunTransport(self.toxkit, con.peer)
+        chan.transport = transport
         
         udp = Srudp()
         udp.setTransport(transport)
@@ -287,7 +288,8 @@ class ToxNetTunCli(QObject):
         sock = chan.sock
         chan = self.chans[sock]
         qDebug(str(data))
-        rawdata = QByteArray.fromHex(data)
+        # rawdata = QByteArray.fromHex(data)
+        rawdata = chan.transport.decodeData(data)
         qDebug(str(rawdata))
         
         n = sock.write(rawdata)

@@ -271,18 +271,19 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
+        peekSize = 234
         extra = {'chano': chan.chano}
         cnter = 0
         tlen = 0
         while sock.bytesAvailable() > 0:
             #bcc = sock.read(128)
             #self._toxnetWrite(chan, bcc)
-            bcc = sock.peek(128)
+            bcc = sock.peek(peekSize)
             # encbcc = chan.transport.encodeData(bcc)
             # res = chan.rudp.attemp_send(encbcc, extra)
             res = chan.rudp.attemp_send(bcc, extra)
             if res is True:
-                bcc1 = sock.read(128)
+                bcc1 = sock.read(len(bcc))
                 chan.rdlen += len(bcc)
                 cnter += 1
                 tlen += len(bcc)
