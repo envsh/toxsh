@@ -278,8 +278,9 @@ class ToxNetTunSrv(QObject):
             #bcc = sock.read(128)
             #self._toxnetWrite(chan, bcc)
             bcc = sock.peek(128)
-            encbcc = chan.transport.encodeData(bcc)
-            res = chan.rudp.attemp_send(encbcc, extra)
+            # encbcc = chan.transport.encodeData(bcc)
+            # res = chan.rudp.attemp_send(encbcc, extra)
+            res = chan.rudp.attemp_send(bcc, extra)
             if res is True:
                 bcc1 = sock.read(128)
                 chan.rdlen += len(bcc)
