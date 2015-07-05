@@ -107,22 +107,25 @@ class ToxNetTunCli(QObject):
             self.chans[chan.chano] = chan
             self.chans.pop(cmdnokey)
 
-            ropkt = chan.rudp.buf_recv_pkt(msg)
-            self.toxkit.sendMessage(chan.con.peer, ropkt)
+            res = chan.rudp.buf_recv_pkt(msg)
+            # ropkt = chan.rudp.buf_recv_pkt(msg)
+            # self.toxkit.sendMessage(chan.con.peer, ropkt)
 
             pass
         elif opkt.msg_type == 'DATA':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            jspkt = chan.rudp.buf_recv_pkt(msg)
-            self.toxkit.sendMessage(chan.con.peer, jspkt)
+            res = chan.rudp.buf_recv_pkt(msg)
+            # jspkt = chan.rudp.buf_recv_pkt(msg)
+            # self.toxkit.sendMessage(chan.con.peer, jspkt)
             qDebug('here')
             pass
         elif opkt.msg_type == 'FIN1':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            ropkt = chan.rudp.buf_recv_pkt(msg)
-            if ropkt is not None: self.toxkit.sendMessage(chan.con.peer, ropkt)
+            res = chan.rudp.buf_recv_pkt(msg)
+            # ropkt = chan.rudp.buf_recv_pkt(msg)
+            # if ropkt is not None: self.toxkit.sendMessage(chan.con.peer, ropkt)
         else:
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
@@ -151,12 +154,15 @@ class ToxNetTunCli(QObject):
         cmdno = self._nextCmdno()
         chan.cmdno = cmdno
 
-        if type(data) == bytes: data = QByteArray(data)
-        msg = {'cmd': 'write', 'cmdno': cmdno, 'chano': chan.chano, 'data': data.toHex().data().decode('utf8'),}
+        qDebug('here')
+        extra = {'cmdno': cmdno, 'chano': chan.chano}
+        res = chan.rudp.buf_send_pkt(data, extra)
+        
+        # if type(data) == bytes: data = QByteArray(data)
+        # msg = {'cmd': 'write', 'cmdno': cmdno, 'chano': chan.chano, 'data': data.toHex().data().decode('utf8'),}
 
-        msg = json.JSONEncoder().encode(msg)
-
-        self.toxkit.sendMessage(chan.con.peer, msg)
+        # msg = json.JSONEncoder().encode(msg)
+        # self.toxkit.sendMessage(chan.con.peer, msg)
         return
 
     def _toxchanConnected(self):
@@ -165,12 +171,13 @@ class ToxNetTunCli(QObject):
         chan = self.chans[udp]
         while chan.sock.bytesAvailable() > 0:
             bcc = chan.sock.read(128)
-            print(bcc)
-            #self._toxnetWrite(chan, bcc)
-            data = QByteArray(bcc).toHex().data().decode('utf8')
-            extra = {'chano': chan.chano}
-            jspkt = udp.buf_send_pkt(data, extra)
-            self.toxkit.sendMessage(chan.con.peer, jspkt)
+            print('first cli data chrunk: ', bcc)
+            self._toxnetWrite(chan, bcc)
+            # data = QByteArray(bcc).toHex().data().decode('utf8')
+            # extra = {'chano': chan.chano}
+
+            # jspkt = udp.buf_send_pkt(data, extra)
+            # self.toxkit.sendMessage(chan.con.peer, jspkt)
         
         return
 
@@ -211,7 +218,10 @@ class ToxNetTunCli(QObject):
         self.chans['cmdno_%d' % chan.cmdno] = chan
         self.chans[sock] = chan
 
+        transport = ToxTunTransport(self.toxkit, con.peer)
+        
         udp = Srudp()
+        udp.setTransport(transport)
         chan.rudp = udp
         self.chans[udp] = chan
         udp.connected.connect(self._toxchanConnected, Qt.QueuedConnection)
@@ -219,9 +229,10 @@ class ToxNetTunCli(QObject):
         udp.readyRead.connect(self._toxchanReadyRead, Qt.QueuedConnection)
 
         extra = {'cmdno': chan.cmdno, 'host': chan.host, 'port': chan.port}
-        pkt = udp.mkcon(extra)
-        
-        self.toxkit.sendMessage(con.peer, pkt)
+
+        res = udp.mkcon(extra)
+        # pkt = udp.mkcon(extra)        
+        # self.toxkit.sendMessage(con.peer, pkt)
                 
         return
 
@@ -243,8 +254,9 @@ class ToxNetTunCli(QObject):
         
         cmdno = self._nextCmdno()
         extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
-        jspkt = chan.rudp.mkdiscon(extra)
-        self.toxkit.sendMessage(chan.con.peer, jspkt)
+        res = chan.rudp.mkdiscon(extra)
+        # jspkt = chan.rudp.mkdiscon(extra)
+        # self.toxkit.sendMessage(chan.con.peer, jspkt)
 
         return
     
@@ -273,9 +285,11 @@ class ToxNetTunCli(QObject):
 
     def _tcpWrite(self, chan, data):
         sock = chan.sock
-        chan = self.chans[sock]        
+        chan = self.chans[sock]
+        qDebug(str(data))
         rawdata = QByteArray.fromHex(data)
-
+        qDebug(str(rawdata))
+        
         n = sock.write(rawdata)
         chan.wrlen += n
         qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))

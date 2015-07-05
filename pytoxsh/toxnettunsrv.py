@@ -125,28 +125,31 @@ class ToxNetTunSrv(QObject):
             udp.bytesWritten.connect(self._toxchanBytesWritten, Qt.QueuedConnection)
             udp.disconnected.connect(self._toxchanDisconnected, Qt.QueuedConnection)
 
-            
-            ropkt = udp.buf_recv_pkt(msg)
-            ropkt = SruPacket2.decode(ropkt)
-            ropkt.extra['chano'] = chan.chano
-            ropkt = ropkt.encode()
-            self.toxkit.sendMessage(chan.con.peer, ropkt)
+            extra = {'chano': chan.chano}
+            res = udp.buf_recv_pkt(msg, extra)
+            # ropkt = udp.buf_recv_pkt(msg)
+            # ropkt = SruPacket2.decode(ropkt)
+            # ropkt.extra['chano'] = chan.chano
+            # ropkt = ropkt.encode()
+            # self.toxkit.sendMessage(chan.con.peer, ropkt)
             
             pass
         elif opkt.msg_type == 'FIN1':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            ropkt = chan.rudp.buf_recv_pkt(msg)
-            self.toxkit.sendMessage(chan.con.peer, ropkt)
+            res = chan.rudp.buf_recv_pkt(msg)
+            # ropkt = chan.rudp.buf_recv_pkt(msg)
+            # self.toxkit.sendMessage(chan.con.peer, ropkt)
         elif opkt.msg_type == 'DATA':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            jspkt = chan.rudp.buf_recv_pkt(msg)
-            self.toxkit.sendMessage(chan.con.peer, jspkt)
+            res = chan.rudp.buf_recv_pkt(msg)
+            # jspkt = chan.rudp.buf_recv_pkt(msg)
+            # self.toxkit.sendMessage(chan.con.peer, jspkt)
         else:
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
-            chan.rudp.buf_recv_pkt(msg)
+            res = chan.rudp.buf_recv_pkt(msg)
             
                     
         # dispatch的过程
@@ -171,14 +174,16 @@ class ToxNetTunSrv(QObject):
         cmdno = self._nextCmdno()
         chan.cmdno = cmdno
 
-        if type(data) == bytes: data = QByteArray(data)
-
         extra = {'chano': chan.chano}
-        data = data.toHex().data().decode('utf8')
-        opkt = chan.rudp.buf_send_pkt(data, extra)
+        res = chan.rudp.buf_send_pkt(data, extra)
+        # if type(data) == bytes: data = QByteArray(data)
 
-        msg = opkt
-        self.toxkit.sendMessage(chan.con.peer, msg)
+        # extra = {'chano': chan.chano}
+        # data = data.toHex().data().decode('utf8')
+        # opkt = chan.rudp.buf_send_pkt(data, extra)
+
+        # msg = opkt
+        # self.toxkit.sendMessage(chan.con.peer, msg)
         
         return
 

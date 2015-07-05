@@ -42,15 +42,16 @@ class SrudTransport():
     def send(self, data): return False
 
     # @param data bytes | QByteArray
-    def encodeData(self, data):  return None
+    def encodeData(self, data):  return data
 
     # @param data bytes | QByteArray
     def encodeHex(self, data):
+        if type(data) == str: data = data.encode('utf8')
         if type(data) == bytes: data = QByteArray(data)
         data = data.toHex().data().decode('utf8')
         return data
 
-    def decodeData(self, data): return None
+    def decodeData(self, data): return data
     def decodeHex(self, data):
         data = QByteArray.fromHex(QByteArray(data)).data()
         return data
@@ -109,6 +110,7 @@ class SruPacket2():
 
     def decode(jspkt):
         import json
+        qDebug(str(jspkt))
         pkt = json.JSONDecoder().decode(jspkt)
         
         opkt = SruPacket2()
@@ -169,12 +171,14 @@ class Srudp(QObject):
         self.pendCons = []    # pending connectoins
 
         self.transport = SrudTransport()  # SrudTrasnport 子类实例
+        self.transport = None
         return
 
     def setTransport(self, transport):
         self.transport = transport
         return
 
+    # @return True|False
     def mkcon(self, extra):
         self.mode = 'CLIENT'
         self.state = 'SYN_SENT'
@@ -186,8 +190,13 @@ class Srudp(QObject):
         self.selfisn = opkt.seq
         self.selfseq = opkt.seq + 2
         jspkt = opkt.encode()
-        return jspkt
 
+        qDebug('aaaaaaaaa')
+        qDebug(str(self.transport))
+        res = self.transport.send(jspkt)
+        return res
+
+    # @return True|False
     def mkdiscon(self, extra):
 
         if self.mode == 'CLIENT':
@@ -200,11 +209,44 @@ class Srudp(QObject):
         opkt.extra = extra
 
         jspkt = opkt.encode()
-        return jspkt
+        res = self.transport.send(jspkt)
+        return res
 
-    def buf_recv_pkt(self, jspkt):
+
+    # @return True | False
+    def buf_send_pkt(self, data, extra):
+        opkt = self.make_data_pkt(data, extra)
+        
+        jspkt = opkt.encode()
+        res = self.transport.send(jspkt)
+        return res
+
+    def make_data_pkt(self, data, extra):
+        opkt = SruPacket2()
+        opkt.msg_type = 'DATA'
+        opkt.seq = self.selfseq
+        self.selfseq += 1
+        opkt.data = self.transport.encodeData(data)
+        opkt.extra = extra
+        return opkt
+
+    
+    # @return True | False
+    def buf_recv_pkt(self, jspkt, extra = None):
         opkt = SruPacket2.decode(jspkt)
-
+        if (opkt.extra == '' or opkt.extra is None) and extra is not None:
+            qDebug('warning, rewrite extra value: %s' % str(extra))
+            opkt.extra = extra   # for srv SYN2
+        elif type(opkt.extra) == dict and extra is not None:
+            qDebug('warning, rewrite extra value2: %s' % str(extra))
+            # opkt.extra += extra
+            for key in extra:
+                if key in opkt.extra: qDebug('warning maybe override orignal data')
+                opkt.extra[key] = extra[key]
+        else: pass
+        
+        qDebug(str(extra))
+        qDebug(str(opkt.extra))
         res = None
         if self.mode == 'SERVER':
             res = self._statemachine_server(opkt)
@@ -214,16 +256,6 @@ class Srudp(QObject):
             qDebug('srudp mode error: %s' % self.mode)
         return res
 
-    def buf_send_pkt(self, data, extra):
-        opkt = SruPacket2()
-        opkt.msg_type = 'DATA'
-        opkt.seq = self.selfseq
-        self.selfseq += 1
-        opkt.data = data
-        opkt.extra = extra
-
-        jspkt = opkt.encode()
-        return jspkt
 
     def _statemachine_client(self, opkt):
         if self.state == 'SYN_SENT':
@@ -237,8 +269,11 @@ class Srudp(QObject):
                 ropkt.ack = opkt.seq + 1
                 ropkt.extra = opkt.extra
                 qDebug('client peer ESTABed')
+
+                res = self.transport.send(ropkt.encode())
                 self.connected.emit()
-                return ropkt.encode()
+                return res
+                # return ropkt.encode()
             else: qDebug('proto error, except SYN_ACK pkt')
         elif self.state == 'ESTAB':
             if opkt.msg_type == 'FIN1':  # 服务器端行发送关闭请求
@@ -246,7 +281,10 @@ class Srudp(QObject):
                 ropkt.msg_type = 'FIN2'
                 ropkt.extra = opkt.extra
                 self.state = 'CLOSE_WAIT'
-                return ropkt.encode()
+
+                res = self.transport.send(ropkt.encode())
+                return res
+                # return ropkt.encode()
             elif opkt.msg_type == 'DATA':
                 qDebug('got data: %s' % opkt.encode())
                 ropkt = SruPacket2()
@@ -256,9 +294,11 @@ class Srudp(QObject):
                 ropkt.extra = opkt.extra
                 self.rcvpkts[opkt.seq] = opkt
                 if opkt.seq > self.maxrcvseq: self.maxrcvseq = opkt.seq
+
+                res = self.transport.send(ropkt.encode())
                 QTimer.singleShot(1, self._on_recv_data)
-                qDebug('hehre')
-                return ropkt.encode()
+                return res
+                # return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
                 tpkt = self.sndwins.pop(opkt.seq)
@@ -277,7 +317,10 @@ class Srudp(QObject):
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'FIN2'
                 ropkt.extra = opkt.extra
-                return ropkt.encode()
+
+                res = self.transport.send(ropkt.encode())
+                return res
+                # return ropkt.encode()
             pass
         elif self.state == 'TIME_WAIT':
             qDebug('here')
@@ -298,12 +341,14 @@ class Srudp(QObject):
         
         return
 
+    # @return True|False|None
     def _statemachine_server(self, opkt):
         if self.state == 'INIT':
             if opkt.msg_type == 'SYN' and opkt.seq > 0:
                 self.state = 'SYN_RCVD'
                 self.peerisn = opkt.seq
                 self.peerseq = opkt.seq + 2
+
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'SYN2'
                 ropkt.seq = SruUtils.randISN()
@@ -311,7 +356,10 @@ class Srudp(QObject):
                 ropkt.extra = opkt.extra
                 self.selfisn = ropkt.seq
                 self.selfseq = ropkt.seq + 2
-                return ropkt.encode()
+
+                res = self.transport.send(ropkt.encode())
+                return res
+                # return ropkt.encode()
             else: qDebug('proto error: except syn=1')
         elif self.state == 'SYN_RCVD':
             if opkt.msg_type == 'SYN_ACK' and opkt.ack == (self.selfisn + 1) and opkt.seq == (self.peerisn + 1):
@@ -326,7 +374,10 @@ class Srudp(QObject):
                 ropkt.msg_type = 'FIN2'
                 ropkt.extra = opkt.extra
                 self.state = 'CLOSE_WAIT'
-                return ropkt.encode()
+
+                res = self.transport.send(ropkt.encode())
+                return res
+                # return ropkt.encode()
             elif opkt.msg_type == 'DATA':
                 qDebug('got data. %s' % opkt.encode())
                 ropkt = SruPacket2()
@@ -336,9 +387,11 @@ class Srudp(QObject):
                 ropkt.extra = opkt.extra
                 self.rcvpkts[opkt.seq] = opkt
                 if opkt.seq > self.maxrcvseq: self.maxrcvseq = opkt.seq
+
+                res = self.transport.send(ropkt.encode())
                 QTimer.singleShot(1, self._on_recv_data)
-                qDebug('hehre')
-                return ropkt.encode()
+                return res
+                # return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
                 tpkt = self.sndwins.pop(opkt.seq)
@@ -357,7 +410,10 @@ class Srudp(QObject):
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'FIN2'
                 ropkt.extra = opkt.extra
-                return ropkt.encode()
+
+                res = self.transport.send(ropkt.encode())
+                return res
+                # return ropkt.encode()
             pass
         elif self.state == 'CLOSE_WAIT':
             qDebug('omited')
@@ -423,8 +479,7 @@ class Srudp(QObject):
         res = False
         if len(self.sndpkts) < ccc_buf_size:
             res = True
-            jspkt = self.buf_send_pkt(data, extra)
-            opkt = SruPacket2.decode(jspkt)
+            opkt = self.make_data_pkt(data, extra)
             self.sndpkts[opkt.seq] = opkt
             pass
 
