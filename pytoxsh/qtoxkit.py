@@ -228,7 +228,7 @@ class QToxKit(QThread):
         # self.exec_()
         while self.stopped != True:
             self.itimeout()
-            QThread.msleep(self.tox.iteration_interval() * 9)
+            QThread.msleep(self.tox.iteration_interval() * 1)  # *9???
 
         qDebug('toxkit thread exit.')
         return

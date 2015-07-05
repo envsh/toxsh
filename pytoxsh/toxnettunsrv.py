@@ -98,7 +98,7 @@ class ToxNetTunSrv(QObject):
             port = jmsg['port']
             
             sock = QTcpSocket()
-            sock.setReadBufferSize(567)
+            sock.setReadBufferSize(1234)
             sock.connected.connect(self._onTcpConnected)
             sock.disconnected.connect(self._onTcpDisconnected)
             sock.readyRead.connect(self._onTcpReadyRead)
@@ -271,7 +271,7 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
-        peekSize = 234
+        peekSize = 456
         extra = {'chano': chan.chano}
         cnter = 0
         tlen = 0

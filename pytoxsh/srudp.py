@@ -172,6 +172,9 @@ class Srudp(QObject):
 
         self.transport = SrudTransport()  # SrudTrasnport 子类实例
         self.transport = None
+        self.step_send_timer = QTimer()
+        self.step_send_timer.setInterval(78)
+        self.step_send_timer.timeout.connect(self._try_step_send, Qt.QueuedConnection)
         return
 
     def setTransport(self, transport):
@@ -303,7 +306,8 @@ class Srudp(QObject):
                 qDebug('acked data.')
                 tpkt = self.sndwins.pop(opkt.seq)
                 self.attemp_flush()
-                self.bytesWritten.emit()
+                # self.bytesWritten.emit()
+                self._resolve_send_bytes_written()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
@@ -366,6 +370,7 @@ class Srudp(QObject):
                 self.state = 'ESTAB'
                 qDebug('server peer ESTABed')
                 self.newConnection.emit()
+                self.step_send_timer.start()
                 pass
             else: qDebug('proto error: except syn ack')
         elif self.state == 'ESTAB':
@@ -396,7 +401,8 @@ class Srudp(QObject):
                 qDebug('acked data.')
                 tpkt = self.sndwins.pop(opkt.seq)
                 self.attemp_flush()
-                self.bytesWritten.emit()
+                # self.bytesWritten.emit()
+                self._resolve_send_bytes_written()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
@@ -423,6 +429,7 @@ class Srudp(QObject):
                 self.state = 'CLOSED'
                 qDebug('srv peer closed.')
                 self.disconnected.emit()
+                self.step_send_timer.stop()
             pass
         elif self.state == 'CLOSED':
             qDebug('already closed connection')
@@ -473,7 +480,9 @@ class Srudp(QObject):
 
     # 好像只能使用窗口28,再多容易导致tox掉线
     CCC_BUF_SIZE = 20
-    CCC_WIN_SIZE = 20
+    CCC_WIN_SIZE = 308     # 最大发送窗口大小 
+    # CCC_PKT_CNT_PER_TIME = 20     # 每次发送包个数
+
     # 发送窗口相关控制，包重发控制
     def attemp_send(self, data, extra):
         ccc_buf_size = Srudp.CCC_BUF_SIZE
@@ -486,14 +495,14 @@ class Srudp(QObject):
             self.sndpkts[opkt.seq] = opkt
             pass
 
-        self.attemp_flush()
+        if len(self.sndpkts) >= (ccc_buf_size/3) or len(self.sndwins) < ccc_buf_size: self.attemp_flush()
         return res
 
     def attemp_flush(self):
         ccc_buf_size = Srudp.CCC_BUF_SIZE
         ccc_win_size = Srudp.CCC_WIN_SIZE
 
-        if len(self.sndwins) >= ccc_win_size: return
+        if len(self.sndwins) >= ccc_win_size: return 0
         
         dkeys = self.sndpkts.keys()
         keys = []
@@ -510,7 +519,7 @@ class Srudp(QObject):
             self.transport.send(opkt.encode())
         qDebug('send net count: %d, win: %d, buf: %d' %
                (wrcnt, len(self.sndwins), len(self.sndpkts)))
-        return
+        return wrcnt
     
     def getLossPackets(self):
         return self.rcvlosspkts
@@ -522,6 +531,22 @@ class Srudp(QObject):
             return opkt
         return None
 
+    def _try_step_send(self):
+        # qDebug('here')
+
+        n = 0
+        # n = self.attemp_flush()
+        if n > 0:
+            qDebug('step send: %d' % n)
+            # self.bytesWritten.emit()
+            self._resolve_send_bytes_written()
+        
+        return
+
+    def _resolve_send_bytes_written(self):
+        if len(self.sndpkts) < self.CCC_BUF_SIZE:
+            self.bytesWritten.emit()
+        return
 
 
 ###############
