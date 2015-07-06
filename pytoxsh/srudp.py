@@ -35,6 +35,7 @@ class SruConst():
 class SrudTransport():
     def __init__(self):
         self.support_binary = False  # 是否支持二进制流
+        self.closed = False     # 这一层数据是否传输完成，从逻辑上分析。
         return
 
     # @param data string
@@ -50,11 +51,19 @@ class SrudTransport():
         if type(data) == bytes: data = QByteArray(data)
         data = data.toHex().data().decode('utf8')
         return data
+    def encodeBase64(self, data):
+        if type(data) == str: data = data.encode('utf8')
+        if type(data) == bytes: data = QByteArray(data)
+        encdata = data.toBase64().data().decode('utf8')
+        return encdata
 
     def decodeData(self, data): return data
     def decodeHex(self, data):
         data = QByteArray.fromHex(QByteArray(data)).data()
         return data
+    def decodeBase64(self, data):
+        decdata = QByteArray.fromBase64(data)
+        return decdata 
     
 class SrudControl():
     def __init__(self):
@@ -76,8 +85,8 @@ class ToxTunTransport(SrudTransport):
         self.toxkit.sendMessage(self.peer, data)
         return False
 
-    def encodeData(self, data): return self.encodeHex(data)
-    def decodeData(self, data): return self.decodeHex(data)
+    def encodeData(self, data): return self.encodeBase64(data)
+    def decodeData(self, data): return self.decodeBase64(data)
 
 ##################
 class SruUtils():
@@ -478,9 +487,9 @@ class Srudp(QObject):
         return
 
 
-    # 好像只能使用窗口28,再多容易导致tox掉线
-    CCC_BUF_SIZE = 20
-    CCC_WIN_SIZE = 308     # 最大发送窗口大小 
+    # 好像只能使用buf 28,再多容易导致tox掉线
+    CCC_BUF_SIZE = 10     # 也代表了每批次发送的包数量，太大的话toxnet容易掉线，并且对不同的网络值还不一样。
+    CCC_WIN_SIZE = 208     # 最大发送窗口大小 
     # CCC_PKT_CNT_PER_TIME = 20     # 每次发送包个数
 
     # 发送窗口相关控制，包重发控制

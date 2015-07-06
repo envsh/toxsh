@@ -150,7 +150,7 @@ class ToxNetTunSrv(QObject):
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
             res = chan.rudp.buf_recv_pkt(msg)
-            
+
                     
         # dispatch的过程
 
@@ -211,6 +211,10 @@ class ToxNetTunSrv(QObject):
         qDebug('here')
         return
 
+    def _detect_disconnection(self):
+        
+        return
+
     def _onTcpConnected(self):
         qDebug('here')
 
@@ -241,6 +245,8 @@ class ToxNetTunSrv(QObject):
         msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
 
         extra = msg
+        chan.transport.closed = True
+        
         #jspkt = chan.rudp.mkdiscon(extra)
         #self.toxkit.sendMessage(chan.con.peer, jspkt)
 
@@ -261,6 +267,7 @@ class ToxNetTunSrv(QObject):
         msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
         
         extra = msg
+        chan.transport.closed = True
         # jspkt = chan.rudp.mkdiscon(extra)
         # self.toxkit.sendMessage(chan.con.peer, jspkt)
 
@@ -271,7 +278,7 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
-        peekSize = 456
+        peekSize = 897  # 987时就有可能导致超长拆包发送
         extra = {'chano': chan.chano}
         cnter = 0
         tlen = 0
@@ -297,7 +304,8 @@ class ToxNetTunSrv(QObject):
         qDebug('hrehe')
         sock = chan.sock
 
-        rawdata = QByteArray.fromHex(data)
+        # rawdata = QByteArray.fromHex(data)
+        rawdata = chan.transport.decodeData(data)
         print(rawdata)
         n = sock.write(rawdata)
         chan.wrlen += n

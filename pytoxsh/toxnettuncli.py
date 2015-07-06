@@ -255,7 +255,9 @@ class ToxNetTunCli(QObject):
         
         cmdno = self._nextCmdno()
         extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
-        res = chan.rudp.mkdiscon(extra)
+        # res = chan.rudp.mkdiscon(extra)
+        chan.transport.closed = True
+        
         # jspkt = chan.rudp.mkdiscon(extra)
         # self.toxkit.sendMessage(chan.con.peer, jspkt)
 
@@ -287,10 +289,10 @@ class ToxNetTunCli(QObject):
     def _tcpWrite(self, chan, data):
         sock = chan.sock
         chan = self.chans[sock]
-        qDebug(str(data))
+        qDebug('netsize: %d, %s' % (len(data), str(data)))
         # rawdata = QByteArray.fromHex(data)
         rawdata = chan.transport.decodeData(data)
-        qDebug(str(rawdata))
+        qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
         
         n = sock.write(rawdata)
         chan.wrlen += n
