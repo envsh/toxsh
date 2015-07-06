@@ -124,6 +124,8 @@ class ToxNetTunSrv(QObject):
             udp.readyRead.connect(self._toxchanReadyRead, Qt.QueuedConnection)
             udp.bytesWritten.connect(self._toxchanBytesWritten, Qt.QueuedConnection)
             udp.disconnected.connect(self._toxchanDisconnected, Qt.QueuedConnection)
+            udp.canClose.connect(self._toxchanCanClose, Qt.QueuedConnection)
+            
 
             extra = {'chano': chan.chano}
             res = udp.buf_recv_pkt(msg, extra)
@@ -134,7 +136,7 @@ class ToxNetTunSrv(QObject):
             # self.toxkit.sendMessage(chan.con.peer, ropkt)
             
             pass
-        elif opkt.msg_type == 'FIN1':
+        elif opkt.msg_type == 'CLIFIN1':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
             res = chan.rudp.buf_recv_pkt(msg)
@@ -209,9 +211,32 @@ class ToxNetTunSrv(QObject):
 
     def _toxchanDisconnected(self):
         qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+        sock = chan.sock
+        
+        # 清理资源
+        if sock not in self.chans: qDebug('sock maybe already closed')
+        else: self.chans.pop(sock)
+
+        if udp not in self.chans: qDebug('udp maybe already closed')
+        else: self.chans.pop(udp)
+
+        chano = chan.chano
+        if chano not in self.chans: qDebug('maybe already closed222')
+        else: self.chans.pop(chano)
+
+        qDebug('chans size: %d' % len(self.chans))
+        
         return
 
-    def _detect_disconnection(self):
+    def _toxchanCanClose(self):
+        udp = self.sender()
+        chan = self.chans[udp]
+
+        cmdno = self._nextCmdno()
+        extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
+        res = chan.rudp.mkdiscon(extra)
         
         return
 
@@ -246,6 +271,7 @@ class ToxNetTunSrv(QObject):
 
         extra = msg
         chan.transport.closed = True
+        chan.rudp.startCheckClose()
         
         #jspkt = chan.rudp.mkdiscon(extra)
         #self.toxkit.sendMessage(chan.con.peer, jspkt)
@@ -268,6 +294,7 @@ class ToxNetTunSrv(QObject):
         
         extra = msg
         chan.transport.closed = True
+        # chan.rudp.startCheckClose()
         # jspkt = chan.rudp.mkdiscon(extra)
         # self.toxkit.sendMessage(chan.con.peer, jspkt)
 

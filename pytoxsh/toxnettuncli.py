@@ -120,10 +120,11 @@ class ToxNetTunCli(QObject):
             # self.toxkit.sendMessage(chan.con.peer, jspkt)
             qDebug('here')
             pass
-        elif opkt.msg_type == 'FIN1':
+        elif opkt.msg_type == 'SRVFIN1':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chano']]
             res = chan.rudp.buf_recv_pkt(msg)
+            chan.rudp.startCheckClose()
             # ropkt = chan.rudp.buf_recv_pkt(msg)
             # if ropkt is not None: self.toxkit.sendMessage(chan.con.peer, ropkt)
         else:
@@ -183,6 +184,23 @@ class ToxNetTunCli(QObject):
 
     def _toxchanDisconnected(self):
         qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+        sock = chan.sock
+        
+        # 清理资源
+        if sock not in self.chans: qDebug('sock maybe already closed')
+        else: self.chans.pop(sock)
+
+        if udp not in self.chans: qDebug('udp maybe already closed')
+        else: self.chans.pop(udp)
+
+        chano = chan.chano
+        if chano not in self.chans: qDebug('maybe already closed222')
+        else: self.chans.pop(chano)
+
+        qDebug('chans size: %d' % len(self.chans))
+        
         return
 
     def _toxchanReadyRead(self):
@@ -197,6 +215,15 @@ class ToxNetTunCli(QObject):
             
         return
 
+    def _toxchanCanClose(self):
+        qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+
+        cmdno = self._nextCmdno()
+        extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
+        res = chan.rudp.mkdiscon(extra)
+        return
     
     def _nextCmdno(self):
         self.cmdno = self.cmdno +1
@@ -226,8 +253,9 @@ class ToxNetTunCli(QObject):
         chan.rudp = udp
         self.chans[udp] = chan
         udp.connected.connect(self._toxchanConnected, Qt.QueuedConnection)
-        udp.disconnected.connect(self._toxchanDisconnected)
+        udp.disconnected.connect(self._toxchanDisconnected, Qt.QueuedConnection)
         udp.readyRead.connect(self._toxchanReadyRead, Qt.QueuedConnection)
+        udp.canClose.connect(self._toxchanCanClose, Qt.QueuedConnection)
 
         extra = {'cmdno': chan.cmdno, 'host': chan.host, 'port': chan.port}
 

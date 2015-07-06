@@ -158,6 +158,8 @@ class Srudp(QObject):
     newConnection = pyqtSignal()
 
     lossPacket = pyqtSignal()
+    canClose = pyqtSignal()
+    
 
     def __init__(self, parent = None):
         super(Srudp, self).__init__(parent);
@@ -182,8 +184,13 @@ class Srudp(QObject):
         self.transport = SrudTransport()  # SrudTrasnport 子类实例
         self.transport = None
         self.step_send_timer = QTimer()
-        self.step_send_timer.setInterval(78)
+        self.step_send_timer.setInterval(278)
         self.step_send_timer.timeout.connect(self._try_step_send, Qt.QueuedConnection)
+        
+        self.disconnection_monitor = QTimer()
+        self.disconnection_monitor.setInterval(1234)
+        self.disconnection_monitor.timeout.connect(self._promise_can_close, Qt.QueuedConnection)
+        self.peer_closed = False
         return
 
     def setTransport(self, transport):
@@ -210,15 +217,17 @@ class Srudp(QObject):
 
     # @return True|False
     def mkdiscon(self, extra):
-
-        if self.mode == 'CLIENT':
-            self.state = 'FIN1'
-        else:
-            self.state = 'LAST_ACK'
-
         opkt = SruPacket2()
         opkt.msg_type = 'FIN1'
         opkt.extra = extra
+        
+        if self.mode == 'CLIENT':
+            self.state = 'FIN1'
+            opkt.msg_type = 'CLIFIN1'
+        else:
+            self.state = 'LAST_ACK'
+            opkt.msg_type = 'SRVFIN1'
+
 
         jspkt = opkt.encode()
         res = self.transport.send(jspkt)
@@ -288,13 +297,14 @@ class Srudp(QObject):
                 # return ropkt.encode()
             else: qDebug('proto error, except SYN_ACK pkt')
         elif self.state == 'ESTAB':
-            if opkt.msg_type == 'FIN1':  # 服务器端行发送关闭请求
+            if opkt.msg_type == 'SRVFIN1':  # 服务器端行发送关闭请求
                 ropkt = SruPacket2()
-                ropkt.msg_type = 'FIN2'
+                ropkt.msg_type = 'SRVFIN2'
                 ropkt.extra = opkt.extra
                 self.state = 'CLOSE_WAIT'
 
                 res = self.transport.send(ropkt.encode())
+                self.peer_closed = True
                 return res
                 # return ropkt.encode()
             elif opkt.msg_type == 'DATA':
@@ -316,24 +326,31 @@ class Srudp(QObject):
                 tpkt = self.sndwins.pop(opkt.seq)
                 self.attemp_flush()
                 # self.bytesWritten.emit()
-                self._resolve_send_bytes_written()
+                self._promise_bytes_written()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
-            if opkt.msg_type == 'FIN2':
+            if opkt.msg_type == 'CLIFIN2':
                 self.state = 'FIN2'
+                if self.peer_closed:
+                    qDebug('emit disconnect event.')
+                    self.disconnected.emit()
             pass
         elif self.state == 'FIN2':
-            if opkt.msg_type == 'FIN1':
+            if opkt.msg_type == 'SRVFIN1':
                 self.state = 'TIME_WAIT'
 
                 ropkt = SruPacket2()
-                ropkt.msg_type = 'FIN2'
+                ropkt.msg_type = 'SRVFIN2'
                 ropkt.extra = opkt.extra
 
                 res = self.transport.send(ropkt.encode())
+                self.peer_closed = True
+                qDebug('emit disconnect event.')
+                self.disconnected.emit()
                 return res
                 # return ropkt.encode()
+
             pass
         elif self.state == 'TIME_WAIT':
             qDebug('here')
@@ -342,10 +359,12 @@ class Srudp(QObject):
             qDebug('omited')
             pass
         elif self.state == 'LAST_ACK':
-            if opkt.msg_type == 'FIN2':
+            if opkt.msg_type == 'CLIFIN2':
                 self.state = 'CLOSED'
                 qDebug('cli peer closed.')
-                self.disconnected.emit()
+                if self.peer_closed:
+                    qDebug('emit disconnect event.')
+                    self.disconnected.emit()
             pass
         elif self.state == 'CLOSED':
             qDebug('here')
@@ -383,9 +402,9 @@ class Srudp(QObject):
                 pass
             else: qDebug('proto error: except syn ack')
         elif self.state == 'ESTAB':
-            if opkt.msg_type == 'FIN1':
+            if opkt.msg_type == 'CLIFIN1':
                 ropkt = SruPacket2()
-                ropkt.msg_type = 'FIN2'
+                ropkt.msg_type = 'CLIFIN2'
                 ropkt.extra = opkt.extra
                 self.state = 'CLOSE_WAIT'
 
@@ -411,22 +430,23 @@ class Srudp(QObject):
                 tpkt = self.sndwins.pop(opkt.seq)
                 self.attemp_flush()
                 # self.bytesWritten.emit()
-                self._resolve_send_bytes_written()
+                self._promise_bytes_written()
             else: qDebug('unexcepted msg type: %s' % opkt.msg_type)
             pass
         elif self.state == 'FIN1':
-            if opkt.msg_type == 'FIN2':
+            if opkt.msg_type == 'SRVFIN2':
                 self.state = 'FIN2'
             pass
         elif self.state == 'FIN2':
-            if opkt.msg_type == 'FIN1':
+            if opkt.msg_type == 'CLIFIN1':
                 self.state = 'TIME_WAIT'
 
                 ropkt = SruPacket2()
-                ropkt.msg_type = 'FIN2'
+                ropkt.msg_type = 'CLIFIN2'
                 ropkt.extra = opkt.extra
 
                 res = self.transport.send(ropkt.encode())
+                self.peer_closed = True
                 return res
                 # return ropkt.encode()
             pass
@@ -434,14 +454,29 @@ class Srudp(QObject):
             qDebug('omited')
             pass
         elif self.state == 'LAST_ACK':
-            if opkt.msg_type == 'FIN2':
+            if opkt.msg_type == 'SRVFIN2':
                 self.state = 'CLOSED'
                 qDebug('srv peer closed.')
-                self.disconnected.emit()
                 self.step_send_timer.stop()
+                # self.disconnected.emit()
+
+                if self.peer_closed:
+                    qDebug('emit disconnect event.')
+                    self.disconnected.emit()
             pass
         elif self.state == 'CLOSED':
             qDebug('already closed connection')
+            if opkt.msg_type == 'CLIFIN1':
+                ropkt = SruPacket2()
+                ropkt.msg_type = 'CLIFIN2'
+                ropkt.extra = opkt.extra
+
+                res = self.transport.send(ropkt.encode())
+                # self.disconnected.emit()   # 放在这也不合适，不能把服务端的关闭建立在客户端主动发送关闭上。
+                qDebug('emit disconnect event.')
+                self.disconnected.emit()
+                return res
+            
             pass
         else: qDebug('unkown state: %s' % self.state)
         return
@@ -544,19 +579,51 @@ class Srudp(QObject):
         # qDebug('here')
 
         n = 0
-        # n = self.attemp_flush()
+        n = self.attemp_flush()
         if n > 0:
             qDebug('step send: %d' % n)
             # self.bytesWritten.emit()
-            self._resolve_send_bytes_written()
-        
+            self._promise_bytes_written()
+
+        qDebug('blen: %d, wlen: %d' % (len(self.sndpkts), len(self.sndwins)))
+            
         return
 
-    def _resolve_send_bytes_written(self):
+    def _promise_bytes_written(self):
         if len(self.sndpkts) < self.CCC_BUF_SIZE:
             self.bytesWritten.emit()
         return
 
+    def startCheckClose(self):
+        self.disconnection_monitor.start()
+        return
+
+    def _promise_can_close(self):
+        # qDebug('here')
+        # 确认传输层已经关闭
+        if self.transport.closed is False:
+            qDebug('transport layer is not closed')
+            pass
+
+        # 确认状态
+        # self.state 
+
+        # 查看是否还有需要外发的包。
+        bplen = len(self.sndpkts)
+        wplen = len(self.sndwins)
+
+        if bplen == 0 and wplen == 0:
+            # 停止检测计时器
+            self.disconnection_monitor.stop()
+            # 发送关闭FIN1包。
+            qDebug('can close  now')
+            self.canClose.emit()
+            pass
+        else:
+            qDebug('wait a moment, bplen=%d, wplen=%d' % (bplen, wplen))
+            pass
+        return
+    
 
 ###############
 class SruPacket():
