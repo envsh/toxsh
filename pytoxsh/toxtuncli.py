@@ -25,6 +25,7 @@ class ToxTunFileCli(ToxTunCli):
         self.cons = {}     # peer => con
         self.chans = {}   # sock => chan, rudp => chan
         self.cmdno = 7
+        self.chano = 7
         
         return
 
@@ -90,17 +91,32 @@ class ToxTunFileCli(ToxTunCli):
         qDebug('hehe:fid=' + fid)
         con = self.cons[fid]
 
-        
-
-        #### 
-        
         return
 
     def _toxnetFriendConnectionStatus(self, fid, status):
 
         return
-    def _toxnetFriendConnected(self, fid):
-        qDebug('herhe:fid=' + fid)
+    def _toxnetFriendConnected(self, friend_id):
+        qDebug('herhe:fid=' + friend_id)
+
+        # con = self.cons[fid]
+        con = None
+        for id in self.cons:
+            if type(id) == str and id[0:64] == friend_id:
+                con = self.cons[id]
+                break
+
+        if con is None: qDebug('warning con not found')
+
+        if con.self_file_number == -1:
+            idprefix = friend_id[0:6]
+            file_name = 'toxtunfilecli_%s_toxfilesock' % idprefix
+            file_size = pow(2, 56)
+            file_number = self.toxkit.fileSend(con.peer, file_size, file_name)
+            con.self_file_number = file_number
+            qDebug('new cli file %d' % file_number)
+            self_file_to_con_key = 'file_to_con_%d_%s' % (file_number, friend_id)
+            self.cons[self_file_to_con_key] = con
 
         return
 
@@ -115,22 +131,30 @@ class ToxTunFileCli(ToxTunCli):
                 break
 
         if con is None: qDebug('warning con not found')
+
+        if con.peer_file_number != -1: qDebug('warning, maybe reuse file channel')
         
-        segs = file_name.split('_')
-        qDebug(str(segs))
+        con.peer_file_number = file_number
+        peer_file_to_con_key = 'peer_file_to_con_%d_%s' % (file_number, friend_id)
+        self.cons[peer_file_to_con_key] = peer_file_to_con_key
 
-        cmdno = int(segs[1])
-        host = segs[2]
-        port = int(segs[3])
-
-        chan = self.chans['cmdno_%d'%cmdno]
-        self.chans[file_name] = chan
-        chan.peer_file_number = file_number
-
-        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
-        self.chans[peer_file_to_chan_key] = chan
-        
         self.toxkit.fileControl(friend_id, file_number, 0)
+        
+        # segs = file_name.split('_')
+        # qDebug(str(segs))
+
+        # cmdno = int(segs[1])
+        # host = segs[2]
+        # port = int(segs[3])
+
+        # chan = self.chans['cmdno_%d'%cmdno]
+        # self.chans[file_name] = chan
+        # chan.peer_file_number = file_number
+
+        # peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        # self.chans[peer_file_to_chan_key] = chan
+        
+        # self.toxkit.fileControl(friend_id, file_number, 0)
         return
 
 
@@ -152,33 +176,66 @@ class ToxTunFileCli(ToxTunCli):
         import random
         if random.randrange(0,9) == 1: qDebug('here')
 
-        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
-        chan = self.chans[peer_file_to_chan_key]
-        print(friend_id, file_number, position, data)
-        
-        # qDebug(str(data))
-        plen = data[0:4].lstrip()
-        plen = int(plen)
-        pkt = data[5:].lstrip()
-        qDebug('%d, %s' % (plen, pkt))
+        jspkt = data.lstrip()
+        pkt = json.JSONDecoder().decode(jspkt)
+        ptype = pkt['type']
+        qDebug(str(jspkt))
 
-        self._tcpWrite(chan, pkt)
+        peer_file_to_con_key = 'peer_file_to_con_%d_%s' % (file_number, friend_id[0:64])
+        con = self.cons[peer_file_to_con_key]
+        print(friend_id, file_number, position, data)
+
+        if ptype == 'CONNECT':
+            chanocli = pkt['chcli']
+            chan = self.chans['chanocli_%d' % chanocli]
+            chan.chanosrv = pkt['chsrv']
+            qDebug('real connected, can read write now')
+            pass
+        elif ptype == 'CLOSE':
+            chanocli = pkt['chcli']
+            chan = self.chans['chanocli_%d' % chanocli]
+            self._toxchanCleanup(chan)
+            pass
+        elif ptype == 'WRITE':
+            chanocli = pkt['chcli']
+            chan = self.chans['chanocli_%d' % chanocli]
+            self._tcpWrite(chan, pkt['data'])
+            pass
+        else: qDebug('ptype error: %s' % ptype)
+        
+        # # qDebug(str(data))
+        # plen = data[0:4].lstrip()
+        # plen = int(plen)
+        # pkt = data[5:].lstrip()
+        # qDebug('%d, %s' % (plen, pkt))
+
+        # self._tcpWrite(chan, pkt)
         
         return
 
     def _toxnetFileChunkRequest(self, friend_id, file_number, position, length):
-        qDebug('here')
-        # qDebug('%s, %d, %d, %d' % (friend_id, file_number, position, length))
-        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
-        chan = self.chans[self_file_to_chan_key]
+        import random
+        if random.randrange(0,9) == 1:
+            qDebug('here')
+            qDebug('%s, %d, %d, %d' % (friend_id, file_number, position, length))
+
+        self_file_to_con_key = 'file_to_con_%d_%s' % (file_number, friend_id)
+        con = self.cons[self_file_to_con_key]
 
         reqinfo = (friend_id, file_number, position, length)
         # qDebug(str(reqinfo))
+        con.reqchunks.append(reqinfo)
         
-        chan.reqchunks.append(reqinfo)
+        # self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        # chan = self.chans[self_file_to_chan_key]
+
+        # reqinfo = (friend_id, file_number, position, length)
+        # qDebug(str(reqinfo))
+        
+        # chan.reqchunks.append(reqinfo)
         # qDebug('reqchunks len: %d' % len(chan.reqchunks))
 
-        if chan.sock.bytesAvailable() > 0: chan.sock.readyRead.emit()
+        # if chan.sock.bytesAvailable() > 0: chan.sock.readyRead.emit()
         return
 
     def _toxnetFriendMessage(self, friendId, msg):
@@ -259,7 +316,30 @@ class ToxTunFileCli(ToxTunCli):
         extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
         res = chan.rudp.mkdiscon(extra)
         return
-    
+
+    def _toxchanCleanup(self, chan):
+        sock = chan.sock
+        chanocli_key = 'chanocli_%d' % chan.chanocli
+        chanosrv_key = 'chanosrv_%d' % chan.chanosrv
+        
+        # 清理资源
+        if sock not in self.chans: qDebug('sock maybe already closed')
+        else: self.chans.pop(sock)
+
+        if chanocli_key not in self.chans: qDebug('chcli maybe already closed')
+        else: self.chans.pop(chanocli_key)
+
+        if chanosrv_key not in self.chans: qDebug('chsrv already closed222')
+        else: self.chans.pop(chanosrv_key)
+
+        qDebug('chans size: %d' % len(self.chans))
+        
+        return
+
+    def _nextChano(self):
+        self.chano = self.chano +1
+        return self.chano
+
     def _nextCmdno(self):
         self.cmdno = self.cmdno +1
         return self.cmdno
@@ -276,19 +356,33 @@ class ToxTunFileCli(ToxTunCli):
         chan = ToxTunFileChannel(con, sock)
         chan.host = rec.remote_host
         chan.port = rec.remote_port
-        chan.cmdno = self._nextCmdno()
-        self.chans['cmdno_%d' % chan.cmdno] = chan
+        chan.chanocli = self._nextChano()
+        self.chans['chanocli_%d' % chan.chanocli] = chan
         self.chans[sock] = chan
 
-        file_name = 'toxtunfilecli_%d_%s_%d_toxfilesock' % (chan.cmdno, chan.host, chan.port)
-        file_size = pow(2, 56)
-        file_number = self.toxkit.fileSend(con.peer, file_size, file_name)
-        chan.self_file_number = file_number
-        self.chans[file_name] = chan
-        qDebug('new cli file %d' % file_number)
+        # pkt = {'chcli': , 'chsrv':, 'type':, 'data':, 'host':, 'port':,}
+        # type = CONNECT|WRITE|CLOSE
+        pkt = {'chcli': chan.chanocli , 'chsrv': 0, 'type': 'CONNECT', 'data':'',
+               'host': chan.host, 'port': chan.port, }
+        jspkt = json.JSONEncoder().encode(pkt)
+        fjspkt = '%1371s' % jspkt
 
-        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, con.peer[0:64])
-        self.chans[self_file_to_chan_key] = chan
+        if len(con.reqchunks) > 0:
+            reqinfo = con.reqchunks.pop(0)
+            self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+            
+
+        # file_name = 'toxtunfilecli_%d_%s_%d_toxfilesock' % (chan.cmdno, chan.host, chan.port)
+        # file_size = pow(2, 56)
+        # file_number = self.toxkit.fileSend(con.peer, file_size, file_name)
+        # chan.self_file_number = file_number
+        # self.chans[file_name] = chan
+        # qDebug('new cli file %d' % file_number)
+
+        # self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, con.peer[0:64])
+        # self.chans[self_file_to_chan_key] = chan
+
+
         
         # transport = ToxTunTransport(self.toxkit, con.peer)
         # chan.transport = transport
@@ -316,18 +410,32 @@ class ToxTunFileCli(ToxTunCli):
             return
 
         chan = self.chans[sock]
-        chano = chan.chano
-        qDebug(chan.debugInfo())
+        con = chan.con
+
+        pkt = {'chcli': chan.chanocli , 'chsrv': chan.chanosrv, 'type': 'CLOSE', 'data':''}
+        jspkt = json.JSONEncoder().encode(pkt)
+        fjspkt = '%1371s' % jspkt
+
+        if len(con.reqchunks) > 0:
+            reqinfo = con.reqchunks.pop(0)
+            bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+            qDebug(str(bret))
+
+        self._toxchanCleanup(chan)
+            
+        # chan = self.chans[sock]
+        # chano = chan.chano
+        # qDebug(chan.debugInfo())
         
-        if chano not in self.chans:
-            qDebug('maybe already closed222')
-            self.chans.pop(sock)
-            return
+        # if chano not in self.chans:
+        #     qDebug('maybe already closed222')
+        #     self.chans.pop(sock)
+        #     return
         
-        cmdno = self._nextCmdno()
-        extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
+        # cmdno = self._nextCmdno()
+        # extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
         # res = chan.rudp.mkdiscon(extra)
-        chan.transport.closed = True
+        # chan.transport.closed = True
         
         # jspkt = chan.rudp.mkdiscon(extra)
         # self.toxkit.sendMessage(chan.con.peer, jspkt)
@@ -343,19 +451,38 @@ class ToxTunFileCli(ToxTunCli):
 
         cnter = 0
         tlen = 0
-        while sock.bytesAvailable() > 0 and len(chan.reqchunks) > 0:
+
+        while sock.bytesAvailable() > 0 and len(con.reqchunks) > 0:
             bcc = chan.sock.read(128)
             print(bcc)
-            reqinfo = chan.reqchunks.pop(0)
+            reqinfo = con.reqchunks.pop(0)
             qDebug(str(reqinfo))
+            pkt = {'chcli': chan.chanocli, 'chsrv': chan.chanosrv, 'type': 'WRITE', 'data':''}
             rawpkt = QByteArray(bcc).toBase64().data().decode('utf8')
-            fullpkt = '%4d$%1366s' % (len(rawpkt), rawpkt)
-            bret = self.toxkit.fileSendChunk(con.peer, chan.self_file_number, reqinfo[2], fullpkt)
+            pkt['data'] = rawpkt
+            jspkt = json.JSONEncoder().encode(pkt)
+            fullpkt = '%1371s' % (jspkt)
+            bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fullpkt)
             # self._toxnetWrite(chan, bcc)
             chan.rdlen += len(bcc)
             cnter += 1
             tlen += len(bcc)
             qDebug('%s, bret=%d' % (str(len(fullpkt)), bret))
+
+            
+        # while sock.bytesAvailable() > 0 and len(chan.reqchunks) > 0:
+        #     bcc = chan.sock.read(128)
+        #     print(bcc)
+        #     reqinfo = chan.reqchunks.pop(0)
+        #     qDebug(str(reqinfo))
+        #     rawpkt = QByteArray(bcc).toBase64().data().decode('utf8')
+        #     fullpkt = '%4d$%1366s' % (len(rawpkt), rawpkt)
+        #     bret = self.toxkit.fileSendChunk(con.peer, chan.self_file_number, reqinfo[2], fullpkt)
+        #     # self._toxnetWrite(chan, bcc)
+        #     chan.rdlen += len(bcc)
+        #     cnter += 1
+        #     tlen += len(bcc)
+        #     qDebug('%s, bret=%d' % (str(len(fullpkt)), bret))
         
 
         # qDebug(str(chan.chano))

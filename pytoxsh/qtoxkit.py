@@ -341,9 +341,14 @@ class QToxKit(QThread):
         friends = self.friends
         if status is True and self.first_connected:
             self.first_connected = False
-            for friend in friends:
-                self.tox.friend_add_norequest(friend)
-            qDebug('add old friend: %d' % len(friends))
+            #for friend in friends:
+            #    self.tox.friend_add_norequest(friend)
+            for i in range(0, 3):
+                if i < len(friends): self.tox.friend_add_norequest(friends[i])
+            cnter = len(friends)-1
+            for i in range(cnter - 3, cnter):
+                if i >= 0 and i < len(friends): self.tox.friend_add_norequest(friends[i])
+            qDebug('add old friend: 6/%d' % len(friends))
             # self.connected.emit()
 
         return

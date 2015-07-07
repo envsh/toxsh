@@ -69,8 +69,11 @@ class ToxTunConst():
 
 class ToxTunConnection():
     def __init__(self):
-        self.peer = None  # 72B
-
+        self.peer = None   # 72B的
+        self.self_file_number = -1  # for transport via file
+        self.peer_file_number = -1  # for transport via file
+        self.reqchunks = []
+        
         self.srv = None  # QTcpServer
         self.rec = None  # ToxTunRecord
         self.rno = -1    # ToxTunRecord sequence no
@@ -136,9 +139,11 @@ class ToxTunFileChannel():
         self.sock = sock  #
         self.host = ''
         self.port = 0
-        self.self_file_number = -1
-        self.peer_file_number = -1
-        self.reqchunks = []
+        self.chanocli = 0  
+        self.chanosrv = 0   #
+        # self.self_file_number = -1
+        # self.peer_file_number = -1
+        # self.reqchunks = []
 
         # extra info, like stats, time, speed
         self.pktnum = 0
