@@ -201,9 +201,9 @@ class QToxKit(QThread):
     newMessage = pyqtSignal('QString', 'QString')
     friendConnected = pyqtSignal('QString')
     friendConnectionStatus = pyqtSignal('QString', bool)
-    fileRecvControl = pyqtSignal('QString', 'QString', int)
+    fileRecvControl = pyqtSignal('QString', int, int)
     fileRecv = pyqtSignal('QString', int, int, 'QString')
-    fileRecvChunk = pyqtSignal('QString', int, int, int)
+    fileRecvChunk = pyqtSignal('QString', int, int, 'QString')
     fileChunkRequest = pyqtSignal('QString', int, int, int)
 
     
@@ -281,8 +281,9 @@ class QToxKit(QThread):
             if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
-                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
-                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    # '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
         qDebug('bootstrap from: %s %d %s' % (mylonode[0], mylonode[1], mylonode[2]))
@@ -422,9 +423,14 @@ class QToxKit(QThread):
         
         return
 
-    def onFileRecvChunk(self, friend_number, file_number, position, length):
+    # @param data bytes
+    def onFileRecvChunk(self, friend_number, file_number, position, data):
+        a = (friend_number, file_number, position, data)
+        # qDebug(str(a))
+        udata = data.decode('utf8')
+        
         friend_pubkey = self.tox.friend_get_public_key(friend_number)
-        self.fileRecvChunk.emit(friend_pubkey, file_number, position, length)
+        self.fileRecvChunk.emit(friend_pubkey, file_number, position, udata)
         return
 
     def onFileChunkRequest(self, friend_number, file_number, position, length):
@@ -451,11 +457,11 @@ class QToxKit(QThread):
     
     def onFileRecvControl(self, friend_number, file_number, control):
         friend_id = self.tox.friend_get_public_key(friend_number)
-        file_id = '%128s' % ' '
-        ret = self.tox.file_get_file_id(friend_number, file_number, file_id)
-        qDebug(file_id)
-        qDebug(str(len(file_id)))
+        # file_id = '%128s' % ' '
+        # ret = self.tox.file_get_file_id(friend_number, file_number, file_id)
+        # qDebug(file_id)
+        # qDebug(str(len(file_id)))
 
-        self.fileRecvControl.emit(friend_id, file_id, control)
+        self.fileRecvControl.emit(friend_id, file_number, control)
         
         return

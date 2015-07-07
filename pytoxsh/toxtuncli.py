@@ -24,7 +24,7 @@ class ToxTunFileCli(ToxTunCli):
         self.tcpsrvs = {}  # id => srv
         self.cons = {}     # peer => con
         self.chans = {}   # sock => chan, rudp => chan
-        self.cmdno = 0
+        self.cmdno = 7
         
         return
 
@@ -44,6 +44,8 @@ class ToxTunFileCli(ToxTunCli):
         toxkit.friendConnected.connect(self._toxnetFriendConnected)
         toxkit.newMessage.connect(self._toxnetFriendMessage)
         toxkit.fileRecv.connect(self._toxnetFileRecv, Qt.QueuedConnection)
+        toxkit.fileRecvControl.connect(self._toxnetFileRecvControl, Qt.QueuedConnection)
+        toxkit.fileRecvChunk.connect(self._toxnetFileRecvChunk, Qt.QueuedConnection)
         toxkit.fileChunkRequest.connect(self._toxnetFileChunkRequest, Qt.QueuedConnection)
         
         self.toxkit = toxkit
@@ -85,9 +87,12 @@ class ToxTunFileCli(ToxTunCli):
         return
 
     def _toxnetFriendAdded(self, fid):
-        qDebug('hehe:' + fid)
+        qDebug('hehe:fid=' + fid)
         con = self.cons[fid]
 
+        
+
+        #### 
         
         return
 
@@ -95,8 +100,8 @@ class ToxTunFileCli(ToxTunCli):
 
         return
     def _toxnetFriendConnected(self, fid):
-        qDebug('herhe:' + fid)
-        
+        qDebug('herhe:fid=' + fid)
+
         return
 
     def _toxnetFileRecv(self, friend_id, file_number, file_size, file_name):
@@ -105,7 +110,7 @@ class ToxTunFileCli(ToxTunCli):
         # con = self.cons[friend_id]
         con = None
         for id in self.cons:
-            if id[0:64] == friend_id:
+            if type(id) == str and id[0:64] == friend_id:
                 con = self.cons[id]
                 break
 
@@ -121,24 +126,57 @@ class ToxTunFileCli(ToxTunCli):
         chan = self.chans['cmdno_%d'%cmdno]
         self.chans[file_name] = chan
         chan.peer_file_number = file_number
-        
+
+        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        self.chans[peer_file_to_chan_key] = chan
         
         self.toxkit.fileControl(friend_id, file_number, 0)
         return
 
-    def _toxnetFileRecvChunk(self, friend_id, file_number, position, length):
+
+    def _toxnetFileRecvControl(self, friend_id, file_number, control):
         qDebug('here')
+        print((friend_id, file_number, control))
+
+        if control == 0:
+            qDebug('resumed')
+            # self.toxkit.fileControl(friend_id, file_number, 1)
+        elif control == 1:
+            qDebug('paused')
+        elif control == 2:
+            qDebug('canceled')
+
+        return
+    
+    def _toxnetFileRecvChunk(self, friend_id, file_number, position, data):
+        import random
+        if random.randrange(0,9) == 1: qDebug('here')
+
+        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        chan = self.chans[peer_file_to_chan_key]
+        print(friend_id, file_number, position, data)
+        
+        # qDebug(str(data))
+        plen = data[0:4].lstrip()
+        plen = int(plen)
+        pkt = data[5:].lstrip()
+        qDebug('%d, %s' % (plen, pkt))
+
+        self._tcpWrite(chan, pkt)
+        
         return
 
     def _toxnetFileChunkRequest(self, friend_id, file_number, position, length):
         qDebug('here')
-        
-        file_to_chan_key = 'file_to_chan_%d_%s' % (file_number, friend_id[0:64])
-        chan = self.chans[file_to_chan_key]
+        # qDebug('%s, %d, %d, %d' % (friend_id, file_number, position, length))
+        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        chan = self.chans[self_file_to_chan_key]
 
         reqinfo = (friend_id, file_number, position, length)
+        # qDebug(str(reqinfo))
+        
         chan.reqchunks.append(reqinfo)
-        qDebug('reqchunks len: %d' % len(chan.reqchunks))
+        # qDebug('reqchunks len: %d' % len(chan.reqchunks))
 
         if chan.sock.bytesAvailable() > 0: chan.sock.readyRead.emit()
         return
@@ -249,8 +287,8 @@ class ToxTunFileCli(ToxTunCli):
         self.chans[file_name] = chan
         qDebug('new cli file %d' % file_number)
 
-        file_to_chan_key = 'file_to_chan_%d_%s' % (file_number, con.peer[0:64])
-        self.chans[file_to_chan_key] = chan
+        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, con.peer[0:64])
+        self.chans[self_file_to_chan_key] = chan
         
         # transport = ToxTunTransport(self.toxkit, con.peer)
         # chan.transport = transport
@@ -308,7 +346,8 @@ class ToxTunFileCli(ToxTunCli):
         while sock.bytesAvailable() > 0 and len(chan.reqchunks) > 0:
             bcc = chan.sock.read(128)
             print(bcc)
-            reqinfo = chan.reqchunks.pop()
+            reqinfo = chan.reqchunks.pop(0)
+            qDebug(str(reqinfo))
             rawpkt = QByteArray(bcc).toBase64().data().decode('utf8')
             fullpkt = '%4d$%1366s' % (len(rawpkt), rawpkt)
             bret = self.toxkit.fileSendChunk(con.peer, chan.self_file_number, reqinfo[2], fullpkt)
@@ -316,6 +355,7 @@ class ToxTunFileCli(ToxTunCli):
             chan.rdlen += len(bcc)
             cnter += 1
             tlen += len(bcc)
+            qDebug('%s, bret=%d' % (str(len(fullpkt)), bret))
         
 
         # qDebug(str(chan.chano))
@@ -340,8 +380,8 @@ class ToxTunFileCli(ToxTunCli):
         sock = chan.sock
         chan = self.chans[sock]
         qDebug('netsize: %d, %s' % (len(data), str(data)))
-        # rawdata = QByteArray.fromHex(data)
-        rawdata = chan.transport.decodeData(data)
+        rawdata = QByteArray.fromBase64(data)
+        # rawdata = chan.transport.decodeData(data)
         qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
         
         n = sock.write(rawdata)

@@ -4,7 +4,7 @@ from PyQt5.QtCore import *
 from srudp import *
 
 _srvpeer = '6BA28AC06C1D57783FE017FA9322D0B356E61404C92155A04F64F3B19C75633E8BDDEFFA4856'
-_srvpeer = '95893EDB96D2E4C97F46BA2C81779A27F3DB84F8C1BE3B47AE2209B78170BE311442A7BCA183'
+# _srvpeer = '95893EDB96D2E4C97F46BA2C81779A27F3DB84F8C1BE3B47AE2209B78170BE311442A7BCA183'
 
 class ToxTunRecord():
     def __init__(self):
@@ -69,7 +69,7 @@ class ToxTunConst():
 
 class ToxTunConnection():
     def __init__(self):
-        self.peer = None
+        self.peer = None  # 72B
 
         self.srv = None  # QTcpServer
         self.rec = None  # ToxTunRecord

@@ -24,7 +24,7 @@ class ToxTunFileSrv(ToxTunSrv):
         #self.host = '127.0.0.1'
         #self.port = 80
         self.chano = 0
-        self.cmdno = 0
+        self.cmdno = 7
         
         return
 
@@ -38,9 +38,10 @@ class ToxTunFileSrv(ToxTunSrv):
         toxkit.friendConnected.connect(self._toxnetFriendConnected)
         toxkit.newMessage.connect(self._toxnetFriendMessage)
         toxkit.fileRecv.connect(self._toxnetFileRecv, Qt.QueuedConnection)
+        toxkit.fileRecvControl.connect(self._toxnetFileRecvControl, Qt.QueuedConnection)
         toxkit.fileRecvChunk.connect(self._toxnetFileRecvChunk, Qt.QueuedConnection)
         toxkit.fileChunkRequest.connect(self._toxnetFileChunkRequest, Qt.QueuedConnection)
-        
+
         self.toxkit = toxkit
         
         return
@@ -59,7 +60,7 @@ class ToxTunFileSrv(ToxTunSrv):
         return
 
     def _toxnetFriendAdded(self, fid):
-        qDebug('hehe:' + fid)
+        qDebug('hehe:fid=' + fid)
         #con = self.toxcons[fid]
 
         con = ToxConnection()
@@ -74,7 +75,7 @@ class ToxTunFileSrv(ToxTunSrv):
         return
     
     def _toxnetFriendConnected(self, fid):
-        qDebug('herhe:' + fid)
+        qDebug('herhe:fid=' + fid)
         # 只重启动srv端时，有可能好友还在线。
         if fid not in self.cons:
             con = ToxConnection()
@@ -97,7 +98,7 @@ class ToxTunFileSrv(ToxTunSrv):
         # con = self.cons[friend_id]
         con = None
         for id in self.cons:
-            if id[0:64] == friend_id:
+            if type(id) == str and id[0:64] == friend_id:
                 con = self.cons[id]
                 break
 
@@ -133,18 +134,63 @@ class ToxTunFileSrv(ToxTunSrv):
         srv_file_size = pow(2, 56)
         srv_file_number = self.toxkit.fileSend(con.peer, srv_file_size, srv_file_name)
         chan.self_file_number = srv_file_number
-        qDebug('new cli file %d' % srv_file_number)
-        
+        qDebug('new srv file %d' % srv_file_number)
+
+        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, con.peer[0:64])
+        self.chans[peer_file_to_chan_key] = chan
+
+        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (srv_file_number, con.peer[0:64])
+        self.chans[self_file_to_chan_key] = chan
+
         self.toxkit.fileControl(friend_id, file_number, 0)
 
         return
 
-    def _toxnetFileRecvChunk(self, friend_id, file_number, position, length):
+    def _toxnetFileRecvControl(self, friend_id, file_number, control):
         qDebug('here')
+        print((friend_id, file_number, control))
+
+        if control == 0:
+            qDebug('resumed')
+            # self.toxkit.fileControl(friend_id, file_number, 1)
+        elif control == 1:
+            qDebug('paused')
+        elif control == 2:
+            qDebug('canceled')
+
+        return
+
+    def _toxnetFileRecvChunk(self, friend_id, file_number, position, data):
+        qDebug('here')
+        peer_file_to_chan_key = 'peer_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        chan = self.chans[peer_file_to_chan_key]
+        print(friend_id, file_number, position, data)
+        
+        # qDebug(str(data))
+        plen = data[0:4].lstrip()
+        plen = int(plen)
+        pkt = data[5:].lstrip()
+        qDebug('%d, %s' % (plen, pkt))
+
+        self._tcpWrite(chan, pkt)
+        
         return
 
     def _toxnetFileChunkRequest(self, friend_id, file_number, position, length):
-        qDebug('here')
+        import random
+        if random.randrange(0,9) == 1: qDebug('here')
+
+        self_file_to_chan_key = 'self_file_to_chan_%d_%s' % (file_number, friend_id[0:64])
+        chan = self.chans[self_file_to_chan_key]
+
+        reqinfo = (friend_id, file_number, position, length)
+        # qDebug(str(reqinfo))
+        
+        chan.reqchunks.append(reqinfo)
+        # qDebug('reqchunks len: %d' % len(chan.reqchunks))
+
+        if chan.sock.bytesAvailable() > 0: chan.sock.readyRead.emit()
+        
         return
     
     def _toxnetFriendMessage(self, friendId, msg):
@@ -154,11 +200,11 @@ class ToxTunFileSrv(ToxTunSrv):
     
     # @param data bytes | QByteArray
     def _toxnetWrite(self, chan, data):
-        cmdno = self._nextCmdno()
-        chan.cmdno = cmdno
+        # cmdno = self._nextCmdno()
+        # chan.cmdno = cmdno
 
-        extra = {'chano': chan.chano}
-        res = chan.rudp.buf_send_pkt(data, extra)
+        # extra = {'chano': chan.chano}
+        # res = chan.rudp.buf_send_pkt(data, extra)
         
         return
 
@@ -277,11 +323,28 @@ class ToxTunFileSrv(ToxTunSrv):
         qDebug('here')
         sock = self.sender()
         chan = self.chans[sock]
+        con = chan.con
 
-        peekSize = 897  # 987时就有可能导致超长拆包发送
-        extra = {'chano': chan.chano}
+        peekSize = 345  # 897  # 987时就有可能导致超长拆包发送
+        # extra = {'chano': chan.chano}
         cnter = 0
         tlen = 0
+
+        while sock.bytesAvailable() > 0 and len(chan.reqchunks) > 0:
+            bcc = sock.peek(peekSize)
+            reqinfo = chan.reqchunks.pop(0)
+            # qDebug(str(reqinfo))
+            rawpkt = QByteArray(bcc).toBase64().data().decode('utf8')
+            fullpkt = '%4d$%1366s' % (len(rawpkt), rawpkt)
+            bret = self.toxkit.fileSendChunk(con.peer, chan.self_file_number, reqinfo[2], fullpkt)
+            if bret is True:
+                bcc1 = sock.read(len(bcc))
+                chan.rdlen += len(bcc)
+                cnter += 1
+                tlen += len(bcc)
+            else: break
+
+
         # while sock.bytesAvailable() > 0:
         #     bcc = sock.peek(peekSize)
         #     res = chan.rudp.attemp_send(bcc, extra)
@@ -300,8 +363,8 @@ class ToxTunFileSrv(ToxTunSrv):
         qDebug('hrehe')
         sock = chan.sock
 
-        # rawdata = QByteArray.fromHex(data)
-        rawdata = chan.transport.decodeData(data)
+        rawdata = QByteArray.fromBase64(data)
+        # rawdata = chan.transport.decodeData(data)
         print(rawdata)
         n = sock.write(rawdata)
         chan.wrlen += n
