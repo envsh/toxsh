@@ -162,9 +162,12 @@ class ToxSlot(Tox):
         qDebug('herhe')
         print(args)
         return
+
+    # (57, 65536, 19666995, b'data...')
     def on_file_recv_chunk(self, *args):
         qDebug('herhe')
         print(args[0:3])
+        # print(args)
         if args[3] is None: qDebug('finished')
         else: qDebug(str(len(args[3])))
         return
@@ -172,7 +175,8 @@ class ToxSlot(Tox):
     def on_file_chunk_request(self, *args):
         qDebug(str(args))
         data = '%1371s' % 'abcdefg'
-        ret = self.file_send_chunk(args[0], args[1], args[2], data)
+        ret = 0
+        # ret = self.file_send_chunk(args[0], args[1], args[2], data)
         qDebug(str(ret))
         return
     
@@ -199,7 +203,9 @@ class QToxKit(QThread):
     friendConnectionStatus = pyqtSignal('QString', bool)
     fileRecvControl = pyqtSignal('QString', 'QString', int)
     fileRecv = pyqtSignal('QString', int, int, 'QString')
-    
+    fileRecvChunk = pyqtSignal('QString', int, int, int)
+    fileChunkRequest = pyqtSignal('QString', int, int, int)
+
     
     def __init__(self, identifier = 'anon', persist = True, parent = None):
         super(QToxKit, self).__init__(parent)
@@ -253,10 +259,14 @@ class QToxKit(QThread):
         self.tox.on_friend_connection_status = self.onFriendConnectStatus
         self.tox.on_friend_message = self.onFriendMessage
         self.tox.on_user_status = self.onFriendStatus
-        self.tox.on_file_recv_control = self.onFileRecvControl
+
 
         # file callbacks
-        # self.tox.on_file_recv = self.onFileRecv
+        self.tox.on_file_recv_control = self.onFileRecvControl
+        self.tox.on_file_recv = self.onFileRecv
+        self.tox.on_file_recv_chunk = self.onFileRecvChunk
+        self.tox.on_file_chunk_request = self.onFileChunkRequest
+        
         
         return
     
@@ -271,8 +281,8 @@ class QToxKit(QThread):
             if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
-                    # '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
-                    'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
         qDebug('bootstrap from: %s %d %s' % (mylonode[0], mylonode[1], mylonode[2]))
@@ -389,6 +399,16 @@ class QToxKit(QThread):
         status = self.tox.friend_get_connection_status(friend_number)
         return status
 
+    def sendMessage(self, fid, msg):
+        fno = self.tox.friend_by_public_key(fid)
+        mlen = 1371 - 1
+        pos = 0
+        while pos < len(msg):
+            msgn = msg[pos:(pos + mlen)]
+            pos = pos + mlen
+            self.tox.friend_send_message(fno, msgn)
+        return
+
     def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
         qDebug('on file recv:')
         qDebug(str(friend_number))
@@ -402,28 +422,33 @@ class QToxKit(QThread):
         
         return
 
-    def sendMessage(self, fid, msg):
-        fno = self.tox.friend_by_public_key(fid)
-        mlen = 1372 - 2
-        pos = 0
-        while pos < len(msg):
-            msgn = msg[pos:(pos + mlen)]
-            pos = pos + mlen
-            self.tox.friend_send_message(fno, msgn)
+    def onFileRecvChunk(self, friend_number, file_number, position, length):
+        friend_pubkey = self.tox.friend_get_public_key(friend_number)
+        self.fileRecvChunk.emit(friend_pubkey, file_number, position, length)
         return
 
+    def onFileChunkRequest(self, friend_number, file_number, position, length):
+        friend_pubkey = self.tox.friend_get_public_key(friend_number)
+        self.fileChunkRequest.emit(friend_pubkey, file_number, position, length)
+        return
+
+    def fileSend(self, friend_pubkey, file_size, file_name):
+        friend_number = self.tox.friend_by_public_key(friend_pubkey)
+        file_id = file_name
+        file_number = self.tox.file_send(friend_number, 0, file_size, file_id, file_name)
+        return file_number
+
+    def fileSendChunk(self, friend_pubkey, file_number, position, data):
+        friend_number = self.tox.friend_by_public_key(friend_pubkey)
+        bret = self.tox.file_send_chunk(friend_number, file_number, position, data)
+        return bret
+    
     def fileControl(self, friend_pubkey, file_number, control):
         friend_number = self.tox.friend_by_public_key(friend_pubkey)
         self.tox.file_control(friend_number, file_number, control)
         
         return
     
-    def sendFile(self, fid, fsize, fname):
-        fno = self.tox.friend_by_public_key(fid)
-        file_id = fname
-        self.tox.file_send(fno, 0, fsize, file_id, fname)
-        return
-
     def onFileRecvControl(self, friend_number, file_number, control):
         friend_id = self.tox.friend_get_public_key(friend_number)
         file_id = '%128s' % ' '

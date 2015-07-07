@@ -4,7 +4,7 @@ from PyQt5.QtCore import *
 from srudp import *
 
 _srvpeer = '6BA28AC06C1D57783FE017FA9322D0B356E61404C92155A04F64F3B19C75633E8BDDEFFA4856'
-# _srvpeer = '95893EDB96D2E4C97F46BA2C81779A27F3DB84F8C1BE3B47AE2209B78170BE311442A7BCA183'
+_srvpeer = '95893EDB96D2E4C97F46BA2C81779A27F3DB84F8C1BE3B47AE2209B78170BE311442A7BCA183'
 
 class ToxTunRecord():
     def __init__(self):
@@ -117,3 +117,41 @@ class ToxTunChannel():
 class ToxChannel(ToxTunChannel):
     def __init__(self, con, sock):
         super(ToxChannel, self).__init__(con, sock)
+
+
+#
+class FileReqChunk():
+    def __init__(self):
+        self.file_number = -1
+        self.position = -1
+        self.length = -1
+        return
+
+
+#
+class ToxTunFileChannel():
+    def __init__(self, con, sock):
+        super(ToxTunFileChannel, self).__init__()
+        self.con = con
+        self.sock = sock  #
+        self.host = ''
+        self.port = 0
+        self.self_file_number = -1
+        self.peer_file_number = -1
+        self.reqchunks = []
+
+        # extra info, like stats, time, speed
+        self.pktnum = 0
+        self.rdlen = 0
+        self.wrlen = 0
+        self.tnlen = 0  # toxnet length, calc net work data length
+        self.ctime = QDateTime.currentDateTime()
+        self.atime = None  # last active time
+        self.etime = None  # end time
+        self.offline_count = 0       # 在连接生存周期内离线打断次数
+        self.offline_times = {}  # offline_no => [starttime, endtime]
+        
+        return
+
+
+
