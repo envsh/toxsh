@@ -281,8 +281,8 @@ class QToxKit(QThread):
             if len(rndsrvs) >= 3: break
 
         mylonode = ['127.0.0.1', 33445,
-                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
-                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+                    'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    # '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
 
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
@@ -344,12 +344,15 @@ class QToxKit(QThread):
             self.first_connected = False
             #for friend in friends:
             #    self.tox.friend_add_norequest(friend)
-            for i in range(0, 3):
-                if i < len(friends): self.tox.friend_add_norequest(friends[i])
-            cnter = len(friends)-1
-            for i in range(cnter - 3, cnter):
-                if i >= 0 and i < len(friends): self.tox.friend_add_norequest(friends[i])
-            qDebug('add old friend: 6/%d' % len(friends))
+
+            cnter = 0
+            n = 0
+            for friend in friends:
+                if cnter < 3 or cnter >= (len(friends) - 3):
+                    self.tox.friend_add_norequest(friends[cnter])
+                    n += 1
+                cnter += 1
+            qDebug('add old friend: %d/%d' % (n, len(friends)))
             # self.connected.emit()
 
         return

@@ -133,13 +133,29 @@ class SruPacket2():
     
 
 class RUDPSendSegment():
-    def __init__(self):
+    def __init__(self, pkt):
         self.seq = 0
-        self.push_ts = 0
-        self.last_sent_ts = 0
+        self.push_ts = QDateTime.currentDateTime()
+        self.last_sent_ts = None  # QDateTime
         self.send_count = 0
         self.data = ''
+
+        self.pkt = pkt
         return
+
+    def refreshSentTime(self):
+        self.last_sent_ts = QDateTime.currentDateTime()
+        self.send_count += 1
+        return
+
+    def needResent(self, duration = 567):
+        lts = self.last_sent_ts
+        if lts is None: lts = self.push_ts
+
+        cts = QDateTime.currentDateTime()
+        if lts.msecsTo(cts) >= duration: return True
+        
+        return False
 
 
 class RUDPRecvSegment():
@@ -191,6 +207,10 @@ class Srudp(QObject):
         self.disconnection_monitor.setInterval(1234)
         self.disconnection_monitor.timeout.connect(self._promise_can_close, Qt.QueuedConnection)
         self.peer_closed = False
+
+        self.losspkt_monitor = QTimer()
+        self.losspkt_monitor.setInterval(678)
+        self.losspkt_monitor.timeout.connect(self._on_check_losspkt_timeout, Qt.QueuedConnection)
         return
 
     def setTransport(self, transport):
@@ -399,6 +419,7 @@ class Srudp(QObject):
                 qDebug('server peer ESTABed')
                 self.newConnection.emit()
                 self.step_send_timer.start()
+                self.losspkt_monitor.start()
                 pass
             else: qDebug('proto error: except syn ack')
         elif self.state == 'ESTAB':
@@ -427,7 +448,8 @@ class Srudp(QObject):
                 # return ropkt.encode()
             elif opkt.msg_type == 'DATA_ACK':
                 qDebug('acked data.')
-                tpkt = self.sndwins.pop(opkt.seq)
+                if opkt.seq in self.sndwins: tpkt = self.sndwins.pop(opkt.seq)
+                else: qDebug('maybe resent pkg\'s ack: %d' % opkt.seq)
                 self.attemp_flush()
                 # self.bytesWritten.emit()
                 self._promise_bytes_written()
@@ -458,6 +480,7 @@ class Srudp(QObject):
                 self.state = 'CLOSED'
                 qDebug('srv peer closed.')
                 self.step_send_timer.stop()
+                self.losspkt_monitor.stop()
                 # self.disconnected.emit()
 
                 if self.peer_closed:
@@ -555,12 +578,14 @@ class Srudp(QObject):
         while len(keys) > 0 and len(self.sndwins) < ccc_win_size:
             key = min(keys)
             opkt = self.sndpkts[key]
-            self.sndwins[key] = opkt
+            spkt = RUDPSendSegment(opkt)
+            # self.sndwins[key] = opkt
+            self.sndwins[key] = spkt
             self.sndpkts.pop(key)
             keys.remove(key)
             # keys.pop(key)
             wrcnt += 1
-            self.transport.send(opkt.encode())
+            self.transport.send(spkt.pkt.encode())
         qDebug('send net count: %d, win: %d, buf: %d' %
                (wrcnt, len(self.sndwins), len(self.sndpkts)))
         return wrcnt
@@ -623,7 +648,29 @@ class Srudp(QObject):
             qDebug('wait a moment, bplen=%d, wplen=%d' % (bplen, wplen))
             pass
         return
-    
+
+    def _on_check_losspkt_timeout(self):
+        qDebug('here')
+        ack_timeout = 1234
+        
+        resent_keys = []
+        for sk in self.sndwins:
+            spkt = self.sndwins[sk]
+            if spkt.needResent(ack_timeout):
+                resent_keys.append(sk)
+
+        #
+        rscnter = Srudp.CCC_BUF_SIZE
+        for sk in resent_keys:
+            if rscnter <= 0: break
+            spkt = self.sndwins[sk]
+            spkt.refreshSentTime()
+            self.transport.send(spkt.pkt.encode())
+            rscnter -= 1
+            pass
+        
+        qDebug('rs: %d/%d' % (Srudp.CCC_BUF_SIZE - rscnter, len(resent_keys)))    
+        return
 
 ###############
 class SruPacket():

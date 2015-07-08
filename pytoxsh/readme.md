@@ -45,7 +45,7 @@ ACK确认包回复频率。
 
 
 
-几个常量记录：
+toxcore几个常量记录：
 #define crypto_box_curve25519xsalsa20poly1305_ZEROBYTES 32U
 #define crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES 16U
 #define crypto_box_curve25519xsalsa20poly1305_MACBYTES \    
