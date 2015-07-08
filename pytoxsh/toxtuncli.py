@@ -1,4 +1,4 @@
-import sys,time
+import sys,time,random
 import json
 
 from PyQt5.QtCore import *
@@ -23,7 +23,7 @@ class ToxTunFileCli(ToxTunCli):
         self.toxkit = None # QToxKit
         self.tcpsrvs = {}  # id => srv
         self.cons = {}     # peer => con
-        self.chans = {}   # sock => chan, rudp => chan
+        self.chans = {}   # sock => chan, chanocli_%d => chan, chanosrv_%d => chan
         self.cmdno = 7
         self.chano = 7
         
@@ -179,11 +179,11 @@ class ToxTunFileCli(ToxTunCli):
         jspkt = data.lstrip()
         pkt = json.JSONDecoder().decode(jspkt)
         ptype = pkt['type']
-        qDebug(str(jspkt))
+        # qDebug(str(jspkt))
 
         peer_file_to_con_key = 'peer_file_to_con_%d_%s' % (file_number, friend_id[0:64])
         con = self.cons[peer_file_to_con_key]
-        print(friend_id, file_number, position, data)
+        # print(friend_id, file_number, position, data)
 
         if ptype == 'CONNECT':
             chanocli = pkt['chcli']
@@ -194,6 +194,7 @@ class ToxTunFileCli(ToxTunCli):
         elif ptype == 'CLOSE':
             chanocli = pkt['chcli']
             chan = self.chans['chanocli_%d' % chanocli]
+            chan.peer_close = True
             self._toxchanCleanup(chan)
             pass
         elif ptype == 'WRITE':
@@ -236,12 +237,28 @@ class ToxTunFileCli(ToxTunCli):
         # qDebug('reqchunks len: %d' % len(chan.reqchunks))
 
         # if chan.sock.bytesAvailable() > 0: chan.sock.readyRead.emit()
+        self._toxnetReadyWrite()
+        
         return
 
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
         return
 
+    def _toxnetReadyWrite(self):
+        candi_chans = []
+        for ck in self.chans:
+            chan = self.chans[ck]
+            if type(ck) == QTcpSocket:  # 排除重复chan功能。
+                if chan.sock.bytesAvailable() > 0: candi_chans.append(chan)
+
+        if len(candi_chans) > 0:
+            n = random.randrange(0, len(candi_chans))
+            chan = candi_chans[n]
+            chan.sock.readyRead.emit()
+
+        return
+    
     # @param data bytes | QByteArray
     def _toxnetWrite(self, chan, data):
         cmdno = self._nextCmdno()
@@ -321,7 +338,10 @@ class ToxTunFileCli(ToxTunCli):
         sock = chan.sock
         chanocli_key = 'chanocli_%d' % chan.chanocli
         chanosrv_key = 'chanosrv_%d' % chan.chanosrv
-        
+
+        if chan.peer_close is True and chan.self_close is True: pass
+        else: return
+
         # 清理资源
         if sock not in self.chans: qDebug('sock maybe already closed')
         else: self.chans.pop(sock)
@@ -421,6 +441,8 @@ class ToxTunFileCli(ToxTunCli):
             bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
             qDebug(str(bret))
 
+        #
+        chan.self_close = True
         self._toxchanCleanup(chan)
             
         # chan = self.chans[sock]
@@ -448,14 +470,14 @@ class ToxTunFileCli(ToxTunCli):
         chan = self.chans[sock]
         con = chan.con
 
-
+        peekSize = 128  # 897  # 987时就有可能导致超长拆包发送
         cnter = 0
         tlen = 0
-
+        
         while sock.bytesAvailable() > 0 and len(con.reqchunks) > 0:
-            bcc = chan.sock.read(128)
+            bcc = chan.sock.peek(peekSize)
             print(bcc)
-            reqinfo = con.reqchunks.pop(0)
+            reqinfo = con.reqchunks[0]
             qDebug(str(reqinfo))
             pkt = {'chcli': chan.chanocli, 'chsrv': chan.chanosrv, 'type': 'WRITE', 'data':''}
             rawpkt = QByteArray(bcc).toBase64().data().decode('utf8')
@@ -464,9 +486,12 @@ class ToxTunFileCli(ToxTunCli):
             fullpkt = '%1371s' % (jspkt)
             bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fullpkt)
             # self._toxnetWrite(chan, bcc)
-            chan.rdlen += len(bcc)
-            cnter += 1
-            tlen += len(bcc)
+            if bret is True:
+                reqinfo = con.reqchunks.pop(0)
+                bcc1 = chan.sock.read(peekSize)
+                chan.rdlen += len(bcc)
+                cnter += 1
+                tlen += len(bcc)
             qDebug('%s, bret=%d' % (str(len(fullpkt)), bret))
 
             
@@ -506,10 +531,10 @@ class ToxTunFileCli(ToxTunCli):
     def _tcpWrite(self, chan, data):
         sock = chan.sock
         chan = self.chans[sock]
-        qDebug('netsize: %d, %s' % (len(data), str(data)))
+        # qDebug('netsize: %d, %s' % (len(data), str(data)))
         rawdata = QByteArray.fromBase64(data)
         # rawdata = chan.transport.decodeData(data)
-        qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
+        # qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
         
         n = sock.write(rawdata)
         chan.wrlen += n
