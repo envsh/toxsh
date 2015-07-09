@@ -1,4 +1,4 @@
-import sys,time
+import sys, os, time
 import json
 
 from PyQt5.QtCore import *
@@ -11,9 +11,10 @@ from srudp import *
 
 
 class ToxNetTunCli(QObject):
-    def __init__(self, parent = None):
+    def __init__(self, config_file = './toxtun.ini', parent = None):
         super(ToxNetTunCli, self).__init__(parent)
-        self.cfg = ToxTunConfig('./toxtun.ini')
+        # self.cfg = ToxTunConfig('./toxtun_whttp.ini')
+        self.cfg = ToxTunConfig(config_file)
         self.toxkit = None # QToxKit
         self.tcpsrvs = {}  # id => srv
         self.cons = {}     # peer => con
@@ -29,14 +30,15 @@ class ToxNetTunCli(QObject):
         return
 
     def _startToxNet(self):
-        toxkit = QToxKit('toxcli', False)
-
-        toxkit.connected.connect(self._toxnetConnected)
-        toxkit.disconnected.connect(self._toxnetDisconnected)
-        toxkit.friendAdded.connect(self._toxnetFriendAdded)
-        toxkit.friendConnectionStatus.connect(self._toxnetFriendConnectionStatus)
-        toxkit.friendConnected.connect(self._toxnetFriendConnected)
-        toxkit.newMessage.connect(self._toxnetFriendMessage)
+        # toxkit = QToxKit('toxcli', False)
+        toxkit = QToxKit('toxcli', True)
+        
+        toxkit.connected.connect(self._toxnetConnected, Qt.QueuedConnection)
+        toxkit.disconnected.connect(self._toxnetDisconnected, Qt.QueuedConnection)
+        toxkit.friendAdded.connect(self._toxnetFriendAdded, Qt.QueuedConnection)
+        toxkit.friendConnectionStatus.connect(self._toxnetFriendConnectionStatus, Qt.QueuedConnection)
+        toxkit.friendConnected.connect(self._toxnetFriendConnected, Qt.QueuedConnection)
+        toxkit.newMessage.connect(self._toxnetFriendMessage, Qt.QueuedConnection)
         
         self.toxkit = toxkit
 
@@ -46,8 +48,8 @@ class ToxNetTunCli(QObject):
         i = 0
         for rec in self.cfg.recs:
             srv = QTcpServer()
-            srv.newConnection.connect(self._onNewTcpConnection)
-            ok = srv.listen(QHostAddress.Any, rec.local_port)
+            srv.newConnection.connect(self._onNewTcpConnection, Qt.QueuedConnection)
+            ok = srv.listen(QHostAddress.LocalHost, rec.local_port)
             qDebug(str(ok))
             self.tcpsrvs[i] = srv
             self.tcpsrvs[srv] = rec
@@ -66,16 +68,42 @@ class ToxNetTunCli(QObject):
             con.peer = rec.remote_pubkey
             self.cons[con.peer] = con
             self.cons[con.srv] = con
-
-            self.toxkit.friendAdd(con.peer, 'from toxtun cli %d' % i)
-            i = i + 1
-            
+            self._toxnetTryFriendAdd(con, i)
+            i += 1
+            pass
         return
     
     def _toxnetDisconnected(self):
         qDebug('here')
         return
 
+    def _toxnetTryFriendAdd(self, con, idx):
+       friend_number = 0
+       add_norequest = False
+       friend_request_msg = 'from toxtun cli %d@%s' % (idx, self.cfg.srvname)
+
+       try:
+           friend_number = self.toxkit.friendAddNorequest(con.peer)
+       except Exception as e:
+           qDebug(str(e.args))
+
+       
+       try:
+           friend_number = self.toxkit.friendAdd(con.peer, friend_request_msg)
+       except Exception as e:
+           # print(e)
+           qDebug(str(e.args))
+           add_norequest = True
+
+       if True or add_norequest is True:
+           try:
+               friend_number = self.toxkit.friendAddNorequest(con.peer)
+           except Exception as e:
+               qDebug(str(e.args))
+               
+
+       return
+    
     def _toxnetFriendAdded(self, fid):
         qDebug('hehe:' + fid)
         con = self.cons[fid]
@@ -314,6 +342,7 @@ class ToxNetTunCli(QObject):
         # toxsock.write(bcc)
         return
 
+    
     def _tcpWrite(self, chan, data):
         sock = chan.sock
         chan = self.chans[sock]
@@ -327,12 +356,28 @@ class ToxNetTunCli(QObject):
         qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
         
         return
-    
+
+
 def main():
     app = QCoreApplication(sys.argv)
     qtutil.pyctrl()
 
-    tuncli = ToxNetTunCli()
+    config_file = './toxtun.ini'
+    if len(sys.argv) == 2:
+        config_file = sys.argv[1]
+        if not os.path.exists(config_file):
+            print('config file is not exists: %s' % config_file)
+            help()
+            sys.exit(1)
+    elif len(sys.argv) == 1:
+        pass
+    else:
+        print('provide a valid config file please')
+        help()
+        sys.exit(1)
+
+    
+    tuncli = ToxNetTunCli(config_file)
     tuncli.start()
     
     app.exec_()

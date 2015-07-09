@@ -14,8 +14,10 @@ from srudp import *
 
 
 class ToxNetTunSrv(QObject):
-    def __init__(self, parent = None):
+    def __init__(self, config_file = './toxtun.ini', parent = None):
         super(ToxNetTunSrv, self).__init__(parent)
+        # self.cfg = ToxTunConfig('./toxtun_whttp.ini')
+        self.cfg = ToxTunConfig(config_file)
         self.toxkit = None # QToxKit
         self.cons = {}  # peer => con
         self.chans = {} # sock => chan, toxsock => chan, rudp => chan
@@ -23,11 +25,13 @@ class ToxNetTunSrv(QObject):
         #self.port = 80
         self.chano = 0
         self.cmdno = 0
-        
+
         return
 
     def start(self):
-        toxkit = QToxKit('anon', True)
+        # toxkit = QToxKit('anon', True)
+        tkname = self.cfg.srvname
+        toxkit = QToxKit(tkname, True)
 
         toxkit.connected.connect(self._toxnetConnected)
         toxkit.disconnected.connect(self._toxnetDisconnected)
@@ -347,7 +351,22 @@ def main():
     app = QCoreApplication(sys.argv)
     qtutil.pyctrl()
 
-    tunsrv = ToxNetTunSrv()
+    config_file = './toxtun.ini'
+    if len(sys.argv) == 2:
+        config_file = sys.argv[1]
+        if not os.path.exists(config_file):
+            print('config file is not exists: %s' % config_file)
+            help()
+            sys.exit(1)
+    elif len(sys.argv) == 1:
+        pass
+    else:
+        print('provide a valid config file please')
+        help()
+        sys.exit(1)
+
+
+    tunsrv = ToxNetTunSrv(config_file)
     tunsrv.start()
     
     app.exec_()

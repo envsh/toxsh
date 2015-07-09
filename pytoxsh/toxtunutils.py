@@ -15,13 +15,21 @@ class ToxTunRecord():
         self.remote_pubkey = ''
         return
 
+    def dump(self):
+        qDebug('begin dump ToxTunRecord: %s' % str(self))
+        print('......local_host:local_port,', self.local_host, self.local_port)
+        print('......remote_host:remote_port,', self.remote_host, self.remote_port)
+        print('......remote_pubkey,', self.remote_pubkey)
+        qDebug('end dump ToxTunRecord: %s' % str(self))
+        return
 
 class ToxTunConfig():
     def __init__(self, config_file):
         self.config_file = config_file
-        self.config_setts = QSettings(self.config_file)
+        self.config_sets = QSettings(self.config_file, QSettings.IniFormat)
         
         self.recs = []
+        self.srvname = ''
 
         if os.path.exists(self.config_file) is False:
             qDebug('config file not exists: %s' % config_file)
@@ -56,23 +64,29 @@ class ToxTunConfig():
         rec.remote_pubkey = _srvpeer
         # self.recs.append(rec)
 
+        ### server信息
+        self.srvname = 'anon'
+        
         return
 
     def loadConfig(self):
         sets = self.config_sets
-        sets.beginGroup('client')
 
-        keys = sets.keys()
+        sets.beginGroup('client')
+        keys = sets.childKeys()
         for key in keys:
             if key == 'size': continue
+            if key[0:1] == '#': continue   # comment
             val = sets.value(key)
             elems = val.split(':')
+
+            # TODO 检测配置格式
             
             rec = ToxTunRecord()
             rec.local_host = elems[0]  # '*'
-            rec.local_port = elems[1]  # 8282
+            rec.local_port = int(elems[1])  # 8282
             rec.remote_host = elems[2]  # '127.0.0.1'
-            rec.remote_port = elems[3]  # 82
+            rec.remote_port = int(elems[3])  # 82
             rec.remote_pubkey = elems[4]  # _srvpeer
 
             self.recs.append(rec)
@@ -80,9 +94,20 @@ class ToxTunConfig():
 
         
         sets.endGroup()
+
+
+        ### server信息
+        self.srvname = 'whttpd'
+        sets.beginGroup('server')
+        self.srvname = sets.value('name')
+        sets.endGroup()
         
         return
 
+    # 检测配置record是否有效
+    def recordValid(self):
+        
+        return
 
 class ToxTunConst():
     # basic
@@ -194,4 +219,10 @@ class ToxTunFileChannel():
         return
 
 
+def help():
+    print('Usage: python %s [/path/to/config_file.ini]' % sys.argv[0])
+    print('Example: python %s ./toxtun.ini' % sys.argv[0])
+    print('')
+    
+    return
 
