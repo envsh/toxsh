@@ -1,5 +1,5 @@
 
-
+import sys, os
 from PyQt5.QtCore import *
 from srudp import *
 
@@ -19,12 +19,19 @@ class ToxTunRecord():
 class ToxTunConfig():
     def __init__(self, config_file):
         self.config_file = config_file
+        self.config_setts = QSettings(self.config_file)
+        
         self.recs = []
 
-        self.load()
+        if os.path.exists(self.config_file) is False:
+            qDebug('config file not exists: %s' % config_file)
+            sys.exit(-1)
+        
+        # self.loadHardCoded()
+        self.loadConfig()
         return
 
-    def load(self):
+    def loadHardCoded(self):
         rec = ToxTunRecord()
         rec.local_host = '*'
         rec.local_port = 8115
@@ -49,6 +56,31 @@ class ToxTunConfig():
         rec.remote_pubkey = _srvpeer
         # self.recs.append(rec)
 
+        return
+
+    def loadConfig(self):
+        sets = self.config_sets
+        sets.beginGroup('client')
+
+        keys = sets.keys()
+        for key in keys:
+            if key == 'size': continue
+            val = sets.value(key)
+            elems = val.split(':')
+            
+            rec = ToxTunRecord()
+            rec.local_host = elems[0]  # '*'
+            rec.local_port = elems[1]  # 8282
+            rec.remote_host = elems[2]  # '127.0.0.1'
+            rec.remote_port = elems[3]  # 82
+            rec.remote_pubkey = elems[4]  # _srvpeer
+
+            self.recs.append(rec)
+            break   # just for test, only use one validate config
+
+        
+        sets.endGroup()
+        
         return
 
 
