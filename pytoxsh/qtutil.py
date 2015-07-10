@@ -10,10 +10,15 @@ def mygettid():
     import platform
 
     syscalls = {
-      'i386':   224,   # unistd_32.h: #define __NR_gettid 224
-      'x86_64': 186,   # unistd_64.h: #define __NR_gettid 186
+        'i386':   224,   # unistd_32.h: #define __NR_gettid 224
+        'x86_64': 186,   # unistd_64.h: #define __NR_gettid 186
     }
-    libc = ctypes.CDLL("/lib/libc.so.6")
+    libcs = {
+        'i386': '/lib/libc.so.6',
+        'x86_64': '/lib64/libc.so.6',
+    }
+    # libc = ctypes.CDLL("/lib/libc.so.6")
+    libc = ctypes.CDLL(libcs[platform.machine()])
     # tid = ctypes.CDLL('libc.so.6').syscall(224)
     return libc.syscall(syscalls[platform.machine()])
 

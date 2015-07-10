@@ -131,7 +131,8 @@ class ToxNetTunSrv(QObject):
             udp.bytesWritten.connect(self._toxchanBytesWritten, Qt.QueuedConnection)
             udp.disconnected.connect(self._toxchanDisconnected, Qt.QueuedConnection)
             udp.canClose.connect(self._toxchanCanClose, Qt.QueuedConnection)
-            
+            udp.peerClosed.connect(self._toxchanPeerClosed, Qt.QueuedConnection)
+            udp.timeWaitTimeout.connect(self._toxchanTimeWaitTimeout, Qt.QueuedConnection)
 
             extra = {'chano': chan.chano}
             res = udp.buf_recv_pkt(msg, extra)
@@ -220,6 +221,9 @@ class ToxNetTunSrv(QObject):
         udp = self.sender()
         chan = self.chans[udp]
         sock = chan.sock
+        chan.rudp_close = True
+        self._toxchanPromiseCleanup(chan)
+        return
         
         # 清理资源
         if sock not in self.chans: qDebug('sock maybe already closed')
@@ -237,6 +241,8 @@ class ToxNetTunSrv(QObject):
         return
 
     def _toxchanCanClose(self):
+        qDebug('here')
+        
         udp = self.sender()
         chan = self.chans[udp]
 
@@ -244,6 +250,82 @@ class ToxNetTunSrv(QObject):
         extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
         res = chan.rudp.mkdiscon(extra)
         
+        return
+
+    
+    def _toxchanPeerClosed(self):
+        qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+        chan.peer_close = True
+
+        self._toxchanPromiseCleanup(chan)
+        
+        return
+
+    def _toxchanTimeWaitTimeout(self):
+        qDebug('here')
+        udp = self.sender()
+        chan = self.chans[udp]
+
+        self._toxchanPromiseCleanup(chan)
+        return
+    
+    # promise原理的优雅关闭与清理
+    def _toxchanPromiseCleanup(self, chan):
+        qDebug('here')
+        
+        # sock 是否关闭
+        # peer 是否关闭
+        # srudp的状态是否是CLOSED
+        # srudp的TIME_WAIT状态是否超时了
+
+        chan.peer_close = chan.rudp.peer_closed
+        promise_results = {
+            'peer_close': chan.peer_close,
+            'sock_close': chan.sock_close,
+            'rudp_close': chan.rudp_close,
+        }
+        
+        nowtime = QDateTime.currentDateTime()
+        if chan.rudp.begin_close_time is not None:
+            qDebug(str(chan.rudp.begin_close_time.msecsTo(nowtime)))
+        if chan.rudp.self_passive_close is False:
+            promise_results['active_state'] = (chan.rudp.state == 'TIME_WAIT')
+            if chan.rudp.begin_close_time is None:
+                promise_results['time_wait_timeout'] = False                
+            else:
+                duration = chan.rudp.begin_close_time.msecsTo(nowtime)
+                promise_results['time_wait_timeout'] = (duration > 15000)
+        else:
+            promise_results['pasv_state'] = (chan.rudp.state == 'CLOSED')
+
+        promise_result = True
+        for pk in promise_results: promise_result = promise_result and promise_results[pk]
+        
+        if promise_result is True:
+            qDebug('promise satisfied.')
+        else:
+            qDebug('promise noooooot satisfied.')
+            qDebug(str(promise_results))
+            return
+
+        sock = chan.sock
+        udp = chan.rudp
+        
+        # 清理资源
+        if sock not in self.chans: qDebug('sock maybe already closed')
+        else: self.chans.pop(sock)
+
+        if udp not in self.chans: qDebug('udp maybe already closed')
+        else: self.chans.pop(udp)
+
+        chano = chan.chano
+        if chano not in self.chans: qDebug('maybe already closed222')
+        else: self.chans.pop(chano)
+
+        qDebug('chans size: %d' % len(self.chans))
+
         return
 
     def _onTcpConnected(self):
@@ -265,8 +347,13 @@ class ToxNetTunSrv(QObject):
             return
 
         chan = self.chans[sock]
+        chan.sock_close = True
+        chan.transport.closed = True
+        chan.rudp.startCheckClose()
+        self._toxchanPromiseCleanup(chan)
+        
+        return
         chano = chan.chano
-
         if chano not in self.chans:
             qDebug('maybe already closed222')
             self.chans.pop(sock)
@@ -289,7 +376,10 @@ class ToxNetTunSrv(QObject):
         qDebug('herhe %s' %  sock.errorString())
         chan = self.chans[sock]
         chano = chan.chano
-
+        chan.transport.closed = True
+        
+        return
+    
         if chano not in self.chans:
             qDebug('maybe already closed333')
             self.chans.pop(sock)

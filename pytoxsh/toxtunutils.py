@@ -165,6 +165,11 @@ class ToxTunChannel():
         self.offline_count = 0       # 在连接生存周期内离线打断次数
         self.offline_times = {}  # offline_no => [starttime, endtime]
 
+        # for close, promise all True for real defer chan obj
+        self.peer_close = False
+        self.sock_close = False
+        self.rudp_close = False
+
         return
 
     def debugInfo(self):
