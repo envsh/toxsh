@@ -124,6 +124,7 @@ class ToxNetTunSrv(QObject):
             chan.transport = transport
             
             udp = Srudp()
+            udp.chano = chan.chano
             chan.rudp = udp
             self.chans[udp] = chan
             udp.setTransport(transport)
@@ -221,6 +222,7 @@ class ToxNetTunSrv(QObject):
         udp = self.sender()
         chan = self.chans[udp]
         sock = chan.sock
+
         chan.rudp_close = True
         self._toxchanPromiseCleanup(chan)
         return
@@ -304,9 +306,9 @@ class ToxNetTunSrv(QObject):
         for pk in promise_results: promise_result = promise_result and promise_results[pk]
         
         if promise_result is True:
-            qDebug('promise satisfied.')
+            qDebug('promise satisfied: %d.' % chan.chano)
         else:
-            qDebug('promise noooooot satisfied.')
+            qDebug('promise noooooot satisfied: %d.' % chan.chano)
             qDebug(str(promise_results))
             return
 
