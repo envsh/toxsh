@@ -149,8 +149,10 @@ class ToxTunChannel():
         self.sock = sock  #
         self.host = ''
         self.port = 0
-        self.chano = 0
-        self.cmdno = 0  #
+        # self.chano = 0
+        # self.cmdno = 0  #
+        self.chanocli = -5 
+        self.chanosrv = -6   #
         self.rudp = None  # Srudp instance
         self.transport = None  # ToxTunTransport instance
 
@@ -174,7 +176,7 @@ class ToxTunChannel():
 
     def debugInfo(self):
         info = 'chano: %d, offcnt: %d, cmdno: %d, pktnum=%d, ' % \
-               (self.chano, self.offline_count, self.cmdno, self.pktnum)
+               (self.chano, self.offline_count, 0, self.pktnum)
         return info
     
 

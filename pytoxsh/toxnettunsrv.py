@@ -11,6 +11,7 @@ from qtoxkit import *
 #from toxsocket import *
 from toxtunutils import *
 from srudp import *
+from httpserver import *
 
 
 class ToxNetTunSrv(QObject):
@@ -23,9 +24,12 @@ class ToxNetTunSrv(QObject):
         self.chans = {} # sock => chan, toxsock => chan, rudp => chan
         #self.host = '127.0.0.1'
         #self.port = 80
-        self.chano = 0
-        self.cmdno = 0
+        self.chano = 8  # step=2，偶数
+        # self.cmdno = 0
 
+        # debug/manager console server
+        self.httpd = QHttpServer()
+        self.httpd.newRequest.connect(self._mcsrv_newRequest)
         return
 
     def start(self):
@@ -41,7 +45,9 @@ class ToxNetTunSrv(QObject):
         toxkit.newMessage.connect(self._toxnetFriendMessage)
         
         self.toxkit = toxkit
-        
+
+        ###
+        self.httpd.listen(8114, QHostAddress.LocalHost)
         return
 
     def _toxnetConnected(self):
@@ -83,12 +89,13 @@ class ToxNetTunSrv(QObject):
         return
 
     def _nextChano(self):
-        self.chano = self.chano +1
+        self.chano = self.chano +2
         return self.chano
 
     def _nextCmdno(self):
-        self.cmdno = self.cmdno +1
-        return self.cmdno
+        # self.cmdno = self.cmdno +1
+        # return self.cmdno
+        return
     
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
@@ -114,17 +121,18 @@ class ToxNetTunSrv(QObject):
             chan = ToxChannel(con, sock)
             chan.host = host
             chan.port = port
-            chan.chano = self._nextChano()
-            chan.cmdno = jmsg['cmdno']
+            chan.chanosrv = self._nextChano()
+            chan.chanocli = jmsg['chcli']
+            # chan.cmdno = jmsg['cmdno']
 
             self.chans[sock] = chan
-            self.chans[chan.chano] = chan
+            self.chans[chan.chanosrv] = chan
 
             transport = ToxTunTransport(self.toxkit, chan.con.peer)
             chan.transport = transport
             
             udp = Srudp()
-            udp.chano = chan.chano
+            udp.chano = chan.chanosrv
             chan.rudp = udp
             self.chans[udp] = chan
             udp.setTransport(transport)
@@ -135,7 +143,7 @@ class ToxNetTunSrv(QObject):
             udp.peerClosed.connect(self._toxchanPeerClosed, Qt.QueuedConnection)
             udp.timeWaitTimeout.connect(self._toxchanTimeWaitTimeout, Qt.QueuedConnection)
 
-            extra = {'chano': chan.chano}
+            extra = {'chcli': chan.chanocli, 'chsrv': chan.chanosrv}
             res = udp.buf_recv_pkt(msg, extra)
             # ropkt = udp.buf_recv_pkt(msg)
             # ropkt = SruPacket2.decode(ropkt)
@@ -146,19 +154,19 @@ class ToxNetTunSrv(QObject):
             pass
         elif opkt.msg_type == 'CLIFIN1':
             jmsg = opkt.extra
-            chan = self.chans[jmsg['chano']]
+            chan = self.chans[jmsg['chsrv']]
             res = chan.rudp.buf_recv_pkt(msg)
             # ropkt = chan.rudp.buf_recv_pkt(msg)
             # self.toxkit.sendMessage(chan.con.peer, ropkt)
         elif opkt.msg_type == 'DATA':
             jmsg = opkt.extra
-            chan = self.chans[jmsg['chano']]
+            chan = self.chans[jmsg['chsrv']]
             res = chan.rudp.buf_recv_pkt(msg)
             # jspkt = chan.rudp.buf_recv_pkt(msg)
             # self.toxkit.sendMessage(chan.con.peer, jspkt)
         else:
             jmsg = opkt.extra
-            chan = self.chans[jmsg['chano']]
+            chan = self.chans[jmsg['chsrv']]
             res = chan.rudp.buf_recv_pkt(msg)
 
                     
@@ -181,10 +189,10 @@ class ToxNetTunSrv(QObject):
 
     # @param data bytes | QByteArray
     def _toxnetWrite(self, chan, data):
-        cmdno = self._nextCmdno()
-        chan.cmdno = cmdno
+        # cmdno = self._nextCmdno()
+        # chan.cmdno = cmdno
 
-        extra = {'chano': chan.chano}
+        extra = {'chsrv': chan.chanosrv, 'chcli': chan.chanocli}
         res = chan.rudp.buf_send_pkt(data, extra)
         # if type(data) == bytes: data = QByteArray(data)
 
@@ -248,8 +256,8 @@ class ToxNetTunSrv(QObject):
         udp = self.sender()
         chan = self.chans[udp]
 
-        cmdno = self._nextCmdno()
-        extra = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
+        # cmdno = self._nextCmdno()
+        extra = {'cmd': 'close', 'chsrv': chan.chanosrv, 'chcli': chan.chanocli, 'cmdno': 0, }
         res = chan.rudp.mkdiscon(extra)
         
         return
@@ -306,9 +314,9 @@ class ToxNetTunSrv(QObject):
         for pk in promise_results: promise_result = promise_result and promise_results[pk]
         
         if promise_result is True:
-            qDebug('promise satisfied: %d.' % chan.chano)
+            qDebug('promise satisfied: %d<=>%d.' % (chan.chanocli, chan.chanosrv))
         else:
-            qDebug('promise noooooot satisfied: %d.' % chan.chano)
+            qDebug('promise noooooot satisfied: %d<=>%d.' % (chan.chanocli, chan.chanosrv))
             qDebug(str(promise_results))
             return
 
@@ -322,7 +330,7 @@ class ToxNetTunSrv(QObject):
         if udp not in self.chans: qDebug('udp maybe already closed')
         else: self.chans.pop(udp)
 
-        chano = chan.chano
+        chano = chan.chanosrv
         if chano not in self.chans: qDebug('maybe already closed222')
         else: self.chans.pop(chano)
 
@@ -336,7 +344,7 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         chan = self.chans[sock]
 
-        reply = {'cmd': 'connect', 'res': True, 'chano': chan.chano, 'cmdno': chan.cmdno, }
+        reply = {'cmd': 'connect', 'res': True, 'chcli': chan.chanocli, 'chsrv': chan.chanosrv, 'cmdno': 0, }
         #    self.toxkit.sendMessage(chan.con.peer, reply)
         return
             
@@ -361,8 +369,8 @@ class ToxNetTunSrv(QObject):
             self.chans.pop(sock)
             return
 
-        cmdno = self._nextCmdno()
-        msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno, }
+        # cmdno = self._nextCmdno()
+        msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': 0, }
 
         extra = msg
         chan.transport.closed = True
@@ -377,7 +385,7 @@ class ToxNetTunSrv(QObject):
         sock = self.sender()
         qDebug('herhe %s' %  sock.errorString())
         chan = self.chans[sock]
-        chano = chan.chano
+        chano = chan.chanosrv
         chan.transport.closed = True
         
         return
@@ -387,8 +395,8 @@ class ToxNetTunSrv(QObject):
             self.chans.pop(sock)
             return
 
-        cmdno = self._nextCmdno()
-        msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': cmdno,}
+        # cmdno = self._nextCmdno()
+        msg = {'cmd': 'close', 'chano': chan.chano, 'cmdno': 0,}
         
         extra = msg
         chan.transport.closed = True
@@ -404,7 +412,7 @@ class ToxNetTunSrv(QObject):
         chan = self.chans[sock]
 
         peekSize = 897  # 987时就有可能导致超长拆包发送
-        extra = {'chano': chan.chano}
+        extra = {'chcli': chan.chanocli, 'chsrv': chan.chanosrv}
         cnter = 0
         tlen = 0
         while sock.bytesAvailable() > 0:
@@ -437,6 +445,77 @@ class ToxNetTunSrv(QObject):
         qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
         
         return
+
+
+    #####
+    def _mcsrv_newRequest(self, req, resp):
+        qDebug('here')
+        # resp.setHeader('Content-Length', '12')
+        # resp.writeHead(200)
+        # resp.write('12345\n12345\n')
+
+        cclen = 12
+        ccs = []
+        ccs.append('12345\n12345\n')
+
+        cc0 = 'chan num: %d/%.2f' % (len(self.chans), len(self.chans)/3.0) + "\n"
+        cclen += len(cc0)
+        ccs.append(cc0)
+
+        cnter = 0
+        for ck in self.chans:
+            if type(ck) != QTcpSocket: continue
+            chan = self.chans[ck]
+            promise_results = self._toxchanPromiseResults(chan)
+            # 这儿发现cli端有chan-0出现，有可能是根本没有收到服务器端的SYN2响应包，也就是丢失包了。
+            # 而服务器端则没有出现chan-0的现象。
+            cc0 = '%d chan-%d/%d: ' % (cnter, chan.chanocli, chan.chanosrv) + str(promise_results) + "\n"
+            cclen += len(cc0)
+            # resp.write(cc0)
+            ccs.append(cc0)
+            cnter += 1
+
+        cc0 = 'chan num: %d/%.2f' % (len(self.chans), len(self.chans)/3.0) + "\n"
+        cclen += len(cc0)
+        ccs.append(cc0)
+
+        resp.setHeader('Content-Length', '%d' % cclen)
+        resp.writeHead(200)
+
+        for cc0 in ccs: resp.write(cc0)
+        
+        resp.end()
+
+        return
+
+    
+    # promise原理的优雅关闭与清理
+    def _toxchanPromiseResults(self, chan):
+
+        chan.peer_close = chan.rudp.peer_closed
+        promise_results = {
+            'peer_close': chan.peer_close,
+            'sock_close': chan.sock_close,
+            'rudp_close': chan.rudp_close,
+        }
+        
+        nowtime = QDateTime.currentDateTime()
+        if chan.rudp.begin_close_time is not None:
+            qDebug(str(chan.rudp.begin_close_time.msecsTo(nowtime)))
+        if chan.rudp.self_passive_close is False:
+            promise_results['active_state'] = (chan.rudp.state == 'TIME_WAIT')
+            if chan.rudp.begin_close_time is None:
+                promise_results['time_wait_timeout'] = False                
+            else:
+                duration = chan.rudp.begin_close_time.msecsTo(nowtime)
+                promise_results['time_wait_timeout'] = (duration > 15000)
+        else:
+            promise_results['pasv_state'] = (chan.rudp.state == 'CLOSED')
+
+        promise_result = True
+        for pk in promise_results: promise_result = promise_result and promise_results[pk]
+
+        return promise_results
 
 
 def main():

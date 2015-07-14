@@ -175,6 +175,7 @@ class Srudp(QObject):
     readyRead = pyqtSignal()
     bytesWritten = pyqtSignal()
     newConnection = pyqtSignal()
+    connectTimeout = pyqtSignal()
 
     lossPacket = pyqtSignal()
     canClose = pyqtSignal()
@@ -219,6 +220,12 @@ class Srudp(QObject):
         self.losspkt_monitor = QTimer()
         self.losspkt_monitor.setInterval(678)
         self.losspkt_monitor.timeout.connect(self._on_check_losspkt_timeout, Qt.QueuedConnection)
+
+        self.connect_begin_time = None  # QDateTime
+        self.connect_timer = QTimer()
+        self.connect_timer.setInterval(1000 * 30)
+        self.connect_timer.setSingleShot(True)
+        self.connect_timer.timeout.connect(self._on_connect_timeout)
         return
 
     def setTransport(self, transport):
@@ -241,6 +248,8 @@ class Srudp(QObject):
         qDebug('aaaaaaaaa')
         qDebug(str(self.transport))
         res = self.transport.send(jspkt)
+        self.connect_begin_time = QDateTime.currentDateTime()
+        self.connect_timer.start()
         return res
 
     # @return True|False
@@ -333,9 +342,10 @@ class Srudp(QObject):
                 ropkt.seq = opkt.ack
                 ropkt.ack = opkt.seq + 1
                 ropkt.extra = opkt.extra
-                qDebug('client peer ESTABed')
 
                 res = self.transport.send(ropkt.encode())
+                qDebug('client peer ESTABed')
+                self.connect_timer.stop()
                 self.connected.emit()
                 return res
                 # return ropkt.encode()
@@ -803,6 +813,15 @@ class Srudp(QObject):
         qDebug('rs: %d/%d' % (Srudp.CCC_BUF_SIZE - rscnter, len(resent_keys)))    
         return
 
+    def _on_connect_timeout(self):
+        qDebug('here')
+        if self.state == 'SYN_SENT':
+            qDebug('connect timeout')
+            self.connectTimeout.emit()
+            pass
+        return
+    
+    
 ###############
 class SruPacket():
     # CLIENT_ISN = 0  # random 32b integer
