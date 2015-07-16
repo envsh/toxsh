@@ -25,7 +25,7 @@ class ToxNetTunCli(QObject):
         
         # debug/manager console server
         self.httpd = QHttpServer()
-        self.httpd.newRequest.connect(self._mcsrv_newRequest)
+        self.httpd.newRequest.connect(self._mcsrv_newRequest, Qt.QueuedConnection)
 
         return
 
@@ -300,7 +300,7 @@ class ToxNetTunCli(QObject):
 
         # cmdno = self._nextCmdno()
         extra = {'cmd': 'close', 'chsrv': chan.chanosrv, 'chcli': chan.chanocli, 'cmdno': 0,}
-        res = chan.rudp.mkdiscon(extra)
+        res = chan.rudp.mkdiscon(extra)  # 永不主动发起关闭
         return
 
     def _toxchanPeerClosed(self):
@@ -497,10 +497,10 @@ class ToxNetTunCli(QObject):
     def _tcpWrite(self, chan, data):
         sock = chan.sock
         chan = self.chans[sock]
-        qDebug('netsize: %d, %s' % (len(data), str(data)))
+        # qDebug('netsize: %d, %s' % (len(data), str(data)))
         # rawdata = QByteArray.fromHex(data)
         rawdata = chan.transport.decodeData(data)
-        qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
+        # qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
         
         n = sock.write(rawdata)
         chan.wrlen += n
@@ -575,9 +575,20 @@ class ToxNetTunCli(QObject):
         else:
             promise_results['pasv_state'] = (chan.rudp.state == 'CLOSED')
 
+        if chan.rudp.state == 'SYN_SENT':
+            promise_results['connect_timeout'] = (chan.rudp.connect_begin_time.msecsTo(nowtime) > 30000)
+
         promise_result = True
         for pk in promise_results: promise_result = promise_result and promise_results[pk]
 
+        promise_results['whole'] = promise_result
+
+        ### some raw status
+        promise_results['state'] = chan.rudp.state
+        promise_results['conn_btime'] = chan.rudp.connect_begin_time
+        promise_results['conn_wait_time'] = chan.rudp.connect_begin_time.msecsTo(nowtime)
+        promise_results['can_close'] = chan.rudp.can_close
+        
         return promise_results
 
     

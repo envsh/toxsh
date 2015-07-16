@@ -29,7 +29,7 @@ class ToxNetTunSrv(QObject):
 
         # debug/manager console server
         self.httpd = QHttpServer()
-        self.httpd.newRequest.connect(self._mcsrv_newRequest)
+        self.httpd.newRequest.connect(self._mcsrv_newRequest, Qt.QueuedConnection)
         return
 
     def start(self):
@@ -166,8 +166,12 @@ class ToxNetTunSrv(QObject):
             # self.toxkit.sendMessage(chan.con.peer, jspkt)
         else:
             jmsg = opkt.extra
-            chan = self.chans[jmsg['chsrv']]
-            res = chan.rudp.buf_recv_pkt(msg)
+            chanosrv = jmsg['chsrv']
+            if chanosrv not in self.chans:
+                qDebug('pkt -> chan not exists: %d.' % chanosrv)
+            else:
+                chan = self.chans[chanosrv]
+                res = chan.rudp.buf_recv_pkt(msg)
 
                     
         # dispatch的过程
@@ -276,6 +280,11 @@ class ToxNetTunSrv(QObject):
     def _toxchanTimeWaitTimeout(self):
         qDebug('here')
         udp = self.sender()
+
+        if udp not in self.chans:
+            qDebug('maybe already defered')
+            return
+        
         chan = self.chans[udp]
 
         self._toxchanPromiseCleanup(chan)
