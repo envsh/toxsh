@@ -290,6 +290,13 @@ class QToxKit(QThread):
         #rlyret = self.tox.add_tcp_relay(myvpsnode[0], myvpsnode[1], myvpsnode[2])
         #qDebug('bootstrap from: %s %d %s' % (myvpsnode[0], myvpsnode[1], myvpsnode[2]))
 
+        myvpsnode = ['128.199.78.247', 33445,
+                     '34922396155AA49CE6845A2FE34A73208F6FCD6190D981B1DBBC816326F26C6C']
+        bsret = self.tox.bootstrap(myvpsnode[0], myvpsnode[1], myvpsnode[2])
+        rlyret = self.tox.add_tcp_relay(myvpsnode[0], myvpsnode[1], myvpsnode[2])
+        qDebug('bootstrap from: %s %d %s' % (myvpsnode[0], myvpsnode[1], myvpsnode[2]))
+
+        # localrun = True
         qDebug('selected srvs:' + str(rndsrvs))
         for rnd in rndsrvs:
             if localrun is True: continue
@@ -394,15 +401,15 @@ class QToxKit(QThread):
         return rc
     
     def onFriendMessage(self, fno, msg):
-        qDebug('here')
+        # qDebug('here')
         u8msg = msg.encode('utf8') # str ==> bytes
         #print(u8msg)
         u8msg = str(u8msg, encoding='utf8')
         #print(u8msg) # ok, python utf8 string
-        qDebug(u8msg.encode('utf-8')) # should ok, python utf8 bytes
+        # qDebug(u8msg.encode('utf-8')) # should ok, python utf8 bytes
         
         fid = self.tox.friend_get_public_key(fno)
-        print('hehre: fnum=%s, fid=%s, msg=' % (str(fno), str(fid)), u8msg)
+        # print('hehre: fnum=%s, fid=%s, msg=' % (str(fno), str(fid)), u8msg)
         self.newMessage.emit(fid, msg)
         return
 

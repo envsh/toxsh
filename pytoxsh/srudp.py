@@ -124,7 +124,7 @@ class SruPacket2():
 
     def decode(jspkt):
         import json
-        qDebug(str(jspkt))
+        # qDebug(str(jspkt))
         pkt = json.JSONDecoder().decode(jspkt)
         
         opkt = SruPacket2()
@@ -180,7 +180,7 @@ class Srudp(QObject):
     connectTimeout = pyqtSignal()
 
     lossPacket = pyqtSignal()
-    canClose = pyqtSignal()
+    canClose = pyqtSignal()    # can send fin
     peerClosed = pyqtSignal()
     timeWaitTimeout = pyqtSignal()
     
@@ -209,7 +209,7 @@ class Srudp(QObject):
         self.transport = SrudTransport()  # SrudTrasnport 子类实例
         self.transport = None
         self.step_send_timer = QTimer()
-        self.step_send_timer.setInterval(278)
+        self.step_send_timer.setInterval(1578)
         self.step_send_timer.timeout.connect(self._try_step_send, Qt.QueuedConnection)
         
         self.disconnection_monitor = QTimer()
@@ -219,6 +219,8 @@ class Srudp(QObject):
         self.self_passive_close = False   # 当前一方是主动关闭还是被动关闭
         self.begin_close_time = None   # 主动关闭发起端发起关闭时间，处理进入TIME_WAIT状态的超时
         self.can_close = False
+        self.rudpc_close = False
+        
         
         self.losspkt_monitor = QTimer()
         self.losspkt_monitor.setInterval(678)
@@ -248,17 +250,18 @@ class Srudp(QObject):
         self.selfseq = opkt.seq + 2
         jspkt = opkt.encode()
 
-        qDebug('aaaaaaaaa')
-        qDebug(str(self.transport))
-        res = self.transport.send(jspkt)
         self.connect_begin_time = QDateTime.currentDateTime()
         self.connect_timer.start()
+
+        qDebug('aaaaaaaaa')
+        qDebug(str(self.transport))
+        res = self.transport.send(jspkt)  # maybe exception
         return res
 
     # @return True|False
     def mkdiscon(self, extra):
         opkt = SruPacket2()
-        opkt.msg_type = 'FIN1'
+        opkt.msg_type = 'XXXFIN'
         opkt.extra = extra
         opkt.seq = self.selfseq
         self.selfseq += 1
@@ -271,9 +274,9 @@ class Srudp(QObject):
             self.state = 'LAST_ACK'
 
         if self.mode == 'CLIENT':
-            opkt.msg_type = 'CLIFIN1'
+            opkt.msg_type = 'CLIFIN'
         else:
-            opkt.msg_type = 'SRVFIN1'
+            opkt.msg_type = 'SRVFIN'
 
 
         #if self.mode == 'CLIENT':
@@ -342,11 +345,14 @@ class Srudp(QObject):
 
 
     def _statemachine_client(self, opkt):
+        old_state = self.state
+        
         if self.state == 'SYN_SENT':
             if opkt.msg_type == 'SYN2' and opkt.ack == (self.selfisn + 1) and opkt.seq > 0:
                 self.peerisn = opkt.seq
                 self.peerseq = opkt.seq + 2
                 self.state = 'ESTAB'
+
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'SYN_ACK'
                 ropkt.seq = opkt.ack
@@ -357,20 +363,22 @@ class Srudp(QObject):
                 qDebug('client peer ESTABed')
                 self.connect_timer.stop()
                 self.connected.emit()
+                
                 return res
                 # return ropkt.encode()
             else: qDebug('proto error, except SYN_ACK pkt')
         elif self.state == 'ESTAB':
-            if opkt.msg_type == 'SRVFIN1':  # 服务器端行发送关闭请求
+            if opkt.msg_type == 'SRVFIN':  # 服务器端行发送关闭请求
                 self.self_passive_close = True  # 当前一方是被动关闭
                 res = self._statemachine_client_response_srvfin1(opkt)
                 self.state = 'CLOSE_WAIT'
                 self.peer_closed = True
-                
+
+                self.step_send_timer.start()
                 return res 
                 # return ropkt.encode()
             elif opkt.msg_type == 'DATA':
-                qDebug('got data: %s' % opkt.encode())
+                # qDebug('got data: %s' % opkt.encode())
                 ropkt = SruPacket2()
                 ropkt.msg_type = 'DATA_ACK'
                 ropkt.seq = opkt.seq
@@ -405,85 +413,103 @@ class Srudp(QObject):
         ### 主动与被关闭都存在的状态，但被动端首先进入关闭状态
         elif self.state == 'CLOSED':  self._statemachine_client_close_handler(opkt)
         else: qDebug('proto error: %s ' % self.state)
+
+        qDebug('state from %s => %s' % (old_state, self.state))
         
         return
 
 
     # 关闭状态机，两端共用，
     def _statemachine_client_close_handler(self, opkt):
+        qDebug(opkt.encode())
+        
         ### 主动关闭状态处理
-        if self.state == 'FIN_WAIT_1':
-            if opkt.msg_type == 'CLIFIN2':
-                opkt.msg_type = 'CLIFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt)
+        # if self.state == 'FIN_WAIT_1':
+        #     if opkt.msg_type == 'CLIFIN2':
+        #         opkt.msg_type = 'CLIFIN2_ACK'
+        #         opkt.ack = opkt.seq + 1
+        #         self.transport.send(opkt)
                 
-                self.state = 'FIN_WAIT_2'
-                qDebug('emit disconnect event.')
-                self.disconnected.emit()
-            # elif opkt.msg_type == 'SRVFIN2':
-                # return self._statemachine_client_response_srvfin1(opkt)
+        #         self.state = 'FIN_WAIT_2'
+        #         qDebug('emit disconnect event.')
+        #         self.disconnected.emit()
+        #     # elif opkt.msg_type == 'SRVFIN2':
+        #         # return self._statemachine_client_response_srvfin1(opkt)
                 
-            else: qDebug('here')
-            pass
-        elif self.state == 'FIN_WAIT_2':
-            if opkt.msg_type == 'SRVFIN1':
-                opkt.msg_type = 'SRVFIN1_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+        #     else: qDebug('here')
+        #     pass
+        # elif self.state == 'FIN_WAIT_2':
+        #     if opkt.msg_type == 'SRVFIN1':
+        #         opkt.msg_type = 'SRVFIN1_ACK'
+        #         opkt.ack = opkt.seq + 1
+        #         self.transport.send(opkt.encode())
                 
-                self.state = 'TIME_WAIT'
-                return self._statemachine_client_response_srvfin1(opkt)
-            else: qDebug('here')
-            pass
-        elif self.state == 'TIME_WAIT':
-            # qDebug('here')
-            # qDebug('what pkt: %s???' % opkt.msg_type)
-            if opkt.msg_type == 'SRVFIN1_ACK':
-                self.sndwins.pop(opkt.seq)
-            elif opkt.msg_type == 'SRVFIN2_ACK':
-                self.sndwins.pop(opkt.seq)
-            else: qDebug('here')
-            pass
+        #         self.state = 'TIME_WAIT'
+        #         return self._statemachine_client_response_srvfin1(opkt)
+        #     else: qDebug('here')
+        #     pass
+        # elif self.state == 'TIME_WAIT':
+        #     # qDebug('here')
+        #     # qDebug('what pkt: %s???' % opkt.msg_type)
+        #     if opkt.msg_type == 'SRVFIN1_ACK':
+        #         self.sndwins.pop(opkt.seq)
+        #     elif opkt.msg_type == 'SRVFIN2_ACK':
+        #         self.sndwins.pop(opkt.seq)
+        #     else: qDebug('here')
+        #     pass
 
         ### 被动关闭端状态
-        elif self.state == 'CLOSE_WAIT':
+        if self.state == 'CLOSE_WAIT':
             # qDebug('omited')
-            if opkt.msg_type == 'SRVFIN1':
-                qDebug('maybe dup SRVFIN1 pkt')
+            if opkt.msg_type == 'SRVFIN':
+                # qDebug('maybe dup SRVFIN pkt')
+                # self.state = 'LAST_ACK'  ### 不应该在这出现的，也不应该改变当前状态
+                self.peer_closed = True
                 return self._statemachine_client_response_srvfin1(opkt)
-            elif opkt.msg_type == 'SRVFIN2_ACK':
-                if opkt.seq in self.sndwins: self.sndwins.pop(opkt.seq)
-                else: qDebug('why not found key: %d,%d' % (opkt.seq, opkt.ack))
+            # elif opkt.msg_type == 'SRVFIN2_ACK':
+            #     if opkt.seq in self.sndwins: self.sndwins.pop(opkt.seq)
+            #     else: qDebug('why not found key: %d,%d' % (opkt.seq, opkt.ack))
             else: qDebug('here')
             pass
         elif self.state == 'LAST_ACK':
-            if opkt.msg_type == 'CLIFIN2':
-                opkt.msg_type = 'CLIFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+            if opkt.msg_type == 'CLIFIN_ACK':
+                if opkt.seq in self.sndwins:
+                    self.sndwins.pop(opkt.seq)
+                else: qDebug('invlid ack pkt')
+                # opkt.msg_type = 'CLIFIN2_ACK'
+                # opkt.ack = opkt.seq + 1
+                # self.transport.send(opkt.encode())
                 
+                # self.state = 'CLOSED'
+                # qDebug('cli peer closed.')
+                # qDebug('emit disconnect event.')
+                # self.disconnected.emit()
                 self.state = 'CLOSED'
-                qDebug('cli peer closed.')
-                qDebug('emit disconnect event.')
-                self.disconnected.emit()
-            elif opkt.msg_type == 'SRVFIN1':
-                qDebug('maybe dup SRVFIN1 pkt')
+                # if self.transport.closed is True: qDebug('cli can send clifin pkt now')
+                
+            elif opkt.msg_type == 'SRVFIN':
+                qDebug('maybe dup SRVFIN pkt')
+                self.peer_closed = True
                 return self._statemachine_client_response_srvfin1(opkt)                
-            else: qDebug('here')                
+            else: qDebug('here')
             pass
 
         ### 主动与被关闭都存在的状态，但被动端首先进入关闭状态
         elif self.state == 'CLOSED':
             # qDebug('here')
-            if opkt.msg_type == 'SRVFIN1':
+            if opkt.msg_type == 'SRVFIN':
+                self.peer_closed = True
                 self._statemachine_client_response_srvfin1(opkt)
-            elif opkt.msg_type == 'SRVFIN2_ACK':
-                self.sndwins.pop(opkt.seq)
-            elif opkt.msg_type == 'CLIFIN2':
-                opkt.msg_type = 'CLIFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+            # elif opkt.msg_type == 'SRVFIN2_ACK':
+            #     self.sndwins.pop(opkt.seq)
+            elif opkt.msg_type == 'CLIFIN_ACK':
+                if opkt.seq in self.sndwins:
+                    self.sndwins.pop(opkt.seq)
+                else: qDebug('invlid ack pkt')
+
+                # opkt.msg_type = 'CLIFIN2_ACK'
+                # opkt.ack = opkt.seq + 1
+                # self.transport.send(opkt.encode())
             else: qDebug('here')
             pass
         else: qDebug('proto error: %s ' % self.state)
@@ -491,18 +517,18 @@ class Srudp(QObject):
         return
 
     def _statemachine_client_response_srvfin1(self, opkt):
-        opkt.msg_type = 'SRVFIN1_ACK'
+        opkt.msg_type = 'SRVFIN_ACK'
         opkt.ack = opkt.seq + 1
         self.transport.send(opkt.encode())
         
-        ropkt = SruPacket2()
-        ropkt.msg_type = 'SRVFIN2'
-        ropkt.extra = opkt.extra
-        ropkt.seq = self.selfseq
-        self.selfseq += 1
+        # ropkt = SruPacket2()
+        # ropkt.msg_type = 'SRVFIN2'
+        # ropkt.extra = opkt.extra
+        # ropkt.seq = self.selfseq
+        # self.selfseq += 1
 
-        self.sndpkts[ropkt.seq] = ropkt
-        self.attemp_flush()
+        # self.sndpkts[ropkt.seq] = ropkt
+        # self.attemp_flush()
         
         # res = self.transport.send(ropkt.encode())
         # time.sleep(0.0001)
@@ -515,18 +541,18 @@ class Srudp(QObject):
         return True
 
     def _statemachine_server_response_clifin1(self, opkt):
-        opkt.msg_type = 'CLIFIN1_ACK'
+        opkt.msg_type = 'CLIFIN_ACK'
         opkt.ack = opkt.seq + 1
         self.transport.send(opkt.encode())
         
-        ropkt = SruPacket2()
-        ropkt.msg_type = 'CLIFIN2'
-        ropkt.extra = opkt.extra
-        ropkt.seq = self.selfseq
-        self.selfseq += 1
+        # ropkt = SruPacket2()
+        # ropkt.msg_type = 'CLIFIN2'
+        # ropkt.extra = opkt.extra
+        # ropkt.seq = self.selfseq
+        # self.selfseq += 1
 
-        self.sndpkts[ropkt.seq] = ropkt
-        self.attemp_flush()
+        # self.sndpkts[ropkt.seq] = ropkt
+        # self.attemp_flush()
         
         # res = self.transport.send(ropkt.encode())
         # time.sleep(0.0001)
@@ -540,87 +566,103 @@ class Srudp(QObject):
 
     # 关闭状态机，两端共用，
     def _statemachine_server_close_handler(self, opkt):
+        qDebug(opkt.encode())
+        
         ### 主动关闭状态处理
         if self.state == 'FIN_WAIT_1':
-            if opkt.msg_type == 'SRVFIN1_ACK':
-                if opkt.seq in self.sndwins: self.sndwins.pop(opkt.seq)
+            if opkt.msg_type == 'SRVFIN_ACK':
+                if opkt.seq in self.sndwins:
+                    self.state = 'FIN_WAIT_2'
+                    self.sndwins.pop(opkt.seq)
                 else: qDebug('invalid pkt %d?' % opkt.seq)
-            elif opkt.msg_type == 'SRVFIN2':
-                self.state = 'FIN_WAIT_2'
-                # if self.peer_closed:
+            # elif opkt.msg_type == 'SRVFIN2':
+            #     self.state = 'FIN_WAIT_2'
+            #     # if self.peer_closed:
                 
-                opkt.msg_type = 'SRVFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+            #     opkt.msg_type = 'SRVFIN2_ACK'
+            #     opkt.ack = opkt.seq + 1
+            #     self.transport.send(opkt.encode())
                 
-                qDebug('emit disconnect event.')
-                self.disconnected.emit()
-            elif opkt.msg_type == 'CLIFIN1':
-                self.state = 'TIME_WAIT'
-                return self._statemachine_server_response_clifin1(opkt)
-            elif opkt.msg_type == 'CLIFIN2_ACK':
-                self.sndwins.pop(opkt.seq)
+            #     qDebug('emit disconnect event.')
+            #     self.disconnected.emit()
+            # elif opkt.msg_type == 'CLIFIN':
+            #     self.state = 'TIME_WAIT'
+            #     return self._statemachine_server_response_clifin1(opkt)
+            # elif opkt.msg_type == 'CLIFIN_ACK':
+            #     self.sndwins.pop(opkt.seq)
             else: qDebug('here')
             pass
         elif self.state == 'FIN_WAIT_2':
-            if opkt.msg_type == 'CLIFIN1':
+            if opkt.msg_type == 'CLIFIN':
                 self.state = 'TIME_WAIT'
+                self.peer_closed = True
                 return self._statemachine_server_response_clifin1(opkt)
-            elif opkt.msg_type == 'SRVFIN2':
-                self.state = 'TIME_WAIT'
+            elif opkt.msg_type == 'SRVFIN_ACK':   # SRVFIN重发造成的
+                if opkt.seq in self.sndwins:
+                    # self.state = 'FIN_WAIT_2'
+                    self.sndwins.pop(opkt.seq)
+                else: qDebug('invalid pkt %d?' % opkt.seq)
+            # elif opkt.msg_type == 'SRVFIN2':
+            #     self.state = 'TIME_WAIT'
 
-                opkt.msg_type = 'SRVFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+            #     opkt.msg_type = 'SRVFIN2_ACK'
+            #     opkt.ack = opkt.seq + 1
+            #     self.transport.send(opkt.encode())
                 
-                qDebug('emit disconnect event.')
-                self.disconnected.emit()
+            #     qDebug('emit disconnect event.')
+            #     self.disconnected.emit()
             else: qDebug('here')
             pass
         elif self.state == 'TIME_WAIT':
             # qDebug('here')
             # qDebug('what pkt: %s???' % opkt.msg_type)
 
-            if opkt.msg_type == 'CLIFIN2_ACK':
-                self.peer_closed = True
-                self.peerClosed.emit()
-                # qDebug('emit disconnect event.')
-                # self.disconnected.emit()
-            elif opkt.msg_type == 'SRVFIN2':
-                opkt.msg_type = 'SRVFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+            if opkt.msg_type == 'CLIFIN':
+                # self.state = 'TIME_WAIT'
+                return self._statemachine_server_response_clifin1(opkt)
             else: qDebug('here')
+
+            # if opkt.msg_type == 'CLIFIN2_ACK':
+            #     self.peer_closed = True
+            #     self.peerClosed.emit()
+            #     # qDebug('emit disconnect event.')
+            #     # self.disconnected.emit()
+            # elif opkt.msg_type == 'SRVFIN2':
+            #     opkt.msg_type = 'SRVFIN2_ACK'
+            #     opkt.ack = opkt.seq + 1
+            #     self.transport.send(opkt.encode())
+            # else: qDebug('here')
             pass
 
+        
         ### 被动关闭端状态
-        elif self.state == 'CLOSE_WAIT':
-            qDebug('omited')
-            if opkt.msg_type == 'CLIFIN1':
-                qDebug('maybe dup CLIFIN1 pkt')
-                opkt.msg_type = 'CLIFIN1_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
-            pass
-        elif self.state == 'LAST_ACK':
-            if opkt.msg_type == 'SRVFIN2':
-                opkt.msg_type = 'SRVFIN2_ACK'
-                opkt.ack = opkt.seq + 1
-                self.transport.send(opkt.encode())
+        # elif self.state == 'CLOSE_WAIT':
+        #     qDebug('omited')
+        #     if opkt.msg_type == 'CLIFIN1':
+        #         qDebug('maybe dup CLIFIN1 pkt')
+        #         opkt.msg_type = 'CLIFIN1_ACK'
+        #         opkt.ack = opkt.seq + 1
+        #         self.transport.send(opkt.encode())
+        #     pass
+        # elif self.state == 'LAST_ACK':
+        #     if opkt.msg_type == 'SRVFIN2':
+        #         opkt.msg_type = 'SRVFIN2_ACK'
+        #         opkt.ack = opkt.seq + 1
+        #         self.transport.send(opkt.encode())
                 
-                self.state = 'CLOSED'
-                qDebug('srv peer closed.')
-                qDebug('emit disconnect event.')
-                self.disconnected.emit()
-            else: qDebug('here')
-            pass
+        #         self.state = 'CLOSED'
+        #         qDebug('srv peer closed.')
+        #         qDebug('emit disconnect event.')
+        #         self.disconnected.emit()
+        #     else: qDebug('here')
+        #     pass
 
         ### 主动与被关闭都存在的状态，但被动端首先进入关闭状态
         elif self.state == 'CLOSED':
-            # qDebug('here')
-            if opkt.msg_type == 'CLIFIN1':
-                res = self._statemachine_server_response_clifin1(opkt)
-            else: qDebug('here')
+            qDebug('here')
+            # if opkt.msg_type == 'CLIFIN1':
+            #     res = self._statemachine_server_response_clifin1(opkt)
+            # else: qDebug('here')
             pass
         else: qDebug('proto error: %s ' % self.state)
         
@@ -629,6 +671,8 @@ class Srudp(QObject):
     
     # @return True|False|None
     def _statemachine_server(self, opkt):
+        old_state = self.state
+        
         if self.state == 'INIT':
             if opkt.msg_type == 'SYN' and opkt.seq > 0:
                 self.state = 'SYN_RCVD'
@@ -657,7 +701,7 @@ class Srudp(QObject):
                 pass
             else: qDebug('proto error: except syn ack')
         elif self.state == 'ESTAB':
-            if opkt.msg_type == 'CLIFIN1':
+            if opkt.msg_type == 'CLIFIN':
                 self.self_passive_close = True
                 res = self._statemachine_server_response_clifin1(opkt)
                 return res
@@ -699,6 +743,8 @@ class Srudp(QObject):
         ### 主动与被关闭都存在的状态，但被动端首先进入关闭状态
         elif self.state == 'CLOSED':  self._statemachine_server_close_handler(opkt)
         else: qDebug('proto error: %s ' % self.state)
+
+        qDebug('state from %s => %s' % (old_state, self.state))
 
         return
 
@@ -767,7 +813,10 @@ class Srudp(QObject):
         ccc_buf_size = Srudp.CCC_BUF_SIZE
         ccc_win_size = Srudp.CCC_WIN_SIZE
 
-        if len(self.sndwins) >= ccc_win_size: return 0
+        if len(self.sndwins) >= ccc_win_size:
+            qDebug('sndwin full: %d' % self.chano)
+            ### send timeout packet in sndwins
+            return 0
         
         dkeys = self.sndpkts.keys()
         keys = []
@@ -786,7 +835,21 @@ class Srudp(QObject):
             self.transport.send(spkt.pkt.encode())
         qDebug('send net count: %d, win: %d, buf: %d @%d-%s' %
                (wrcnt, len(self.sndwins), len(self.sndpkts), self.chano, self.state))
-        
+
+
+        ### try resent timeout pkts
+        # rwrcnt = 0
+        # if wrcnt == 0 and len(self.sndwins) > 0:
+        #     for key in self.sndwins:
+        #         spkt = self.sndwins[key]
+        #         if spkt.needResent() is True:
+        #             rwrcnt += 1
+        #             self.transport.send(spkt.pkt.encode())
+        #         if rwrcnt > 5: break
+
+        # qDebug('resend net count: %d/%d, win: %d, buf: %d @%d-%s' %
+        #        (wrcnt, rwrcnt, len(self.sndwins), len(self.sndpkts), self.chano, self.state))
+
         return wrcnt
     
     def getLossPackets(self):
@@ -809,8 +872,51 @@ class Srudp(QObject):
             # self.bytesWritten.emit()
             self._promise_bytes_written()
 
-        qDebug('blen: %d, wlen: %d @%d-%s' % (len(self.sndpkts), len(self.sndwins), self.chano, self.state))
-            
+        qDebug('blen: %d, wlen: %d, slen: %d, @%d-%s' %
+               (len(self.sndpkts), len(self.sndwins), n, self.chano, self.state))
+
+        
+        ### 没有数据需要发送了
+        emitfin = False
+        # if n > 0 and
+        if self.mode == 'SERVER':
+            if self.transport.closed is True and len(self.sndwins) == 0 \
+               and len(self.sndpkts) == 0 and self.state == 'ESTAB':
+                qDebug('should send SRVFIN pkt now......%d' % self.chano)
+                self.can_close = True
+                emitfin = True
+                self.canClose.emit()
+                pass
+        elif self.mode == 'CLIENT':
+            if self.transport.closed is True and len(self.sndwins) == 0 \
+               and len(self.sndpkts) == 0 and self.state == 'CLOSE_WAIT':
+                qDebug('should send CLIFIN pkt now......%d' % self.chano)
+                self.can_close = True
+                emitfin = True
+                self.canClose.emit()
+                pass
+            pass
+
+
+        ### 在下一个事件循环中才执行
+        if self.can_close is True and emitfin is False:
+            if self.mode == 'SERVER':
+                # state == 'TIME_WAIT' and TIME_WAIT_TIMEOUT > 30000
+                nowtime = QDateTime.currentDateTime()
+                duration = self.begin_close_time.msecsTo(nowtime)
+                if duration > 35000 and self.state == 'TIME_WAIT':  # 35 secs
+                    self.rudpc_close = True
+                    qDebug('rudpc closed: %d' % self.chano)
+                    self.disconnected.emit()
+                    # self.timeWaitTimeout.emit()                    
+                pass
+            elif self.mode == 'CLIENT':
+                if self.state == 'CLOSED':
+                    self.rudpc_close = True
+                    qDebug('rudpc closed: %d' % self.chano)
+                    self.disconnected.emit()
+                pass
+        
         return
 
     def _promise_bytes_written(self):
@@ -818,8 +924,9 @@ class Srudp(QObject):
             self.bytesWritten.emit()
         return
 
+    
     def startCheckClose(self):
-        self.disconnection_monitor.start()
+        # self.disconnection_monitor.start()
         return
 
     def _promise_can_close(self):

@@ -63,6 +63,7 @@ class ToxNetTunCli(QObject):
             self.tcpsrvs[i] = srv
             self.tcpsrvs[srv] = rec
             i = i + 1
+
         return
 
 
@@ -80,6 +81,7 @@ class ToxNetTunCli(QObject):
             self._toxnetTryFriendAdd(con, i)
             i += 1
             pass
+
         return
     
     def _toxnetDisconnected(self):
@@ -151,7 +153,7 @@ class ToxNetTunCli(QObject):
         qDebug(friendId)
 
         tmsg = json.JSONDecoder().decode(msg)
-        qDebug(str(tmsg))
+        # qDebug(str(tmsg))
         
         # dispatch的过程
         opkt = SruPacket2.decode(msg)
@@ -181,7 +183,7 @@ class ToxNetTunCli(QObject):
             # self.toxkit.sendMessage(chan.con.peer, jspkt)
             qDebug('here')
             pass
-        elif opkt.msg_type == 'SRVFIN1':
+        elif opkt.msg_type == 'SRVFIN':
             jmsg = opkt.extra
             chano = jmsg['chcli']
             if chano not in self.chans:
@@ -244,21 +246,32 @@ class ToxNetTunCli(QObject):
         qDebug('here')
         udp = self.sender()
         chan = self.chans[udp]
-        while chan.sock.bytesAvailable() > 0:
-            bcc = chan.sock.read(128)
-            print('first cli data chrunk: ', bcc)
-            self._toxnetWrite(chan, bcc)
-            # data = QByteArray(bcc).toHex().data().decode('utf8')
-            # extra = {'chano': chan.chano}
 
-            # jspkt = udp.buf_send_pkt(data, extra)
-            # self.toxkit.sendMessage(chan.con.peer, jspkt)
+        if chan.sock.bytesAvailable() > 0:
+            chan.sock.readyRead.emit()
+            
+        # while chan.sock.bytesAvailable() > 0:
+        #     bcc = chan.sock.read(128)
+        #     print('first cli data chrunk: ', bcc)
+        #     self._toxnetWrite(chan, bcc)
+
+            
+        #     # data = QByteArray(bcc).toHex().data().decode('utf8')
+        #     # extra = {'chano': chan.chano}
+            
+        #     # jspkt = udp.buf_send_pkt(data, extra)
+        #     # self.toxkit.sendMessage(chan.con.peer, jspkt)
         
         return
 
     def _toxchanDisconnected(self):
         qDebug('here')
         udp = self.sender()
+
+        if udp not in self.chans:
+            qDebug('maybe already cleanuped: %d' % udp.chano)
+            return
+        
         chan = self.chans[udp]
         sock = chan.sock
 
@@ -362,6 +375,8 @@ class ToxNetTunCli(QObject):
 
         sock = chan.sock
         udp = chan.rudp
+
+        udp.step_send_timer.stop()
         
         # 清理资源
         if sock not in self.chans: qDebug('sock maybe already closed')
@@ -392,6 +407,10 @@ class ToxNetTunCli(QObject):
     def _onNewTcpConnection(self):
         srv = self.sender()
         rec = self.tcpsrvs[srv]
+
+        ###TODO if friend is not connected: reset this request
+        if srv not in self.cons:
+            qDebug('maybe toxnet not ready.')
 
         sock = srv.nextPendingConnection()
         sock.readyRead.connect(self._onTcpReadyRead)
@@ -584,10 +603,14 @@ class ToxNetTunCli(QObject):
         promise_results['whole'] = promise_result
 
         ### some raw status
+        promise_results['pasv_close'] = chan.rudp.self_passive_close
         promise_results['state'] = chan.rudp.state
-        promise_results['conn_btime'] = chan.rudp.connect_begin_time
-        promise_results['conn_wait_time'] = chan.rudp.connect_begin_time.msecsTo(nowtime)
+        promise_results['conn_btime'] = chan.rudp.connect_begin_time.toString()
+        promise_results['conn_dtime'] = chan.rudp.connect_begin_time.msecsTo(nowtime)
         promise_results['can_close'] = chan.rudp.can_close
+
+        promise_results['sock_rdlen'] = chan.rdlen
+        promise_results['sock_wrlen'] = chan.wrlen
         
         return promise_results
 

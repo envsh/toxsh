@@ -152,7 +152,7 @@ class ToxNetTunSrv(QObject):
             # self.toxkit.sendMessage(chan.con.peer, ropkt)
             
             pass
-        elif opkt.msg_type == 'CLIFIN1':
+        elif opkt.msg_type == 'CLIFIN':
             jmsg = opkt.extra
             chan = self.chans[jmsg['chsrv']]
             res = chan.rudp.buf_recv_pkt(msg)
@@ -223,7 +223,7 @@ class ToxNetTunSrv(QObject):
 
     def _toxchanBytesWritten(self):
         udp = self.sender()
-        chan =self.chans[udp]
+        chan = self.chans[udp]
 
         chan.sock.readyRead.emit()
         
@@ -232,6 +232,11 @@ class ToxNetTunSrv(QObject):
     def _toxchanDisconnected(self):
         qDebug('here')
         udp = self.sender()
+
+        if udp not in self.chans:
+            qDebug('maybe already cleanuped: %d' % udp.chano)
+            return
+        
         chan = self.chans[udp]
         sock = chan.sock
 
@@ -523,6 +528,18 @@ class ToxNetTunSrv(QObject):
 
         promise_result = True
         for pk in promise_results: promise_result = promise_result and promise_results[pk]
+
+        promise_results['whole'] = promise_result
+
+        ### some raw status
+        promise_results['pasv_close'] = chan.rudp.self_passive_close
+        promise_results['state'] = chan.rudp.state
+        # promise_results['conn_btime'] = chan.rudp.connect_begin_time
+        # promise_results['conn_dtime'] = chan.rudp.connect_begin_time.msecsTo(nowtime)
+        promise_results['can_close'] = chan.rudp.can_close
+
+        promise_results['sock_rdlen'] = chan.rdlen
+        promise_results['sock_wrlen'] = chan.wrlen
 
         return promise_results
 

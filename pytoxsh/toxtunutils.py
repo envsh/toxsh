@@ -159,7 +159,7 @@ class ToxTunChannel():
 
         # extra info, like stats, time, speed
         self.pktnum = 0
-        self.rdlen = 0
+        self.rdlen = 0  # about socket
         self.wrlen = 0
         self.tnlen = 0  # toxnet length, calc net work data length
         self.ctime = QDateTime.currentDateTime()
