@@ -96,7 +96,28 @@ class ToxNetTunSrv(QObject):
         # self.cmdno = self.cmdno +1
         # return self.cmdno
         return
-    
+
+    def _hotfix_resp_clifin1(self, peer, opkt):
+        qDebug('here')
+        
+        ropkt = SruPacket2()
+        ropkt.msg_type = 'CLIFIN_ACK'
+        ropkt.extra = opkt.extra
+        ropkt.seq = opkt.seq
+        ropkt.ack = opkt.seq + 1
+
+        # 不知道peer是谁啊，怎么回包呢？
+        self.toxkit.sendMessage(peer, ropkt.encode())
+        # res = self.transport.send(ropkt.encode())
+        # time.sleep(0.0001)
+        # self.toxkit.sendMessage(peer, ropkt.encode())
+        # res = self.transport.send(ropkt.encode())
+        #self.peer_closed = True
+        # self.peerClosed.emit()
+        # qDebug('emit disconnect event.')
+        # self.disconnected.emit()
+        return
+
     def _toxnetFriendMessage(self, friendId, msg):
         qDebug(friendId)
         con = self.cons[friendId]
@@ -154,8 +175,14 @@ class ToxNetTunSrv(QObject):
             pass
         elif opkt.msg_type == 'CLIFIN':
             jmsg = opkt.extra
-            chan = self.chans[jmsg['chsrv']]
-            res = chan.rudp.buf_recv_pkt(msg)
+            chanosrv = jmsg['chsrv']
+            if chanosrv not in self.chans:
+                qDebug('pkt -> chan not exists: %d.' % chanosrv)
+                # TODO hotfix it
+                self._hotfix_resp_clifin1(friendId, opkt)
+            else:
+                chan = self.chans[jmsg['chsrv']]
+                res = chan.rudp.buf_recv_pkt(msg)
             # ropkt = chan.rudp.buf_recv_pkt(msg)
             # self.toxkit.sendMessage(chan.con.peer, ropkt)
         elif opkt.msg_type == 'DATA':
@@ -336,6 +363,9 @@ class ToxNetTunSrv(QObject):
 
         sock = chan.sock
         udp = chan.rudp
+
+        udp.step_send_timer.stop()
+        udp.losspkt_monitor.stop()
         
         # 清理资源
         if sock not in self.chans: qDebug('sock maybe already closed')
@@ -433,6 +463,7 @@ class ToxNetTunSrv(QObject):
             #bcc = sock.read(128)
             #self._toxnetWrite(chan, bcc)
             bcc = sock.peek(peekSize)
+            # qDebug('%s' % str(bcc))
             # encbcc = chan.transport.encodeData(bcc)
             # res = chan.rudp.attemp_send(encbcc, extra)
             res = chan.rudp.attemp_send(bcc, extra)

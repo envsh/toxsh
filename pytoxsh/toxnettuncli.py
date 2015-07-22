@@ -134,18 +134,20 @@ class ToxNetTunCli(QObject):
         qDebug('here')
         
         ropkt = SruPacket2()
-        ropkt.msg_type = 'SRVFIN2'
+        ropkt.msg_type = 'SRVFIN_ACK'
         ropkt.extra = opkt.extra
+        ropkt.seq = opkt.seq
+        ropkt.ack = opkt.seq + 1
 
         # 不知道peer是谁啊，怎么回包呢？
         self.toxkit.sendMessage(peer, ropkt.encode())
         # res = self.transport.send(ropkt.encode())
-        time.sleep(0.0001)
-        self.toxkit.sendMessage(peer, ropkt.encode())
+        # time.sleep(0.0001)
+        # self.toxkit.sendMessage(peer, ropkt.encode())
         # res = self.transport.send(ropkt.encode())
         #self.peer_closed = True
         # self.peerClosed.emit()
-        qDebug('emit disconnect event.')
+        # qDebug('emit disconnect event.')
         # self.disconnected.emit()
         return
 
@@ -522,6 +524,7 @@ class ToxNetTunCli(QObject):
         # qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
         
         n = sock.write(rawdata)
+        # sock.flush()
         chan.wrlen += n
         qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
         
