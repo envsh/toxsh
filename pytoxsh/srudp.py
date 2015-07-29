@@ -63,7 +63,9 @@ class SrudTransport():
         data = QByteArray.fromHex(QByteArray(data)).data()
         return data
     def decodeBase64(self, data):
-        decdata = QByteArray.fromBase64(data)
+        if type(data) == str: data = data.encode('utf8')
+        if type(data) == bytes: data = QByteArray(data)
+        decdata = QByteArray.fromBase64(data).data()
         return decdata 
     
 class SrudControl():
