@@ -223,7 +223,9 @@ class ToxTunFileChannel():
 
         # for close, promise all True for real defer chan obj
         self.peer_close = False
-        self.self_close = False
+        self.ctrl_close = False
+        self.sock_close = False
+        self.need_sent_close = False
         return
 
 

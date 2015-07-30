@@ -1,4 +1,8 @@
 
+Requirement:
+PyQt5.5
+
+
 TODO 压缩，提高传输效率
 稳定性，传输一半掉线后的处理。
 还是要使用类似udp模拟tcp功能。 OK1+

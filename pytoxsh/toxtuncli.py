@@ -17,15 +17,16 @@ class ToxTunCli(QObject):
 
     
 class ToxTunFileCli(ToxTunCli):
-    def __init__(self, parent = None):
+    def __init__(self, config_file = './toxtun.ini', parent = None):
         super(ToxTunFileCli, self).__init__(parent)
-        self.cfg = ToxTunConfig('./toxtun.ini')
+        # self.cfg = ToxTunConfig('./toxtun.ini')
+        self.cfg = ToxTunConfig(config_file)
         self.toxkit = None # QToxKit
         self.tcpsrvs = {}  # id => srv
         self.cons = {}     # peer => con
-        self.chans = {}   # sock => chan, chanocli_%d => chan, chanosrv_%d => chan
+        self.chans = {}   # sock => chan, chanocli_%d => chan
+        self.chano = 8
         self.cmdno = 7
-        self.chano = 7
         
         return
 
@@ -36,14 +37,15 @@ class ToxTunFileCli(ToxTunCli):
         return
 
     def _startToxNet(self):
-        toxkit = QToxKit('toxcli', False)
+        tkname = self.cfg.srvname
+        toxkit = QToxKit('toxcli', True)
 
-        toxkit.connected.connect(self._toxnetConnected)
-        toxkit.disconnected.connect(self._toxnetDisconnected)
-        toxkit.friendAdded.connect(self._toxnetFriendAdded)
-        toxkit.friendConnectionStatus.connect(self._toxnetFriendConnectionStatus)
-        toxkit.friendConnected.connect(self._toxnetFriendConnected)
-        toxkit.newMessage.connect(self._toxnetFriendMessage)
+        toxkit.connected.connect(self._toxnetConnected, Qt.QueuedConnection)
+        toxkit.disconnected.connect(self._toxnetDisconnected, Qt.QueuedConnection)
+        toxkit.friendAdded.connect(self._toxnetFriendAdded, Qt.QueuedConnection)
+        toxkit.friendConnectionStatus.connect(self._toxnetFriendConnectionStatus, Qt.QueuedConnection)
+        toxkit.friendConnected.connect(self._toxnetFriendConnected, Qt.QueuedConnection)
+        toxkit.newMessage.connect(self._toxnetFriendMessage, Qt.QueuedConnection)
         toxkit.fileRecv.connect(self._toxnetFileRecv, Qt.QueuedConnection)
         toxkit.fileRecvControl.connect(self._toxnetFileRecvControl, Qt.QueuedConnection)
         toxkit.fileRecvChunk.connect(self._toxnetFileRecvChunk, Qt.QueuedConnection)
@@ -57,7 +59,7 @@ class ToxTunFileCli(ToxTunCli):
         i = 0
         for rec in self.cfg.recs:
             srv = QTcpServer()
-            srv.newConnection.connect(self._onNewTcpConnection)
+            srv.newConnection.connect(self._onNewTcpConnection, Qt.QueuedConnection)
             ok = srv.listen(QHostAddress.Any, rec.local_port)
             qDebug(str(ok))
             self.tcpsrvs[i] = srv
@@ -78,13 +80,44 @@ class ToxTunFileCli(ToxTunCli):
             self.cons[con.peer] = con
             self.cons[con.srv] = con
 
-            self.toxkit.friendAdd(con.peer, 'from toxtun cli %d' % i)
+            self._toxnetTryFriendAdd(con, i)
+            # self.toxkit.friendAdd(con.peer, 'from toxtun cli %d' % i)
             i = i + 1
             
         return
     
     def _toxnetDisconnected(self):
         qDebug('here')
+        return
+
+    def _toxnetTryFriendAdd(self, con, idx):
+        qDebug(str(con.peer))
+        
+        friend_number = 0
+        add_norequest = False
+        friend_request_msg = 'from toxtun cli %d@%s' % (idx, self.cfg.srvname)
+
+        try:
+            # friend_number = self.toxkit.friendAddNorequest(con.peer)
+            pass
+        except Exception as e:
+            qDebug(str(e.args))
+
+       
+        try:
+            friend_number = self.toxkit.friendAdd(con.peer, friend_request_msg)
+        except Exception as e:
+            # print(e)
+            qDebug(str(e.args))
+            add_norequest = True
+
+        if True or add_norequest is True:
+            try:
+                friend_number = self.toxkit.friendAddNorequest(con.peer)
+            except Exception as e:
+                qDebug(str(e.args))
+        
+
         return
 
     def _toxnetFriendAdded(self, fid):
@@ -106,7 +139,9 @@ class ToxTunFileCli(ToxTunCli):
                 con = self.cons[id]
                 break
 
-        if con is None: qDebug('warning con not found')
+        if con is None:
+            qDebug('warning con not found')
+            return
 
         if con.self_file_number == -1:
             idprefix = friend_id[0:6]
@@ -186,16 +221,26 @@ class ToxTunFileCli(ToxTunCli):
         # print(friend_id, file_number, position, data)
 
         if ptype == 'CONNECT':
+            qDebug(str(jspkt))
             chanocli = pkt['chcli']
             chan = self.chans['chanocli_%d' % chanocli]
             chan.chanosrv = pkt['chsrv']
             qDebug('real connected, can read write now')
+            chan.sock.readyRead.emit()
             pass
         elif ptype == 'CLOSE':
+            qDebug(str(jspkt))
             chanocli = pkt['chcli']
             chan = self.chans['chanocli_%d' % chanocli]
             chan.peer_close = True
-            self._toxchanCleanup(chan)
+            con = chan.con
+            
+            fjspkt = '%1371s' % jspkt
+            if len(con.reqchunks) > 0:
+                reqinfo = con.reqchunks.pop(0)
+                self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+
+            self._toxchanPromiseCleanup(chan)
             pass
         elif ptype == 'WRITE':
             chanocli = pkt['chcli']
@@ -334,23 +379,38 @@ class ToxTunFileCli(ToxTunCli):
         res = chan.rudp.mkdiscon(extra)
         return
 
-    def _toxchanCleanup(self, chan):
+    def _toxchanPromiseCleanup(self, chan):
         sock = chan.sock
         chanocli_key = 'chanocli_%d' % chan.chanocli
-        chanosrv_key = 'chanosrv_%d' % chan.chanosrv
 
-        if chan.peer_close is True and chan.self_close is True: pass
-        else: return
+        promise_results = {
+            'peer_close': chan.peer_close,
+            # 'ctrl_close': chan.ctrl_close,
+            'sock_close': chan.sock_close,
+        }
+
+        promise_result = True
+        for pk in promise_results: promise_result = promise_result and promise_results[pk]
+
+        if promise_result is True:
+            qDebug('promise satisfied: %d<=>%d.' % (chan.chanocli, chan.chanosrv))
+        else:
+            qDebug('promise noooooot satisfied: %d<=>%d.' % (chan.chanocli, chan.chanosrv))
+            qDebug(str(promise_results))
+            return
+
+        # if chan.peer_close is True and chan.ctrl_close is True: pass
+        # else: return
 
         # 清理资源
         if sock not in self.chans: qDebug('sock maybe already closed')
         else: self.chans.pop(sock)
 
+        sock.disconnected.disconnect()
+        sock.close()
+
         if chanocli_key not in self.chans: qDebug('chcli maybe already closed')
         else: self.chans.pop(chanocli_key)
-
-        if chanosrv_key not in self.chans: qDebug('chsrv already closed222')
-        else: self.chans.pop(chanosrv_key)
 
         qDebug('chans size: %d' % len(self.chans))
         
@@ -436,14 +496,14 @@ class ToxTunFileCli(ToxTunCli):
         jspkt = json.JSONEncoder().encode(pkt)
         fjspkt = '%1371s' % jspkt
 
-        if len(con.reqchunks) > 0:
-            reqinfo = con.reqchunks.pop(0)
-            bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
-            qDebug(str(bret))
+        # if len(con.reqchunks) > 0:
+        #    reqinfo = con.reqchunks.pop(0)
+        #    bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+        #    qDebug(str(bret))
 
         #
-        chan.self_close = True
-        self._toxchanCleanup(chan)
+        chan.sock_close = True
+        self._toxchanPromiseCleanup(chan)
             
         # chan = self.chans[sock]
         # chano = chan.chano
@@ -469,6 +529,10 @@ class ToxTunFileCli(ToxTunCli):
         sock = self.sender()
         chan = self.chans[sock]
         con = chan.con
+
+        if chan.chanosrv == 0:
+            qDebug('maybe not connected')
+            return
 
         peekSize = 128  # 897  # 987时就有可能导致超长拆包发送
         cnter = 0
@@ -531,22 +595,41 @@ class ToxTunFileCli(ToxTunCli):
     def _tcpWrite(self, chan, data):
         sock = chan.sock
         chan = self.chans[sock]
+        
         # qDebug('netsize: %d, %s' % (len(data), str(data)))
+        if type(data) == str: data = data.encode('utf8')
         rawdata = QByteArray.fromBase64(data)
         # rawdata = chan.transport.decodeData(data)
         # qDebug('rawsize: %d, %s' % (len(rawdata), str(rawdata)))
+        print(rawdata[len(rawdata)-50:])
         
         n = sock.write(rawdata)
         chan.wrlen += n
         qDebug('XDR: toxnet->sock: %d/%d' % (n, chan.wrlen))
         
         return
-    
+
+
 def main():
     app = QCoreApplication(sys.argv)
     qtutil.pyctrl()
 
-    tuncli = ToxTunFileCli()
+    config_file = './toxtun.ini'
+    if len(sys.argv) == 2:
+        config_file = sys.argv[1]
+        if not os.path.exists(config_file):
+            print('config file is not exists: %s' % config_file)
+            help()
+            sys.exit(1)
+    elif len(sys.argv) == 1:
+        pass
+    else:
+        print('provide a valid config file please')
+        help()
+        sys.exit(1)
+
+    
+    tuncli = ToxTunFileCli(config_file)
     tuncli.start()
     
     app.exec_()

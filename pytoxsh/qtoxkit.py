@@ -198,7 +198,7 @@ class QToxKit(QThread):
     disconnected = pyqtSignal()
     friendRequest = pyqtSignal('QString', 'QString')
     friendAdded = pyqtSignal('QString')
-    newMessage = pyqtSignal('QString', 'QString')
+    newMessage = pyqtSignal('QString', int, 'QString')
     friendConnected = pyqtSignal('QString')
     friendConnectionStatus = pyqtSignal('QString', bool)
     fileRecvControl = pyqtSignal('QString', int, int)
@@ -311,8 +311,8 @@ class QToxKit(QThread):
 
     def bootDHTLocal(self):
         mylonode = ['127.0.0.1', 33445,
-                    'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
-                    # '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
+                    # 'FEDCF965A96C7FBE87DFF9454980F36C43D7C1D9483E83CBD717AA02865C5B2B']
+                    '320207C17B870DDDA8DDF1EEC474B2B12A26BC31F786C88EA9AB51590E916D48']   # for no network
 
         bsret = self.tox.bootstrap(mylonode[0], mylonode[1], mylonode[2])
         rlyret = self.tox.add_tcp_relay(mylonode[0], mylonode[1], mylonode[2])
@@ -347,8 +347,15 @@ class QToxKit(QThread):
         qDebug('my status: %s' % str(status))
         fnum = self.tox.self_get_friend_list_size()
         qDebug('friend count: %d' % fnum)
-        # 为什么friend count是0个呢？，难道是因为没有记录吗？
+        # 为什么friend count是0个呢？，难道是因为没有记录吗？是因为每次加好友没有保存savedata
         # 果然是这个样子的
+        flist = self.tox.self_get_friend_list()
+        qDebug(str(flist))
+        for f in flist:
+            s = self.tox.friend_get_status(f)
+            qDebug('%d: status = %d' % (f, s))
+            self.tox.friend_delete(f)
+            
         
         friends = self.friends
         if status is True and self.first_connected:
@@ -360,11 +367,19 @@ class QToxKit(QThread):
             n = 0
             for friend in friends:
                 if cnter < 3 or cnter >= (len(friends) - 3):
-                    self.tox.friend_add_norequest(friends[cnter])
+                    try:
+                        self.tox.friend_add_norequest(friends[cnter])
+                        pass
+                    except Exception as e:
+                        qDebug(str(e.args))
                     n += 1
                 cnter += 1
             qDebug('add old friend: %d/%d' % (n, len(friends)))
             # self.connected.emit()
+            
+            newdata = self.tox.get_savedata()
+            # print(len(newdata), newdata[0:32])
+            self.sets.saveData(newdata)
 
         return
 
@@ -372,14 +387,24 @@ class QToxKit(QThread):
         qDebug(str(pubkey))
         qDebug(str(data))
 
+        if pubkey in self.friends:
+            qDebug('already in friendlist:')
+            self.friendAdded.emit(pubkey)
+            return
+        
         self.friends.append(pubkey)
         self.sets.saveFriends(self.friends)
-
+        
         fnum = self.tox.friend_add_norequest(pubkey)
         qDebug(str(fnum))
 
         self.friendAdded.emit(pubkey)
         # self.tox.send_message(fnum, 'hehe accept')
+
+        
+        newdata = self.tox.get_savedata()
+        # print(len(newdata), newdata[0:32])
+        self.sets.saveData(newdata)
 
         return
     
@@ -388,19 +413,34 @@ class QToxKit(QThread):
         friend_pubkey = self.tox.friend_get_public_key(fno)
         self.friendConnectionStatus.emit(friend_pubkey, status)
         if status is True: self.friendConnected.emit(friend_pubkey)
+        if status is True:
+            newdata = self.tox.get_savedata()
+            # print(len(newdata), newdata[0:32])
+            self.sets.saveData(newdata)
+
         return
 
     def friendAdd(self, friendId, msg):
         rc = self.tox.friend_add(friendId, msg)
         qDebug(str(rc))
+
+        if rc < 10000:
+            newdata = self.tox.get_savedata()
+            # print(len(newdata), newdata[0:32])
+            self.sets.saveData(newdata)
         return rc
 
     def friendAddNorequest(self, friendId):
         rc = self.tox.friend_add_norequest(friendId)
         qDebug(str(rc))
+
+        if rc < 10000:
+            newdata = self.tox.get_savedata()
+            # print(len(newdata), newdata[0:32])
+            self.sets.saveData(newdata)
         return rc
     
-    def onFriendMessage(self, fno, msg):
+    def onFriendMessage(self, fno, msg_type, msg):
         # qDebug('here')
         u8msg = msg.encode('utf8') # str ==> bytes
         #print(u8msg)
@@ -410,7 +450,7 @@ class QToxKit(QThread):
         
         fid = self.tox.friend_get_public_key(fno)
         # print('hehre: fnum=%s, fid=%s, msg=' % (str(fno), str(fid)), u8msg)
-        self.newMessage.emit(fid, msg)
+        self.newMessage.emit(fid, msg_type, msg)
         return
 
     def onFriendStatus(self, fno, status):
@@ -432,7 +472,7 @@ class QToxKit(QThread):
         while pos < len(msg):
             msgn = msg[pos:(pos + mlen)]
             pos = pos + mlen
-            self.tox.friend_send_message(fno, msgn)
+            self.tox.friend_send_message(fno, Tox.MESSAGE_TYPE_NORMAL, msgn)
         return
 
     def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
