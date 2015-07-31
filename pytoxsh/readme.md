@@ -3,6 +3,7 @@ Requirement:
 PyQt5.5
 
 
+##### tun over msg
 TODO 压缩，提高传输效率
 稳定性，传输一半掉线后的处理。
 还是要使用类似udp模拟tcp功能。 OK1+
@@ -24,6 +25,7 @@ chano重复的问题。OK，已采用双向chano机制。
 传输内容长度检验。。。   (原来是因为nginx upstream的问题，默认使用了http/1.0) OK
 http访问时有下载数据下载不完全的问题。 (同上) OK
 
+##### tun over file
 
 
 对比测试：

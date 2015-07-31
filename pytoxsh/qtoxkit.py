@@ -349,17 +349,19 @@ class QToxKit(QThread):
         qDebug('friend count: %d' % fnum)
         # 为什么friend count是0个呢？，难道是因为没有记录吗？是因为每次加好友没有保存savedata
         # 果然是这个样子的
-        flist = self.tox.self_get_friend_list()
-        qDebug(str(flist))
-        for f in flist:
-            s = self.tox.friend_get_status(f)
-            qDebug('%d: status = %d' % (f, s))
-            self.tox.friend_delete(f)
             
         
         friends = self.friends
         if status is True and self.first_connected:
             self.first_connected = False
+
+            flist = self.tox.self_get_friend_list()
+            qDebug(str(flist))
+            for f in flist:
+                s = self.tox.friend_get_status(f)
+                qDebug('%d: status = %d' % (f, s))
+                self.tox.friend_delete(f)
+
             #for friend in friends:
             #    self.tox.friend_add_norequest(friend)
 
@@ -477,11 +479,8 @@ class QToxKit(QThread):
 
     def onFileRecv(self, friend_number, file_number, kind, file_size, filename):
         qDebug('on file recv:')
-        qDebug(str(friend_number))
-        qDebug(str(file_number))
-        qDebug(str(kind))
-        qDebug(str(file_size))
-        qDebug(str(filename))
+        args = (friend_number, file_number, kind, file_size, filename)
+        qDebug(str(args))
 
         friend_pubkey = self.tox.friend_get_public_key(friend_number)
         self.fileRecv.emit(friend_pubkey, file_number, file_size, filename)
@@ -516,9 +515,9 @@ class QToxKit(QThread):
     
     def fileControl(self, friend_pubkey, file_number, control):
         friend_number = self.tox.friend_by_public_key(friend_pubkey)
-        self.tox.file_control(friend_number, file_number, control)
+        bret = self.tox.file_control(friend_number, file_number, control)
         
-        return
+        return bret
     
     def onFileRecvControl(self, friend_number, file_number, control):
         friend_id = self.tox.friend_get_public_key(friend_number)

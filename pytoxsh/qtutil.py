@@ -46,7 +46,14 @@ def qt_debug_handler(tp, ctx, msg):
         fn = 'errfh'
 
     line = ctx.line
-    function = ctx.function
+    function = None
+    try:
+        if type(ctx.function) == str: function = ctx.function
+        elif type(ctx.function) == bytes: function = ctx.function.decode('utf8')
+        else: function = ctx.function
+    except:
+        print('EEE:', ctx.function)
+
     if ctx.function == None: function = 'qtinternal'
     
     flog = "[" + tmstr + "] T(" + tid + ") " + fn + ":" + str(line) + " " + function \

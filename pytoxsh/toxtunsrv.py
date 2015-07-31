@@ -90,7 +90,7 @@ class ToxTunFileSrv(ToxTunSrv):
         return
 
     def _nextChano(self):
-        self.chano = self.chano +1
+        self.chano = self.chano +2
         return self.chano
 
     def _nextCmdno(self):

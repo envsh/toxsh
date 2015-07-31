@@ -149,9 +149,30 @@ class ToxTunFileCli(ToxTunCli):
             file_size = pow(2, 56)
             file_number = self.toxkit.fileSend(con.peer, file_size, file_name)
             con.self_file_number = file_number
+            con.reqchunks = []   # reset，在给self_file_number重置时，也要重置reqchunks
             qDebug('new cli file %d' % file_number)
             self_file_to_con_key = 'file_to_con_%d_%s' % (file_number, friend_id)
             self.cons[self_file_to_con_key] = con
+        else:
+            ### tests send ping
+            qDebug('maybe resue offlined file channel')
+            chan = None
+            for k in self.chans:
+                if type(k) == QTcpSocket and self.chans[k].con == con:
+                    chan = self.chans[k]
+                    break
+            if chan is None:
+                qDebug('chan about this con not found')
+            else:
+                pkt = {'chcli': chan.chanocli , 'chsrv': chan.chanosrv, 'type': 'PING', 'ttl':1}
+                jspkt = json.JSONEncoder().encode(pkt)
+                fjspkt = '%1371s' % jspkt
+                bret = self.toxkit.fileControl(con.peer, con.self_file_number, 0)
+                qDebug(str(bret))
+                if len(con.reqchunks) > 0:
+                    reqinfo = con.reqchunks.pop(0)
+                    bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+                else: qDebug('no free chunks found')
 
         return
 
@@ -165,10 +186,15 @@ class ToxTunFileCli(ToxTunCli):
                 con = self.cons[id]
                 break
 
-        if con is None: qDebug('warning con not found')
+        if con is None:
+            qDebug('warning con not found')
+            return
 
-        if con.peer_file_number != -1: qDebug('warning, maybe reuse file channel')
-        
+        curr_self_file_number = con.self_file_number
+        if con.peer_file_number != -1:
+            qDebug('warning, maybe reuse file channel')
+
+
         con.peer_file_number = file_number
         peer_file_to_con_key = 'peer_file_to_con_%d_%s' % (file_number, friend_id)
         self.cons[peer_file_to_con_key] = peer_file_to_con_key
@@ -231,21 +257,35 @@ class ToxTunFileCli(ToxTunCli):
         elif ptype == 'CLOSE':
             qDebug(str(jspkt))
             chanocli = pkt['chcli']
-            chan = self.chans['chanocli_%d' % chanocli]
-            chan.peer_close = True
-            con = chan.con
-            
-            fjspkt = '%1371s' % jspkt
-            if len(con.reqchunks) > 0:
-                reqinfo = con.reqchunks.pop(0)
-                self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+            chanokey = 'chanocli_%d' % chanocli
+            #chan = self.chans['chanocli_%d' % chanocli]
 
-            self._toxchanPromiseCleanup(chan)
+            if chanokey in self.chans:
+                chan = self.chans[chanokey]
+                chan.peer_close = True
+                con = chan.con
+            
+                fjspkt = '%1371s' % jspkt
+                if len(con.reqchunks) > 0:
+                    reqinfo = con.reqchunks.pop(0)
+                    bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+
+                self._toxchanPromiseCleanup(chan)
+            else:
+                chanosrv = pkt['chsrv']
+                qDebug('no assoc chan found: %d/%d' % (chanocli, chanosrv))
+                
             pass
         elif ptype == 'WRITE':
             chanocli = pkt['chcli']
-            chan = self.chans['chanocli_%d' % chanocli]
-            self._tcpWrite(chan, pkt['data'])
+            chanokey = 'chanocli_%d' % chanocli
+            # chan = self.chans['chanocli_%d' % chanocli]
+            if chanokey in self.chans:
+                chan = self.chans[chanokey]  
+                self._tcpWrite(chan, pkt['data'])
+            else:
+                chanosrv = pkt['chsrv']
+                qDebug('chan not exist: %d/%d' % (chanocli, chanosrv))
             pass
         else: qDebug('ptype error: %s' % ptype)
         
@@ -417,7 +457,7 @@ class ToxTunFileCli(ToxTunCli):
         return
 
     def _nextChano(self):
-        self.chano = self.chano +1
+        self.chano = self.chano +2
         return self.chano
 
     def _nextCmdno(self):
@@ -425,6 +465,7 @@ class ToxTunFileCli(ToxTunCli):
         return self.cmdno
     
     def _onNewTcpConnection(self):
+        qDebug('here')
         srv = self.sender()
         rec = self.tcpsrvs[srv]
 
@@ -439,6 +480,8 @@ class ToxTunFileCli(ToxTunCli):
         chan.chanocli = self._nextChano()
         self.chans['chanocli_%d' % chan.chanocli] = chan
         self.chans[sock] = chan
+        qDebug('sock enter chans')
+        
 
         # pkt = {'chcli': , 'chsrv':, 'type':, 'data':, 'host':, 'port':,}
         # type = CONNECT|WRITE|CLOSE
@@ -449,8 +492,14 @@ class ToxTunFileCli(ToxTunCli):
 
         if len(con.reqchunks) > 0:
             reqinfo = con.reqchunks.pop(0)
-            self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
-            
+            bret = self.toxkit.fileSendChunk(con.peer, con.self_file_number, reqinfo[2], fjspkt)
+            qDebug(str(bret))
+            if bret is False:
+                # what error? how deal this case?
+                # pytox.OperationFailedError: tox_file_send_chunk() failed:5
+                pass
+        else:
+            qDebug('no free chunk found')
 
         # file_name = 'toxtunfilecli_%d_%s_%d_toxfilesock' % (chan.cmdno, chan.host, chan.port)
         # file_size = pow(2, 56)
@@ -531,7 +580,7 @@ class ToxTunFileCli(ToxTunCli):
         con = chan.con
 
         if chan.chanosrv == 0:
-            qDebug('maybe not connected')
+            qDebug('maybe not connected or already closed.')
             return
 
         peekSize = 128  # 897  # 987时就有可能导致超长拆包发送
