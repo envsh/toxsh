@@ -1,4 +1,3 @@
-
 #include <unistd.h>
 #include <sys/syscall.h>
 
@@ -7,10 +6,16 @@
 // simple 
 // setenv("QT_MESSAGE_PATTERN", "[%{type}] %{appname} (%{file}:%{line}) T%{threadid} %{function} - %{message} ", 1);
 
-
+// 关闭输出
+// setevn QT_QUITE_DEBUG=1
+// need -DQT_MESSAGELOGCONTEXT=1
 // TODO 优化
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
+    static char *qt_quite_debug = getenv("QT_QUITE_DEBUG");
+    if (qt_quite_debug && qt_quite_debug[0] == '1') {
+        return;
+    }
     int tid = syscall(__NR_gettid);
     QDateTime now = QDateTime::currentDateTime();
     QString time_str = now.toString("yyyy-MM-dd hh:mm:ss"); // now.toString("yyyy-MM-dd hh:mm:ss.zzz");
@@ -47,6 +52,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     // void StunClient::debugStunResponse(QByteArray)
     // virtual void StunClinet::aaa()
     // virtual QProcess::~QProcess()
+    // C++11 unamed function: auto MultiWorker::ipv6Request(QString, QNetworkRequest)::<anonymous class>::operator()() const
     if (1) {
         fprintf(stderr, "[%s] T(%u) %s:%u %s - %s\n", time_str.toLocal8Bit().data(),  tid,
                 hpath.toLocal8Bit().data(), context.line,

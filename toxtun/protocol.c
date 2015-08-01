@@ -1722,7 +1722,11 @@ enet_protocol_send_outgoing_commands (ENetHost * host, ENetEvent * event, int ch
 
         currentPeer -> lastSendTime = host -> serviceTime;
 
+        printf("here: %p, %d, :%d, bc:%d\n", host->toxkit, host->socket,
+               currentPeer->address.port, host->bufferCount);
         sentLength = enet_socket_send (host -> socket, & currentPeer -> address, host -> buffers, host -> bufferCount);
+        host->enet_socket_send(host -> socket, & currentPeer -> address,
+                               host -> buffers, host -> bufferCount, host->toxkit);
 
         enet_protocol_remove_sent_unreliable_commands (currentPeer);
 

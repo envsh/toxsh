@@ -4,8 +4,11 @@
 #include <QtCore>
 #include <QtNetwork>
 
-class ToxNet;
-class Srudp;
+#include "enet/enet.h"
+
+// class ToxNet;
+// class Srudp;
+class QToxKit;
 
 class Tunnelc : public QObject
 {
@@ -20,18 +23,28 @@ public slots:
     void onTunnelConnected();
     void onTunnelDisconnected();
     void onTunnelReadyRead();
+
+    ///////
+    void onToxnetSelfConnectionStatus(int status);
+    void onToxnetFriendConnectionStatus(QString pubkey, int status);
+    void onToxnetFriendMessage(QString pubkey, int type, QByteArray message);
+
     
 private slots:
-    void onNewConnection();
-    void onPeerReadyRead();
-    void onPeerDisconnected();
+    void onNewTcpConnection();
+    void onTcpReadyRead();
+    void onTcpDisconnected();
 
 private:
-    ToxNet *m_net = NULL;
-    Srudp *m_rudp = NULL;
+    // ToxNet *m_net = NULL;
+    // Srudp *m_rudp = NULL;
 
-    QTcpServer *m_serv = NULL;
+    QTcpServer *m_tcpsrv = NULL;
+
+    QToxKit *m_toxkit = NULL;
+    ENetHost *m_encli = NULL;
 };
+
 
 
 #endif /* _TUNNELC_H_ */

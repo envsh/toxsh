@@ -66,16 +66,23 @@ add_library(enet STATIC
 
   
 include_directories(../libtroh ../common)
+add_definitions(-DQT_MESSAGELOGCONTEXT=1)
 add_definitions(-DSRUDP_TOX) # SRUDP_TOX SRUDP_STUN SRUDP_HTTP
+add_definitions(-g -O2)
+# add_definitions(-std=c++11)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_AUTOMOC on)
 
 add_executable(tunnel
   main.cpp
   ../libtroh/debugoutput.cpp
-#  tunneld.cpp
+  tunneld.cpp
 #  toxnet.cpp
-#  tunnelc.cpp
+  tunnelc.cpp
 #  socksd.cpp
 #  srudp.cpp
+
+  qtoxkit.cpp
 
 #  ../common/xtox.cpp
 #  ../common/core.cpp
@@ -86,4 +93,4 @@ add_executable(tunnel
 find_package(Qt5Core)
 find_package(Qt5Network)
 qt5_use_modules(tunnel Core Network)
-target_link_libraries(tunnel enet)
+target_link_libraries(tunnel enet toxcore)

@@ -90,6 +90,7 @@ typedef struct _ENetAddress
 {
    enet_uint32 host;
    enet_uint16 port;
+   void *toxid;
 } ENetAddress;
 
 /**
@@ -353,6 +354,9 @@ typedef int (ENET_CALLBACK * ENetInterceptCallback) (struct _ENetHost * host, st
   */
 typedef struct _ENetHost
 {
+    void *toxkit;
+    int (*enet_socket_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, void *);
+
    ENetSocket           socket;
    ENetAddress          address;                     /**< Internet address of the host */
    enet_uint32          incomingBandwidth;           /**< downstream bandwidth of the host */
