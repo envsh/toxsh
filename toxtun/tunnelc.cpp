@@ -5,58 +5,10 @@
 
 #include "qtoxkit.h"
 #include "serializer.h"
+#include "toxtunutils.h"
+#include "enetpoll.h"
 
 #include "tunnelc.h"
-
-////////////////
-class Xenet : public QThread
-{
-public:
-    ENetHost *m_enhost = NULL;
-    
-public:
-    
-    Xenet(ENetHost *enhost, QObject *parent = NULL)
-        : QThread(parent)
-    { this->m_enhost = enhost; }
-
-    ~Xenet() {}
-
-    void run()
-    {
-        ENetEvent event;
-        int rc;
-        while (true) {
-            rc = enet_host_service(this->m_enhost, &event, 1000);
-            // qDebug()<<rc;
-            switch (event.type) {
-            case ENET_EVENT_TYPE_CONNECT:
-                printf ("A new client connected from %x:%u.\n", 
-                        event.peer -> address.host,
-                        event.peer -> address.port);
-                /* Store any relevant client information here. */
-                event.peer -> data = (void*)"Client information";
-                break;
-            case ENET_EVENT_TYPE_RECEIVE:
-                printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
-                        event.packet -> dataLength,
-                        event.packet -> data,
-                        event.peer -> data,
-                        event.channelID);
-                /* Clean up the packet now that we're done using it. */
-                enet_packet_destroy (event.packet);
-        
-                break;
-       
-            case ENET_EVENT_TYPE_DISCONNECT:
-                // printf ("%s disconnected.\n", event.peer -> data);
-                qDebug()<<event.peer -> data<<" disconnected.";
-                /* Reset the peer's client information. */
-                event.peer -> data = NULL;
-            }
-        }
-    }
-};
 
 
 ////////////////////////
@@ -77,7 +29,7 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
 {
     Tunnelc *tunc = (Tunnelc*)user_data;    
     QToxKit *toxkit = tunc->m_toxkit;
-    qDebug()<<bufferCount<<toxkit;
+    // qDebug()<<bufferCount<<toxkit;
 
     size_t sentLength = 0;
     QString friendId = "D62E57FCBDC04080C5F78875AB24DB2AE4C797B5C5A9AC69DB5924FD972E363AF2038D5B7A44";
@@ -118,14 +70,14 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
     QString pubkey = tunc->m_pkts.begin().key();
 
     if (tunc->m_pkts[pubkey].count() > 0) {
-        qDebug()<<tunc<<socket<<bufferCount;
+        // qDebug()<<tunc<<socket<<bufferCount;
         
         int recvLength = 0;
         QByteArray pkt = tunc->m_pkts[pubkey].takeAt(0);
         // deserialize
         recvLength = deserialize_packet(pkt, address, &buffers[0]);
         
-        qDebug()<<tunc<<socket<<bufferCount<<recvLength;
+        // qDebug()<<tunc<<socket<<bufferCount<<recvLength;
         return recvLength;
     }
     
@@ -151,6 +103,12 @@ void Tunnelc::init()
                      &Tunnelc::onToxnetFriendMessage, Qt::QueuedConnection);
     m_toxkit->start();
 
+    m_enpoll = new ENetPoll();
+    QObject::connect(m_enpoll, &ENetPoll::connected, this, &Tunnelc::onENetPeerConnected);
+    QObject::connect(m_enpoll, &ENetPoll::disconnected, this, &Tunnelc::onENetPeerDisconnected);
+    QObject::connect(m_enpoll, &ENetPoll::packetReceived, this, &Tunnelc::onENetPeerPacketReceived);
+    m_enpoll->start();
+
     ENetAddress enaddr = {ENET_HOST_ANY, 7766};
     ENetHost *encli;
 
@@ -159,9 +117,8 @@ void Tunnelc::init()
     encli->toxkit = this;
     encli->enet_socket_send = toxenet_socket_send;
     encli->enet_socket_receive = toxenet_socket_receive;
-    
-    Xenet *xloop = new Xenet(encli);
-    xloop->start();
+
+    m_enpoll->addENetHost(encli);
     
     m_tcpsrv = new QTcpServer();
     QObject::connect(m_tcpsrv, &QTcpServer::newConnection, this, &Tunnelc::onNewTcpConnection);
@@ -215,6 +172,7 @@ void Tunnelc::onToxnetSelfConnectionStatus(int status)
         qDebug()<<friend_number;        
     }
 
+    
 }
 
 void Tunnelc::onToxnetFriendConnectionStatus(QString pubkey, int status)
@@ -229,7 +187,7 @@ void Tunnelc::onToxnetFriendConnectionStatus(QString pubkey, int status)
 
 void Tunnelc::onToxnetFriendMessage(QString pubkey, int type, QByteArray message)
 {
-    qDebug()<<pubkey<<type<<message;
+    // qDebug()<<pubkey<<type<<message;
 
     if (type == TOX_MESSAGE_TYPE_ACTION) {
         return;
@@ -243,6 +201,47 @@ void Tunnelc::onToxnetFriendMessage(QString pubkey, int type, QByteArray message
     m_pkts[pubkey].append(message);
 }
 
+
+//////////////////
+void Tunnelc::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer)
+{
+    qDebug()<<enhost<<enpeer;
+    ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
+    emit chan->m_sock->readyRead();
+
+    if (false) {
+        ENetPacket *packet = enet_packet_create("hehehe123", 10, ENET_PACKET_FLAG_RELIABLE);
+
+        enet_packet_resize(packet, 13);
+        strcpy((char*)&packet->data[9], "foo");
+    
+        uint8_t chanid = 0;
+        enet_peer_send(enpeer, chanid, packet);
+    }
+}
+
+void Tunnelc::onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer)
+{
+    qDebug()<<enhost<<enpeer;
+    ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
+}
+
+void Tunnelc::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int chanid, QByteArray packet)
+{
+    if (packet.length() > 50) {
+        qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet.left(30)<<"..."<<packet.right(30);
+    } else {
+        qDebug()<<enhost<<enpeer<<chanid<<packet.length();
+    }
+
+    ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
+    QTcpSocket *sock = chan->m_sock;
+
+    int wrlen = sock->write(packet);
+}
+
+
+/////////////////
 void Tunnelc::onNewTcpConnection()
 {
     QTcpSocket *sock = m_tcpsrv->nextPendingConnection();
@@ -259,14 +258,44 @@ void Tunnelc::onNewTcpConnection()
     
     ENetPeer *peer = enet_host_connect(this->m_encli, &eaddr, 2, 0);
     qDebug()<<peer;
+
+    //// channels
+    ToxTunChannel *chan = new ToxTunChannel();
+    chan->m_sock = sock;
+    chan->m_enhost = m_encli;
+    chan->m_enpeer = peer;
+
+    this->m_sock_chans[sock] = chan;
+    this->m_enpeer_chans[peer] = chan;
 }
 
 void Tunnelc::onTcpReadyRead()
 {
     qDebug()<<"";
     QTcpSocket *sock = (QTcpSocket*)(sender());
-    QByteArray ba = sock->readAll();
+    ToxTunChannel *chan = this->m_sock_chans[sock];
+    qDebug()<<chan<<chan->m_enpeer->state;
 
+    if (chan->m_enpeer->state == ENET_PEER_STATE_CONNECTED) {
+        while (sock->bytesAvailable() > 0) {
+            // QByteArray ba = sock->readAll();
+            QByteArray ba = sock->read(123);
+            if (ba.length() >= 1371) {
+                qDebug()<<"too long data packet.";
+            }
+        
+            ENetPacket *packet = enet_packet_create(ba.data(), ba.length(), ENET_PACKET_FLAG_RELIABLE);
+
+            // enet_packet_resize(packet, 13);
+            // strcpy((char*)&packet->data[9], "foo");
+    
+            uint8_t chanid = 0;
+            ENetPeer *enpeer = chan->m_enpeer;
+            enet_peer_send(enpeer, chanid, packet);
+        }
+    }
+    
+    // QByteArray ba = sock->readAll();
     // m_rudp->sendto(ba, "");
 }
 

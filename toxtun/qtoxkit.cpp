@@ -224,7 +224,7 @@ void on_friend_message(Tox *tox, uint32_t friend_number, TOX_MESSAGE_TYPE type, 
                        size_t length, void *user_data)
 {
     QToxKit *qtox = (QToxKit*)user_data;
-    qDebug()<<tox<<friend_number<<length;
+    // qDebug()<<tox<<friend_number<<length;
 
     uint8_t public_key[TOX_PUBLIC_KEY_SIZE];
     tox_friend_get_public_key(tox, friend_number, public_key, NULL);
@@ -356,7 +356,7 @@ void QToxKit::friendSendMessage(QString friendId, QByteArray data)
     uint32_t friend_number = tox_friend_by_public_key(tox, (uint8_t*)raw_friend_id.data(), NULL);
     uint32_t msgid = tox_friend_send_message(tox, friend_number, TOX_MESSAGE_TYPE_NORMAL,
                                              (uint8_t*)data.data(), data.length(), NULL);
-    qDebug()<<friend_number<<msgid<<data.length();
+    // qDebug()<<friend_number<<msgid<<data.length();
 }
 
 void QToxKit::run()

@@ -985,9 +985,9 @@ enet_protocol_handle_incoming_commands (ENetHost * host, ENetEvent * event)
     enet_uint16 peerID, flags;
     enet_uint8 sessionID;
 
-    printf("here:%s:%d,\n", __FILE__, __LINE__);
+    // printf("here:%s:%d,\n", __FILE__, __LINE__);
     if (host -> receivedDataLength < (size_t) & ((ENetProtocolHeader *) 0) -> sentTime) {
-        printf("here:%s:%d,\n", __FILE__, __LINE__);
+        // printf("here:%s:%d,\n", __FILE__, __LINE__);
       return 0;
     }
 
@@ -1006,7 +1006,7 @@ enet_protocol_handle_incoming_commands (ENetHost * host, ENetEvent * event)
       peer = NULL;
     else
         if (peerID >= host -> peerCount) {
-            printf("here:%s:%d,\n", __FILE__, __LINE__);
+            // printf("here:%s:%d,\n", __FILE__, __LINE__);
             return 0;
         }
     else
@@ -1090,7 +1090,7 @@ enet_protocol_handle_incoming_commands (ENetHost * host, ENetEvent * event)
          break;
          
        command -> header.reliableSequenceNumber = ENET_NET_TO_HOST_16 (command -> header.reliableSequenceNumber);
-       printf("here:%s:%d,%d\n", __FILE__, __LINE__, commandNumber);
+       // printf("here:%s:%d,%d\n", __FILE__, __LINE__, commandNumber);
        switch (commandNumber)
        {
        case ENET_PROTOCOL_COMMAND_ACKNOWLEDGE:
@@ -1194,7 +1194,7 @@ commandError:
     if (event != NULL && event -> type != ENET_EVENT_TYPE_NONE)
       return 1;
 
-    printf("here:%s:%d,\n", __FILE__, __LINE__);
+    // printf("here:%s:%d,\n", __FILE__, __LINE__);
     return 0;
 }
  
@@ -1227,7 +1227,7 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
        if (receivedLength == 0)
          return 0;
 
-       printf("here:%s:%d,\n", __FILE__, __LINE__);
+       // printf("here:%s:%d,\n", __FILE__, __LINE__);
        
        host -> receivedData = host -> packetData [0];
        host -> receivedDataLength = receivedLength;
@@ -1237,42 +1237,42 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
 
        if (host -> intercept != NULL)
        {
-           printf("here:%s:%d,\n", __FILE__, __LINE__);
+           // printf("here:%s:%d,\n", __FILE__, __LINE__);
           switch (host -> intercept (host, event))
           {
           case 1:
-              printf("here:%s:%d,\n", __FILE__, __LINE__);
+              // printf("here:%s:%d,\n", __FILE__, __LINE__);
              if (event != NULL && event -> type != ENET_EVENT_TYPE_NONE)
                return 1;
 
              continue;
           
           case -1:
-              printf("here:%s:%d,\n", __FILE__, __LINE__);
+              // printf("here:%s:%d,\n", __FILE__, __LINE__);
              return -1;
         
           default:
              break;
           }
        }
-       printf("here:%s:%d,\n", __FILE__, __LINE__);
+       // printf("here:%s:%d,\n", __FILE__, __LINE__);
        int ic = enet_protocol_handle_incoming_commands (host, event);
        switch (ic)
        {
        case 1:
-           printf("here:%s:%d,\n", __FILE__, __LINE__);
+           // printf("here:%s:%d,\n", __FILE__, __LINE__);
           return 1;
        
        case -1:
-           printf("here:%s:%d,\n", __FILE__, __LINE__);
+           // printf("here:%s:%d,\n", __FILE__, __LINE__);
           return -1;
 
        default:
-           printf("here:%s:%d,%d\n", __FILE__, __LINE__, ic);
+           // printf("here:%s:%d,%d\n", __FILE__, __LINE__, ic);
           break;
        }
     }
-    printf("here:%s:%d,\n", __FILE__, __LINE__);
+    // printf("here:%s:%d,\n", __FILE__, __LINE__);
     
     return -1;
 }
@@ -1749,8 +1749,8 @@ enet_protocol_send_outgoing_commands (ENetHost * host, ENetEvent * event, int ch
 
         sentLength = host->enet_socket_send(host -> socket, & currentPeer -> address,
                                             host -> buffers, host -> bufferCount, host->toxkit);
-        printf("here: %p, %d, :%d, bc:%d, slen:%d\n", host->toxkit, host->socket,
-               currentPeer->address.port, host->bufferCount, sentLength);
+        /*printf("here: %p, %d, :%d, bc:%d, slen:%d\n", host->toxkit, host->socket,
+          currentPeer->address.port, host->bufferCount, sentLength);*/
 
         enet_protocol_remove_sent_unreliable_commands (currentPeer);
 

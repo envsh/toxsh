@@ -9,6 +9,8 @@
 // class ToxNet;
 // class Srudp;
 class QToxKit;
+class ToxTunChannel;
+class ENetPoll;
 
 class Tunnelc : public QObject
 {
@@ -31,6 +33,10 @@ public slots:
 
     
 private slots:
+    void onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer);
+    void onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer);
+    void onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int chanid, QByteArray packet);
+    
     void onNewTcpConnection();
     void onTcpReadyRead();
     void onTcpDisconnected();
@@ -44,8 +50,13 @@ public:
 
     QToxKit *m_toxkit = NULL;
     ENetHost *m_encli = NULL;
+
+    ENetPoll *m_enpoll = NULL;
     
     QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
+    // QHash<void*, ToxTunChannel*> m_chans;  // sock=>chan, enhost=>chan, enpeer=>chan
+    QHash<QTcpSocket*, ToxTunChannel*> m_sock_chans;
+    QHash<ENetPeer*, ToxTunChannel*> m_enpeer_chans;
 };
 
 

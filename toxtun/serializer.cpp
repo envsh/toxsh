@@ -31,7 +31,7 @@ QByteArray serialize_packet(const ENetAddress * address, const ENetBuffer * buff
     
     data.append((char*)&buffer->dataLength, sizeof(buffer->dataLength));
     data.append((char*)buffer->data, buffer->dataLength);
-    qDebug()<<buffer->dataLength;
+    // qDebug()<<buffer->dataLength;
 
     return data;
     
@@ -89,7 +89,7 @@ QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffer
         data.append((char*)buffer->data, buffer->dataLength);
     }
 
-    qDebug()<<sentLength<<bufferCount;
+    // qDebug()<<sentLength<<bufferCount;
     if (sentLength > TOX_MAX_MESSAGE_LENGTH) {
         qDebug()<<"warning, exceed tox max message length:"<<sentLength;
     }
@@ -107,7 +107,7 @@ size_t deserialize_packet(QByteArray pkt, ENetAddress *address, ENetBuffer *buff
     memcpy(&length, pktdata + sizeof(struct sockaddr_in), sizeof(size_t));
     int recvLength = 0;
     
-    qDebug()<<pkt.length()<<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
+    // qDebug()<<pkt.length()<<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
     memcpy(buffer->data, pktdata + sizeof(struct sockaddr_in) + sizeof(size_t), length);
     buffer->dataLength = length;
     recvLength = length;
@@ -124,7 +124,7 @@ size_t deserialize_packet(QByteArray pkt, ENetAddress *address, ENetBuffer *buff
         address->host = (enet_uint32) sin.sin_addr.s_addr;
         address->port = ENET_NET_TO_HOST_16 (sin.sin_port);
 
-        qDebug()<<"got addr:";
+        // qDebug()<<"got addr:";
     }
 
     return recvLength;

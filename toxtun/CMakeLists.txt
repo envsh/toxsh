@@ -83,7 +83,9 @@ add_executable(tunnel
 #  socksd.cpp
 #  srudp.cpp
 
-  serializer.cpp
+serializer.cpp
+enetpoll.cpp
+  toxtunutils.cpp
   qtoxkit.cpp
 
 #  ../common/xtox.cpp
