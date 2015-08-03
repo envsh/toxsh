@@ -3,22 +3,19 @@
 
 #include "serializer.h"
 
-QByteArray serialize_packet(const ENetAddress * address, const ENetBuffer * buffer)
+QByteArray serialize_packet_dep(const ENetAddress * address, const ENetBuffer * buffer)
 {
     QByteArray data;
     
-    struct msghdr msgHdr;
-    struct sockaddr_in sin;
+    struct msghdr msgHdr = {0};
+    struct sockaddr_in sin = {0};
     int sentLength;
 
     memset (& msgHdr, 0, sizeof (struct msghdr));
-    msgHdr = {0};
-    sin = {0};
     
     if (address != NULL)
     {
         memset (& sin, 0, sizeof (struct sockaddr_in));
-
         sin.sin_family = AF_INET;
         sin.sin_port = ENET_HOST_TO_NET_16 (address -> port);
         sin.sin_addr.s_addr = address -> host;
@@ -56,18 +53,15 @@ QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffer
 {
     QByteArray data;
     
-    struct msghdr msgHdr;
-    struct sockaddr_in sin;
+    struct msghdr msgHdr = {0};
+    struct sockaddr_in sin = {0};
     size_t sentLength = 0;
 
     memset (& msgHdr, 0, sizeof (struct msghdr));
-    msgHdr = {0};
-    sin = {0};
     
     if (address != NULL)
     {
         memset (& sin, 0, sizeof (struct sockaddr_in));
-
         sin.sin_family = AF_INET;
         sin.sin_port = ENET_HOST_TO_NET_16 (address -> port);
         sin.sin_addr.s_addr = address -> host;

@@ -90,7 +90,7 @@ typedef struct _ENetAddress
 {
    enet_uint32 host;
    enet_uint16 port;
-   void *toxid;
+   char toxid[77];
 } ENetAddress;
 
 /**
@@ -262,6 +262,7 @@ typedef struct _ENetPeer
    enet_uint8    outgoingSessionID;
    enet_uint8    incomingSessionID;
    ENetAddress   address;            /**< Internet address of the peer */
+    char        toxid[77];
    void *        data;               /**< Application private data, may be freely modified */
    ENetPeerState state;
    ENetChannel * channels;
@@ -355,8 +356,8 @@ typedef int (ENET_CALLBACK * ENetInterceptCallback) (struct _ENetHost * host, st
 typedef struct _ENetHost
 {
     void *toxkit;
-    int (*enet_socket_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, void *);
-    int (*enet_socket_receive) (ENetSocket, ENetAddress *, ENetBuffer *, size_t, void *);
+    int (*enet_socket_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, ENetPeer *, void *);
+    int (*enet_socket_receive) (ENetSocket, ENetAddress *, ENetBuffer *, size_t, struct _ENetEvent *, void *);
     
    ENetSocket           socket;
    ENetAddress          address;                     /**< Internet address of the host */

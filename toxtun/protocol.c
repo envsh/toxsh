@@ -1212,7 +1212,7 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
        buffer.dataLength = sizeof (host -> packetData [0]);
 
        receivedLength = host->enet_socket_receive(host->socket, &host->receivedAddress,
-                                                  &buffer, 1, host->toxkit);
+                                                  &buffer, 1, event, host->toxkit);
        // printf("enet recv: %d, len=%d\n", host->socket, receivedLength);
        
        /*
@@ -1257,6 +1257,10 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
        }
        // printf("here:%s:%d,\n", __FILE__, __LINE__);
        int ic = enet_protocol_handle_incoming_commands (host, event);
+       if (event->peer != NULL) {
+           printf("here:%s:%d, peer=%p,\n", __FILE__, __LINE__, event->peer);
+           strcpy(event->peer->toxid, host->receivedAddress.toxid);
+       }
        switch (ic)
        {
        case 1:
@@ -1748,7 +1752,7 @@ enet_protocol_send_outgoing_commands (ENetHost * host, ENetEvent * event, int ch
         /*        currentPeer->address.port, host->bufferCount, sentLength); */
 
         sentLength = host->enet_socket_send(host -> socket, & currentPeer -> address,
-                                            host -> buffers, host -> bufferCount, host->toxkit);
+                                            host -> buffers, host -> bufferCount, currentPeer, host->toxkit);
         /*printf("here: %p, %d, :%d, bc:%d, slen:%d\n", host->toxkit, host->socket,
           currentPeer->address.port, host->bufferCount, sentLength);*/
 

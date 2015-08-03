@@ -10,13 +10,15 @@
 // class Srudp;
 class QToxKit;
 class ToxTunChannel;
+class ToxTunConfig;
 class ENetPoll;
+
 
 class Tunnelc : public QObject
 {
     Q_OBJECT;
 public:
-    Tunnelc();
+    Tunnelc(QString config_file = "./toxtun_whttp.ini");
     virtual ~Tunnelc();
 
     void init();
@@ -33,7 +35,7 @@ public slots:
 
     
 private slots:
-    void onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer);
+    void onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 data);
     void onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer);
     void onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int chanid, QByteArray packet);
     
@@ -42,11 +44,16 @@ private slots:
     void onTcpDisconnected();
 
 private:
+    void promiseChannelCleanup(ToxTunChannel *chan);
+    
+private:
 public:
     // ToxNet *m_net = NULL;
     // Srudp *m_rudp = NULL;
+    ToxTunConfig *m_cfg = NULL;
 
-    QTcpServer *m_tcpsrv = NULL;
+    QHash<QTcpServer*, int> m_tcpsrvs;
+    // QTcpServer *m_tcpsrv = NULL;
 
     QToxKit *m_toxkit = NULL;
     ENetHost *m_encli = NULL;

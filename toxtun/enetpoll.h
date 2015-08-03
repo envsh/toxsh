@@ -20,7 +20,7 @@ public:
     QHash<ENetHost*, int> m_enhosts;
 
 signals:
-    void connected(ENetHost *enhost, ENetPeer *enpeer);
+    void connected(ENetHost *enhost, ENetPeer *enpeer, quint32 data);
     void disconnected(ENetHost *enhost, ENetPeer *enpeer);
     void packetReceived(ENetHost *enhost, ENetPeer *enpeer, int chanid, QByteArray packet);
 };

@@ -21,6 +21,7 @@ void ENetPoll::run()
             this->msleep(1000);
             continue;
         }
+        
         interval = 1000 / m_enhosts.count();
         for (auto it = m_enhosts.begin(); it != m_enhosts.end(); it++) {
             ENetHost *enhost = it.key();
@@ -32,7 +33,8 @@ void ENetPoll::run()
             switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT:
                 qDebug()<<"A new client connected from: "
-                        <<event.peer->address.host<<event.peer->address.port;
+                        <<event.peer->address.host<<event.peer->address.port
+                        <<event.data;
                 /*
                 printf ("A new client connected from %x:%u.\n", 
                         event.peer -> address.host,
@@ -40,8 +42,9 @@ void ENetPoll::run()
                 */
                 /* Store any relevant client information here. */
                 event.peer -> data = (void*)"Client information";
-                emit connected(enhost, event.peer);
+                emit connected(enhost, event.peer, event.data);
                 break;
+
             case ENET_EVENT_TYPE_RECEIVE:
                 /*
                 printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
@@ -59,7 +62,7 @@ void ENetPoll::run()
        
             case ENET_EVENT_TYPE_DISCONNECT:
                 // printf ("%s disconnected.\n", event.peer -> data);
-                qDebug()<<event.peer -> data<<" disconnected.";
+                qDebug()<<event.peer -> data<<event.data<<" disconnected.";
                 /* Reset the peer's client information. */
                 event.peer -> data = NULL;
                 emit disconnected(enhost, event.peer);
