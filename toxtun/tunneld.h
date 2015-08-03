@@ -36,12 +36,15 @@ private slots:
     void onTcpReadyRead();
 
 private:
+public:
     // ToxNet *m_net = NULL;
     // Srudp *m_rudp = NULL;
 
     QTcpSocket *m_sock = NULL;
     QToxKit *m_toxkit = NULL;
     ENetHost *m_ensrv = NULL;
+
+    QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
 };
 
 #endif /* _TUNNELD_H_ */

@@ -245,7 +245,7 @@ static void bootDht(QToxKit *qtox)
     const char *ipaddr = "128.199.78.247";
     QByteArray hex_pubkey("34922396155AA49CE6845A2FE34A73208F6FCD6190D981B1DBBC816326F26C6C");
     QByteArray pubkey = QByteArray::fromHex(hex_pubkey);
-    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    // bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     qDebug()<<bret<<ipaddr<<hex_pubkey;
 }

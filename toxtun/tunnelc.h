@@ -36,6 +36,7 @@ private slots:
     void onTcpDisconnected();
 
 private:
+public:
     // ToxNet *m_net = NULL;
     // Srudp *m_rudp = NULL;
 
@@ -43,6 +44,8 @@ private:
 
     QToxKit *m_toxkit = NULL;
     ENetHost *m_encli = NULL;
+    
+    QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
 };
 
 

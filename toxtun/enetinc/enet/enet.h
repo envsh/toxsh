@@ -356,7 +356,8 @@ typedef struct _ENetHost
 {
     void *toxkit;
     int (*enet_socket_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, void *);
-
+    int (*enet_socket_receive) (ENetSocket, ENetAddress *, ENetBuffer *, size_t, void *);
+    
    ENetSocket           socket;
    ENetAddress          address;                     /**< Internet address of the host */
    enet_uint32          incomingBandwidth;           /**< downstream bandwidth of the host */

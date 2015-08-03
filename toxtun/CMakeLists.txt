@@ -48,7 +48,8 @@ endif()
 if(HAS_SOCKLEN_T)
     add_definitions(-DHAS_SOCKLEN_T=1)
 endif()
- 
+add_definitions(-DENET_DEBUG -DENET_DEBUG_COMPRESS)
+
 include_directories(${PROJECT_SOURCE_DIR}/enetinc)
  
 add_library(enet STATIC
@@ -82,6 +83,7 @@ add_executable(tunnel
 #  socksd.cpp
 #  srudp.cpp
 
+  serializer.cpp
   qtoxkit.cpp
 
 #  ../common/xtox.cpp

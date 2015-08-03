@@ -4,6 +4,7 @@
 #include "enet/enet.h"
 
 #include "qtoxkit.h"
+#include "serializer.h"
 
 #include "tunnelc.h"
 
@@ -71,109 +72,62 @@ Tunnelc::~Tunnelc()
 }
 
 
-QByteArray serialize_packet(const ENetAddress * address, const ENetBuffer * buffer)
+static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
+                                const ENetBuffer * buffers, size_t bufferCount, void *user_data)
 {
-    QByteArray data;
-    
-    struct msghdr msgHdr;
-    struct sockaddr_in sin;
-    int sentLength;
-
-    memset (& msgHdr, 0, sizeof (struct msghdr));
-    msgHdr = {0};
-    sin = {0};
-    
-    if (address != NULL)
-    {
-        memset (& sin, 0, sizeof (struct sockaddr_in));
-
-        sin.sin_family = AF_INET;
-        sin.sin_port = ENET_HOST_TO_NET_16 (address -> port);
-        sin.sin_addr.s_addr = address -> host;
-
-        msgHdr.msg_name = & sin;
-        msgHdr.msg_namelen = sizeof (struct sockaddr_in);
-    }
-    
-    data.append((char*)&sin, sizeof(struct sockaddr_in));
-    
-    data.append((char*)&buffer->dataLength, sizeof(buffer->dataLength));
-    data.append((char*)buffer->data, buffer->dataLength);
-    qDebug()<<buffer->dataLength;
-
-    return data;
-    
-    // msgHdr.msg_iov = (struct iovec *) buffers;
-    // msgHdr.msg_iovlen = bufferCount;
-
-    // sentLength = sendmsg (socket, & msgHdr, MSG_NOSIGNAL);
-    
-    // if (sentLength == -1)
-    // {
-    //    if (errno == EWOULDBLOCK)
-    //      return 0;
-
-    //    return -1;
-    // }
-
-    // return sentLength;
-}
-
-
-QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffers, size_t bufferCount)
-{
-    QByteArray data;
-    
-    struct msghdr msgHdr;
-    struct sockaddr_in sin;
-    int sentLength = 0;
-
-    memset (& msgHdr, 0, sizeof (struct msghdr));
-    msgHdr = {0};
-    sin = {0};
-    
-    if (address != NULL)
-    {
-        memset (& sin, 0, sizeof (struct sockaddr_in));
-
-        sin.sin_family = AF_INET;
-        sin.sin_port = ENET_HOST_TO_NET_16 (address -> port);
-        sin.sin_addr.s_addr = address -> host;
-
-        msgHdr.msg_name = & sin;
-        msgHdr.msg_namelen = sizeof (struct sockaddr_in);
-    }
-    
-    data.append((char*)&sin, sizeof(struct sockaddr_in));
-
-    for (int i = 0; i < bufferCount; i++) {
-        const ENetBuffer *buffer = &buffers[i];
-        data.append((char*)&buffer->dataLength, sizeof(buffer->dataLength));
-        data.append((char*)buffer->data, buffer->dataLength);
-        sentLength += buffer->dataLength;
-    }
-    qDebug()<<sentLength<<bufferCount;
-    if (sentLength > TOX_MAX_MESSAGE_LENGTH) {
-        qDebug()<<"warning, exceed tox max message length:"<<sentLength;
-    }
-
-    return data;    
-}
-
-
-int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
-                         const ENetBuffer * buffers, size_t bufferCount, void *user_data)
-{
-    QToxKit *toxkit = (QToxKit*)user_data;
+    Tunnelc *tunc = (Tunnelc*)user_data;    
+    QToxKit *toxkit = tunc->m_toxkit;
     qDebug()<<bufferCount<<toxkit;
 
+    size_t sentLength = 0;
+    QString friendId = "D62E57FCBDC04080C5F78875AB24DB2AE4C797B5C5A9AC69DB5924FD972E363AF2038D5B7A44";
+    
     QByteArray data = serialize_packet(address, buffers, bufferCount);
-    toxkit->friendSendMessage(QString(), data);
+    toxkit->friendSendMessage(friendId, data);
+    for (int i = 0; i < bufferCount; i ++) {
+        sentLength += buffers[i].dataLength;  
+    }
 
     // for (int i = 0; i < bufferCount; i++) {
     //     QByteArray data = serialize_packet(address, &buffers[i]);
-    //     toxkit->friendSendMessage(QString(), data);
+    //     toxkit->friendSendMessage(friendId, data);
+    //     sentLength += buffers[i].dataLength;
     // }
+
+    return sentLength;
+    return 0;
+}
+
+
+static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
+                                  ENetBuffer *buffers, size_t bufferCount,
+                                  void *user_data)
+{
+    Tunnelc *tunc = (Tunnelc*)user_data;
+    // qDebug()<<tund<<socket<<bufferCount;
+
+    if (tunc->m_pkts.count() == 0) {
+        return 0;
+    }
+
+    if (bufferCount != 1) {
+        qDebug()<<"not supported >1:" << bufferCount;
+    }
+    
+    struct sockaddr_in sin = {0};
+    QString pubkey = tunc->m_pkts.begin().key();
+
+    if (tunc->m_pkts[pubkey].count() > 0) {
+        qDebug()<<tunc<<socket<<bufferCount;
+        
+        int recvLength = 0;
+        QByteArray pkt = tunc->m_pkts[pubkey].takeAt(0);
+        // deserialize
+        recvLength = deserialize_packet(pkt, address, &buffers[0]);
+        
+        qDebug()<<tunc<<socket<<bufferCount<<recvLength;
+        return recvLength;
+    }
     
     return 0;
 }
@@ -202,9 +156,10 @@ void Tunnelc::init()
 
     m_encli = encli = enet_host_create(&enaddr, 32, 2, 0, 0);
     qDebug()<<encli;
-    encli->toxkit = m_toxkit;
+    encli->toxkit = this;
     encli->enet_socket_send = toxenet_socket_send;
-
+    encli->enet_socket_receive = toxenet_socket_receive;
+    
     Xenet *xloop = new Xenet(encli);
     xloop->start();
     
@@ -268,13 +223,24 @@ void Tunnelc::onToxnetFriendConnectionStatus(QString pubkey, int status)
 
     if (status > TOX_CONNECTION_NONE) {
         QByteArray message("heheheeeeeeeeee");
-        m_toxkit->friendSendMessage(pubkey, message);
+        // m_toxkit->friendSendMessage(pubkey, message);
     }
 }
 
 void Tunnelc::onToxnetFriendMessage(QString pubkey, int type, QByteArray message)
 {
     qDebug()<<pubkey<<type<<message;
+
+    if (type == TOX_MESSAGE_TYPE_ACTION) {
+        return;
+    }
+
+    // put buffers
+    if (!m_pkts.contains(pubkey)) {
+        m_pkts[pubkey] = QVector<QByteArray>();
+    }
+
+    m_pkts[pubkey].append(message);
 }
 
 void Tunnelc::onNewTcpConnection()
@@ -287,8 +253,8 @@ void Tunnelc::onNewTcpConnection()
 
     //
     ENetAddress eaddr;
-    enet_address_set_host(&eaddr, "10.0.5.5");  // tunip: 10.0.5.x
-    eaddr.port = 7766;
+    enet_address_set_host(&eaddr, "127.0.0.1");  // tunip: 10.0.5.x
+    eaddr.port = 7767;
     eaddr.toxid = (void*)"";
     
     ENetPeer *peer = enet_host_connect(this->m_encli, &eaddr, 2, 0);

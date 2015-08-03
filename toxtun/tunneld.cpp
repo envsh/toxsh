@@ -2,9 +2,15 @@
 // #include "toxnet.h"
 // #include "srudp.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "enet/enet.h"
 
 #include "qtoxkit.h"
+#include "serializer.h"
+
 #include "tunneld.h"
 
 
@@ -71,6 +77,67 @@ Tunneld::~Tunneld()
 
 }
 
+static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
+                                const ENetBuffer * buffers, size_t bufferCount, void *user_data)
+{
+    // QToxKit *toxkit = (QToxKit*)user_data;
+    Tunneld *tund = (Tunneld*)user_data;
+    qDebug()<<bufferCount<<tund;
+
+    size_t sentLength = 0;
+    QString friendId = "451843FCB684FC779B302C08EA33DDB447B61402B075C8AF3E84BEE5FB41C738928615BCDCE4";
+    
+    QByteArray data = serialize_packet(address, buffers, bufferCount);
+    tund->m_toxkit->friendSendMessage(friendId, data);
+    for (int i = 0; i < bufferCount; i ++) {
+        sentLength += buffers[i].dataLength;  
+    }
+
+    // for (int i = 0; i < bufferCount; i++) {
+    //     QByteArray data = serialize_packet(address, &buffers[i]);
+    //     toxkit->friendSendMessage(QString(), data);
+    // }
+
+    return sentLength;
+    return 0;
+}
+
+
+static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
+                                  ENetBuffer *buffers, size_t bufferCount,
+                                  void *user_data)
+{
+    // QToxKit *toxkit = (QToxKit*)user_data;
+    Tunneld *tund = (Tunneld*)user_data;
+    // qDebug()<<tund<<socket<<bufferCount;
+
+    if (tund->m_pkts.count() == 0) {
+        return 0;
+    }
+
+    if (bufferCount != 1) {
+        qDebug()<<"not supported >1:" << bufferCount;
+    }
+    
+    struct sockaddr_in sin = {0};
+    QString pubkey = tund->m_pkts.begin().key();
+
+    if (tund->m_pkts[pubkey].count() > 0) {
+        qDebug()<<tund<<socket<<bufferCount;
+        
+        int recvLength = 0;
+        QByteArray pkt = tund->m_pkts[pubkey].takeAt(0);
+        // deserialize
+        recvLength = deserialize_packet(pkt, address, &buffers[0]);
+        
+        qDebug()<<tund<<socket<<bufferCount<<recvLength;
+        return recvLength;
+    }
+    
+    return 0;
+}
+
+
 void Tunneld::init()
 {
     
@@ -98,8 +165,9 @@ void Tunneld::init()
 
     m_ensrv = ensrv = enet_host_create(&enaddr, 32, 2, 0, 0);
     qDebug()<<ensrv;
-    ensrv->toxkit = m_toxkit;
-    // ensrv->enet_socket_send = toxenet_socket_send;
+    ensrv->toxkit = this;
+    ensrv->enet_socket_send = toxenet_socket_send;
+    ensrv->enet_socket_receive = toxenet_socket_receive;
 
     Xenet *xloop = new Xenet(ensrv);
     xloop->start();
@@ -166,6 +234,16 @@ void Tunneld::onToxnetFriendRequest(QString pubkey, QString reqmsg)
 void Tunneld::onToxnetFriendMessage(QString pubkey, int type, QByteArray message)
 {
     qDebug()<<pubkey<<type<<message;
+    if (type == TOX_MESSAGE_TYPE_ACTION) {
+        return;
+    }
+
+    // put buffers
+    if (!m_pkts.contains(pubkey)) {
+        m_pkts[pubkey] = QVector<QByteArray>();
+    }
+
+    m_pkts[pubkey].append(message);
 }
 
 ////////////
