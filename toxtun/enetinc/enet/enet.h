@@ -209,7 +209,8 @@ enum
    ENET_HOST_RECEIVE_BUFFER_SIZE          = 256 * 1024,
    ENET_HOST_SEND_BUFFER_SIZE             = 256 * 1024,
    ENET_HOST_BANDWIDTH_THROTTLE_INTERVAL  = 1000,
-   ENET_HOST_DEFAULT_MTU                  = 1400,
+   // ENET_HOST_DEFAULT_MTU                  = 1400,
+   ENET_HOST_DEFAULT_MTU                  = 1350,
    ENET_HOST_DEFAULT_MAXIMUM_PACKET_SIZE  = 32 * 1024 * 1024,
    ENET_HOST_DEFAULT_MAXIMUM_WAITING_DATA = 32 * 1024 * 1024,
 
@@ -263,6 +264,7 @@ typedef struct _ENetPeer
    enet_uint8    incomingSessionID;
    ENetAddress   address;            /**< Internet address of the peer */
     char        toxid[77];
+    void *      toxchan;
    void *        data;               /**< Application private data, may be freely modified */
    ENetPeerState state;
    ENetChannel * channels;

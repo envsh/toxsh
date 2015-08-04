@@ -6,6 +6,9 @@
 
 #include "enet/enet.h"
 
+#include "toxtunbase.h"
+
+
 // class ToxNet;
 // class Srudp;
 class QToxKit;
@@ -14,7 +17,7 @@ class ToxTunConfig;
 class ENetPoll;
 
 
-class Tunneld : public QObject
+class Tunneld : public ToxTunBase
 {
     Q_OBJECT;
 public:
@@ -60,7 +63,8 @@ public:
     QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
     // QHash<void*, ToxTunChannel*> m_chans;  // sock=>chan, enhost=>chan, enpeer=>chan
     QHash<QTcpSocket*, ToxTunChannel*> m_sock_chans;
-    QHash<ENetPeer*, ToxTunChannel*> m_enpeer_chans;
+    // QHash<ENetPeer*, ToxTunChannel*> m_enpeer_chans;
+    QHash<uint32_t, ToxTunChannel*> m_conid_chans;
     
 };
 

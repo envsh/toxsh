@@ -46,6 +46,7 @@ public:
     ENetHost *m_enhost = NULL;
     ENetPeer *m_enpeer = NULL;
     void *m_xenet = NULL;
+    uint32_t m_conid = 0;
 
     //////
     bool sock_closed = false;

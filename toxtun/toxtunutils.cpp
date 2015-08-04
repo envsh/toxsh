@@ -4,8 +4,8 @@ void ToxTunRecord::dump()
 {
     qDebug()<<"begin dump ToxTunRecord:"<<this;
     printf("......local_host:local_port,%s:%d\n", m_local_host.toLatin1().data(), m_local_port);
-    printf("......remote_host:remote_port,%s:%d\n", m_remote_host, m_remote_port);
-    printf("......remote_pubkey,%s\n", m_remote_pubkey);
+    printf("......remote_host:remote_port,%s:%d\n", m_remote_host.toLatin1().data(), m_remote_port);
+    printf("......remote_pubkey,%s\n", m_remote_pubkey.toLatin1().data());
     qDebug()<<"end dump ToxTunRecord: "<<this;
 }
 

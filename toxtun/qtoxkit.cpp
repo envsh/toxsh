@@ -242,12 +242,38 @@ static void bootDht(QToxKit *qtox)
     bool bret;
 
     
-    const char *ipaddr = "128.199.78.247";
-    QByteArray hex_pubkey("34922396155AA49CE6845A2FE34A73208F6FCD6190D981B1DBBC816326F26C6C");
-    QByteArray pubkey = QByteArray::fromHex(hex_pubkey);
+    const char *ipaddr = NULL;
+    QByteArray hex_pubkey;
+    QByteArray pubkey;
+    
+    // ipaddr = "128.199.78.247";
+    // hex_pubkey = QByteArray("34922396155AA49CE6845A2FE34A73208F6FCD6190D981B1DBBC816326F26C6C");
+    // pubkey = QByteArray::fromHex(hex_pubkey);
     // bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    // // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    // qDebug()<<bret<<ipaddr<<hex_pubkey;
+
+    ipaddr = "192.210.149.121";
+    hex_pubkey = QByteArray("F404ABAA1C99A9D37D61AB54898F56793E1DEF8BD46B1038B9D822E8460FAB67");
+    pubkey = QByteArray::fromHex(hex_pubkey);
+    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     qDebug()<<bret<<ipaddr<<hex_pubkey;
+
+    ipaddr = "205.185.116.116";
+    hex_pubkey = QByteArray("A179B09749AC826FF01F37A9613F6B57118AE014D4196A0E1105A98F93A54702");
+    pubkey = QByteArray::fromHex(hex_pubkey);
+    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    qDebug()<<bret<<ipaddr<<hex_pubkey;
+
+    ipaddr = "23.226.230.47";
+    hex_pubkey = QByteArray("A09162D68618E742FFBCA1C2C70385E6679604B2D80EA6E84AD0996A1AC8A074");
+    pubkey = QByteArray::fromHex(hex_pubkey);
+    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+    qDebug()<<bret<<ipaddr<<hex_pubkey;
+
 }
 
 
@@ -300,11 +326,12 @@ static void itimeout(QToxKit *qtox)
 static void _quick_save_data(QToxKit *toxkit)
 {
     int sz = tox_get_savedata_size(toxkit->m_tox);
-    uint8_t savedata[sz] = {0};
+    uint8_t *savedata = (uint8_t*)calloc(1, sz);
+    memset(savedata, 0, sz);
     tox_get_savedata(toxkit->m_tox, savedata);
     QByteArray qsavedata((char*)savedata, sz);
     toxkit->m_sets->saveData(qsavedata);
-
+    free(savedata);
 }
 
 uint32_t QToxKit::friendAdd(QString friendId, QString requestMessage)

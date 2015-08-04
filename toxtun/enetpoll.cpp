@@ -18,11 +18,11 @@ void ENetPoll::run()
     
     while (true) {
         if (m_enhosts.count() == 0) {
-            this->msleep(1000);
+            this->msleep(30);
             continue;
         }
         
-        interval = 1000 / m_enhosts.count();
+        interval = 50 / m_enhosts.count();
         for (auto it = m_enhosts.begin(); it != m_enhosts.end(); it++) {
             ENetHost *enhost = it.key();
             bool enable = it.value() == 1;
@@ -62,7 +62,7 @@ void ENetPoll::run()
        
             case ENET_EVENT_TYPE_DISCONNECT:
                 // printf ("%s disconnected.\n", event.peer -> data);
-                qDebug()<<event.peer -> data<<event.data<<" disconnected.";
+                qDebug()<<event.peer -> data<<event.data<<event.peer->connectID<<" disconnected.";
                 /* Reset the peer's client information. */
                 event.peer -> data = NULL;
                 emit disconnected(enhost, event.peer);

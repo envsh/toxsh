@@ -79,7 +79,8 @@ add_executable(tunnel
   ../libtroh/debugoutput.cpp
   tunneld.cpp
 #  toxnet.cpp
-  tunnelc.cpp
+tunnelc.cpp
+toxtunbase.cpp
 #  socksd.cpp
 #  srudp.cpp
 

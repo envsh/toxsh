@@ -69,23 +69,25 @@ QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffer
         msgHdr.msg_name = & sin;
         msgHdr.msg_namelen = sizeof (struct sockaddr_in);
     }
-    
     data.append((char*)&sin, sizeof(struct sockaddr_in));
-
+    
     for (int i = 0; i < bufferCount; i++) {
         const ENetBuffer *buffer = &buffers[i];
         sentLength += buffer->dataLength;
     }
     data.append((char*)&sentLength, sizeof(size_t));
 
+    // 允许发送部分数据
     for (int i = 0; i < bufferCount; i++) {
         const ENetBuffer *buffer = &buffers[i];
         data.append((char*)buffer->data, buffer->dataLength);
     }
 
     // qDebug()<<sentLength<<bufferCount;
-    if (sentLength > TOX_MAX_MESSAGE_LENGTH) {
-        qDebug()<<"warning, exceed tox max message length:"<<sentLength;
+    int maxlen = TOX_MAX_MESSAGE_LENGTH - sizeof(struct sockaddr_in) - sizeof(size_t);
+    if (sentLength > maxlen) {
+        qDebug()<<address<<buffers<<bufferCount;
+        qDebug()<<"warning, exceed tox max message length:"<<sentLength<<maxlen;
     }
 
     return data;    
