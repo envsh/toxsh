@@ -60,7 +60,7 @@ public:
     ENetHost *m_ensrv = NULL;
     ENetPoll *m_enpoll = NULL;
     
-    QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
+    // QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
     // QHash<void*, ToxTunChannel*> m_chans;  // sock=>chan, enhost=>chan, enpeer=>chan
     QHash<QTcpSocket*, ToxTunChannel*> m_sock_chans;
     // QHash<ENetPeer*, ToxTunChannel*> m_enpeer_chans;

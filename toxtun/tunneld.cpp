@@ -60,7 +60,10 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
     
     
     QByteArray data = serialize_packet(address, buffers, bufferCount);
-    tund->m_toxkit->friendSendMessage(friendId, data);
+    bool bret = tund->m_toxkit->friendSendLossyPacket(friendId, data);
+    if (!bret) { return 0; }
+    
+    // tund->m_toxkit->friendSendMessage(friendId, data);
     for (int i = 0; i < bufferCount; i ++) {
         sentLength += buffers[i].dataLength;  
     }
@@ -150,12 +153,16 @@ void Tunneld::init()
                      &Tunneld::onToxnetFriendRequest, Qt::QueuedConnection);
     QObject::connect(m_toxkit, &QToxKit::friendMessage, this,
                      &Tunneld::onToxnetFriendMessage, Qt::QueuedConnection);
+    QObject::connect(m_toxkit, &QToxKit::friendLossyPacket, this,
+                     &Tunneld::onToxnetFriendLossyPacket, Qt::QueuedConnection);
+    QObject::connect(m_toxkit, &QToxKit::friendLosslessPacket, this,
+                     &Tunneld::onToxnetFriendLosslessPacket, Qt::QueuedConnection);
     m_toxkit->start();
 
     m_enpoll = new ENetPoll();
-    QObject::connect(m_enpoll, &ENetPoll::connected, this, &Tunneld::onENetPeerConnected);
-    QObject::connect(m_enpoll, &ENetPoll::disconnected, this, &Tunneld::onENetPeerDisconnected);
-    QObject::connect(m_enpoll, &ENetPoll::packetReceived, this, &Tunneld::onENetPeerPacketReceived);
+    QObject::connect(m_enpoll, &ENetPoll::connected, this, &Tunneld::onENetPeerConnected, Qt::QueuedConnection);
+    QObject::connect(m_enpoll, &ENetPoll::disconnected, this, &Tunneld::onENetPeerDisconnected, Qt::QueuedConnection);
+    QObject::connect(m_enpoll, &ENetPoll::packetReceived, this, &Tunneld::onENetPeerPacketReceived, Qt::QueuedConnection);
     m_enpoll->start();
 
     
@@ -163,13 +170,18 @@ void Tunneld::init()
     enet_address_set_host(&enaddr, "127.0.0.1");
     ENetHost *ensrv = NULL;
 
-    m_ensrv = ensrv = enet_host_create(&enaddr, 32, 2, 0, 0);
+    m_ensrv = ensrv = enet_host_create(&enaddr, 132, 2, 0, 0);
     // ensrv->mtu = 1271; // 在这设置无效  // ENET_HOST_DEFAULT_MTU=1400
     // m_ensrv = ensrv = enet_host_create(&enaddr, 0, 2, 0, 0);
     qDebug()<<ensrv<<ensrv->peerCount;
     ensrv->toxkit = this;
     ensrv->enet_socket_send = toxenet_socket_send;
     ensrv->enet_socket_receive = toxenet_socket_receive;
+    // ensrv->compressor.context = (void*)0x1;
+    // ensrv->compressor.compress = enet_simple_compress;
+    // ensrv->compressor.decompress = enet_simple_decompress;
+    // ensrv->compressor.destroy = enet_simple_destroy;
+
 
     m_enpoll->addENetHost(ensrv);
 }
@@ -187,8 +199,8 @@ void Tunneld::onPeerConnected(int friendId)
 
     m_sock = new QTcpSocket();
 
-    QObject::connect(m_sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead);
-    QObject::connect(m_sock, &QTcpSocket::disconnected, this, &Tunneld::onTcpDisconnected);
+    QObject::connect(m_sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead, Qt::QueuedConnection);
+    QObject::connect(m_sock, &QTcpSocket::disconnected, this, &Tunneld::onTcpDisconnected, Qt::QueuedConnection);
 
     m_sock->connectToHost("127.0.0.1", 22);
     m_sock->waitForConnected();
@@ -252,9 +264,13 @@ void Tunneld::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
     qDebug()<<enhost<<enpeer<<enpeer->toxid<<data<<".";
 
     QTcpSocket *sock = new QTcpSocket();
-    QObject::connect(sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead);
-    QObject::connect(sock, &QTcpSocket::disconnected, this, &Tunneld::onTcpDisconnected);
-    
+    QObject::connect(sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead, Qt::QueuedConnection);
+    QObject::connect(sock, &QTcpSocket::disconnected, this, &Tunneld::onTcpDisconnected, Qt::QueuedConnection);
+
+    enpeer->timeoutLimit *= 10;
+    enpeer->timeoutMinimum *= 10;
+    enpeer->timeoutMaximum *= 10;
+
     ToxTunChannel *chan = new ToxTunChannel();
     chan->m_sock = sock;
     chan->m_enpeer = enpeer;
@@ -286,20 +302,47 @@ void Tunneld::onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer)
     // ToxTunChannel *chan = this->m_conid_chans[uint32_t(enpeer->data)];
     ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
     chan->enet_closed = true;
-    this->promiseChannelCleanup(chan);
+    // this->promiseChannelCleanup(chan);
 }
 
 void Tunneld::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int chanid, QByteArray packet)
 {
-    if (packet.length() > 50) {
-        qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet.left(20)<<"..."<<packet.right(20);
-    } else {
-        qDebug()<<enhost<<enpeer<<chanid<<packet.length();
-    }
-
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
     // ToxTunChannel *chan = this->m_conid_chans[(enpeer->data)];
     ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+
+    if (packet.length() > 50) {
+        // qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet.left(20)<<"..."<<packet.right(20);
+    } else {
+        // qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet;
+    }
+
+    if (chan == NULL) {
+        qDebug()<<"error: chan null:"<<enpeer;
+        if (packet.length() > 50) {
+            qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet.left(20)<<"..."<<packet.right(20);
+        } else {
+            qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet;
+        }
+        assert(1 == 2);
+    }
+    
+    if (chanid == 1) {
+        qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet;
+        if (packet == QByteArray("CLIFIN")) {
+            if (chan->peer_sock_closed == false) {
+                chan->peer_sock_closed = true;
+                chan->peer_sock_close_time = QDateTime::currentDateTime();
+                this->promiseChannelCleanup(chan);
+            } else {
+                qDebug()<<"duplicate CLIFIN packet:";
+            }
+        } else {
+            qDebug()<<"invalid chan1 packet:";
+        }
+        return;
+    }
+
     QTcpSocket *sock = chan->m_sock;
 
     int wrlen = sock->write(packet);
@@ -314,13 +357,30 @@ void Tunneld::onTcpConnected()
 
 void Tunneld::onTcpDisconnected()
 {
-    qDebug()<<"";
+    qDebug()<<""<<enet_host_used_peer_size(m_ensrv)<<m_sock_chans.count()<<m_conid_chans.count();
     QTcpSocket *sock = (QTcpSocket*)(sender());
     ToxTunChannel *chan = this->m_sock_chans[sock];
     // qDebug()<<chan<<chan->m_enpeer->state;
 
     chan->sock_closed = true;
-    enet_peer_disconnect_later(chan->m_enpeer, qrand());
+    chan->sock_close_time = QDateTime::currentDateTime();
+    
+    // 防止对方没有收完，暂时还不能关闭连接。
+    // enet_peer_disconnect_later(chan->m_enpeer, qrand());
+
+    if (true) {
+        QByteArray ba = "SRVFIN";
+        ENetPacket *packet = enet_packet_create(ba.data(), ba.length(), ENET_PACKET_FLAG_RELIABLE);
+
+        // enet_packet_resize(packet, 13);
+        // strcpy((char*)&packet->data[9], "foo");
+    
+        uint8_t chanid = 1;
+        ENetPeer *enpeer = chan->m_enpeer;
+        enet_peer_send(enpeer, chanid, packet);
+    }
+
+    this->promiseChannelCleanup(chan);
 }
 
 void Tunneld::onTcpReadyRead()
@@ -358,10 +418,29 @@ void Tunneld::onTcpReadyRead()
 void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
 {
     qDebug()<<chan;
+
+    if (chan->peer_sock_closed && chan->sock_closed && chan->enet_closed == false
+        && chan->m_close_timer == NULL) {
+        qDebug()<<"disconnect long run enet:"<<chan->m_conid;
+        // enet_peer_disconnect_now(chan->m_enpeer, qrand());
+        // chan->enet_closed = true;
+        // if (chan->m_close_timer != NULL) return;
+        
+        chan->m_close_timer = new QTimer();
+        QVariant vchan = QVariant::fromValue((void*)chan);
+        chan->m_close_timer->setProperty("chan", vchan);
+        QObject::connect(chan->m_close_timer, &QTimer::timeout, this, &Tunneld::promiseCleanupTimeout);
+        chan->m_close_timer->start(11234);
+
+        enet_peer_disconnect_later(chan->m_enpeer, qrand());
+        return;
+    }
+
     QHash<QString, bool> promise_results;
 
     promise_results["sock_closed"] = chan->sock_closed;
     promise_results["enet_closed"] = chan->enet_closed;
+    promise_results["peer_sock_closed"] = chan->peer_sock_closed;
 
     bool promise_result = true;
     for (auto it = promise_results.begin(); it != promise_results.end(); it ++) {
@@ -374,7 +453,7 @@ void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
         qDebug()<<"promise nooooot satisfied:"<<promise_results<<chan->m_conid;
         return;
     }
-
+    chan->m_close_timer->stop();
     qDebug()<<"promise satisfied."<<chan->m_conid;
 
     ///// do cleanup

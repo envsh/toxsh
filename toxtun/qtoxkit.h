@@ -20,6 +20,8 @@ public:
     uint32_t friendAddNorequest(QString friendId);
     bool friendDelete(QString friendId);
     void friendSendMessage(QString friendId, QByteArray data);
+    bool friendSendLossyPacket(QString friendId, QByteArray data);
+    bool friendSendLosslessPacket(QString friendId, QByteArray data);
 
 signals:
     void selfConnectionStatus(int status);
@@ -29,6 +31,8 @@ signals:
     void friendRequest(QString, QString);
     void friendAdded(QString);
     void friendMessage(QString, int, QByteArray);
+    void friendLossyPacket(QString friendId, QByteArray packet);
+    void friendLosslessPacket(QString friendId, QByteArray packet);
     void friendConnected(QString);
     void friendConnectionStatus(QString, int);
     void friendStatus(QString, int);

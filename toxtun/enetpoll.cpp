@@ -1,9 +1,17 @@
 
 #include "enetpoll.h"
 
+// #define ENET_POLL_INTVAL 1000
+#define ENET_POLL_INTVAL 50
+
 ENetPoll::ENetPoll(QObject* parent)
     : QThread(parent)
-{}
+{
+    m_timer = new QTimer();
+    m_timer->setInterval(ENET_POLL_INTVAL);
+    QObject::connect(m_timer, &QTimer::timeout, this, &ENetPoll::runInlineThread, Qt::QueuedConnection);
+    m_timer->start();
+}
 
 ENetPoll::~ENetPoll()
 {}
@@ -11,23 +19,30 @@ ENetPoll::~ENetPoll()
 
 void ENetPoll::run()
 {
-    int interval = 1000;
+}
+
+
+void ENetPoll::runInlineThread()
+{
+    int interval = ENET_POLL_INTVAL;
     ENetEvent event;
     int rc;
     QByteArray packet;
     
     while (true) {
         if (m_enhosts.count() == 0) {
-            this->msleep(30);
-            continue;
+            break;
+            // this->msleep(ENET_POLL_INTVAL);
+            // continue;
         }
         
-        interval = 50 / m_enhosts.count();
+        interval = ENET_POLL_INTVAL / m_enhosts.count();
         for (auto it = m_enhosts.begin(); it != m_enhosts.end(); it++) {
             ENetHost *enhost = it.key();
             bool enable = it.value() == 1;
             // rc = enet_host_service(enhost, &event, 1000);
-            rc = enet_host_service(enhost, &event, interval);
+            // rc = enet_host_service(enhost, &event, interval);
+            rc = enet_host_service(enhost, &event, 0);
             // qDebug()<<rc;
 
             switch (event.type) {
@@ -68,9 +83,10 @@ void ENetPoll::run()
                 emit disconnected(enhost, event.peer);
             }
         }
+        break;
     }
 
-    this->exec();
+    // this->exec();
 }
 
 void ENetPoll::addENetHost(ENetHost *enhost)
@@ -82,5 +98,73 @@ void ENetPoll::removeENetHost(ENetHost *enhost)
 {
     m_enhosts[enhost] = 0;
     m_enhosts.remove(enhost);
+}
+
+
+/////////////
+int enet_host_used_peer_size(ENetHost *host)
+{
+    ENetPeer * currentPeer;
+    int used = host->peerCount;
+    for (currentPeer = host -> peers;
+         currentPeer < & host -> peers [host -> peerCount];
+         ++ currentPeer)
+    {
+       if (currentPeer -> state == ENET_PEER_STATE_DISCONNECTED)
+           used --;
+    }
+
+    return used;
+}
+
+// 返回压缩后的大小
+size_t enet_simple_compress(void * context, const ENetBuffer * inBuffers, size_t inBufferCount,
+                            size_t inLimit, enet_uint8 * outData, size_t outLimit)
+{
+    return 0;
+    if (inLimit < 200) return 0;
+    
+    qDebug()<<inBufferCount<<inLimit<<outLimit;
+    size_t cpsz = 0;
+    QByteArray inbuf;
+    
+    size_t inlen = 0;
+    for (int i = 0; i < inBufferCount; i ++) {
+        const ENetBuffer *buffer = &inBuffers[i];
+        if (inlen + buffer->dataLength > inLimit) {
+            break;
+        }
+        inlen += buffer->dataLength;
+        inbuf.append((const char*)buffer->data, buffer->dataLength);
+    }
+
+    QByteArray outbuf = qCompress(inbuf, 7);
+    memcpy(outData, outbuf.data(), outbuf.length());
+
+    if (outbuf.length() > outLimit) {
+        qDebug()<<"invlid compress:"<<outbuf.length()<<outLimit<<inlen;
+        return 0;
+    }
+    return outbuf.length();
+    return 0;
+}
+
+// 返回解压后的大小
+size_t enet_simple_decompress(void * context, const enet_uint8 * inData, size_t inLimit,
+                              enet_uint8 * outData, size_t outLimit)
+{
+    qDebug()<<inLimit<<outLimit;
+
+    QByteArray inbuf((const char*)inData, inLimit);
+    QByteArray outbuf = qUncompress(inbuf);
+
+    memcpy(outData, outbuf.data(), outbuf.length());
+    return outbuf.length();
+    return 0;
+}
+
+void enet_simple_destroy(void * context)
+{
+    qDebug()<<"";
 }
 

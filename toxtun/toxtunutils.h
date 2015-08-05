@@ -1,6 +1,8 @@
 #ifndef TOXTUNUTILS_H
 #define TOXTUNUTILS_H
 
+#include <assert.h>
+
 #include <QtCore>
 #include <QtNetwork>
 
@@ -51,6 +53,13 @@ public:
     //////
     bool sock_closed = false;
     bool enet_closed = false;
+    bool peer_sock_closed = false;  // chan1 =>
+
+    QDateTime sock_close_time;
+    QDateTime enet_close_time;
+    QDateTime peer_sock_close_time;
+
+    QTimer *m_close_timer = NULL;
 };
 
 

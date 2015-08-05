@@ -234,6 +234,45 @@ void on_friend_message(Tox *tox, uint32_t friend_number, TOX_MESSAGE_TYPE type, 
     emit(qtox->friendMessage(hex_pubkey, type, qmessage));
 }
 
+void on_friend_lossy_packet(Tox *tox, uint32_t friend_number, const uint8_t *data, size_t length,
+                            void *user_data)
+{
+    QToxKit *qtox = (QToxKit*)user_data;
+    // qDebug()<<tox<<friend_number<<length;
+
+    uint8_t public_key[TOX_PUBLIC_KEY_SIZE];
+    tox_friend_get_public_key(tox, friend_number, public_key, NULL);
+    QString hex_pubkey = QByteArray((char*)public_key, TOX_PUBLIC_KEY_SIZE).toHex().toUpper();
+
+    unsigned char firstByte = data[0];
+    if (firstByte >= 200 && firstByte <= 254) {}
+    else {
+        qDebug()<<"invlid custom packet first byte:"<<firstByte;
+    }
+    QByteArray qmessage = QByteArray((char*)data+1, length-1);
+    emit(qtox->friendLossyPacket(hex_pubkey, qmessage));
+    
+}
+
+void on_friend_lossless_packet(Tox *tox, uint32_t friend_number, const uint8_t *data, size_t length,
+                               void *user_data)
+{
+    QToxKit *qtox = (QToxKit*)user_data;
+    // qDebug()<<tox<<friend_number<<length;
+
+    uint8_t public_key[TOX_PUBLIC_KEY_SIZE];
+    tox_friend_get_public_key(tox, friend_number, public_key, NULL);
+    QString hex_pubkey = QByteArray((char*)public_key, TOX_PUBLIC_KEY_SIZE).toHex().toUpper();
+
+    unsigned char firstByte = data[0];
+    if (firstByte >= 200 && firstByte <= 254) {}
+    else {
+        qDebug()<<"invlid custom packet first byte:"<<firstByte;
+    }
+    QByteArray qmessage = QByteArray((char*)data+1, length-1);
+    emit(qtox->friendLosslessPacket(hex_pubkey, qmessage));
+
+}
 
 ////////////////
 static void bootDht(QToxKit *qtox)
@@ -253,27 +292,31 @@ static void bootDht(QToxKit *qtox)
     // // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     // qDebug()<<bret<<ipaddr<<hex_pubkey;
 
-    ipaddr = "192.210.149.121";
-    hex_pubkey = QByteArray("F404ABAA1C99A9D37D61AB54898F56793E1DEF8BD46B1038B9D822E8460FAB67");
-    pubkey = QByteArray::fromHex(hex_pubkey);
-    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    qDebug()<<bret<<ipaddr<<hex_pubkey;
+    // bool localrun = false;
+    bool localrun = true;
 
-    ipaddr = "205.185.116.116";
-    hex_pubkey = QByteArray("A179B09749AC826FF01F37A9613F6B57118AE014D4196A0E1105A98F93A54702");
-    pubkey = QByteArray::fromHex(hex_pubkey);
-    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    qDebug()<<bret<<ipaddr<<hex_pubkey;
+    if (!localrun) {
+        ipaddr = "192.210.149.121";
+        hex_pubkey = QByteArray("F404ABAA1C99A9D37D61AB54898F56793E1DEF8BD46B1038B9D822E8460FAB67");
+        pubkey = QByteArray::fromHex(hex_pubkey);
+        bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        qDebug()<<bret<<ipaddr<<hex_pubkey;
 
-    ipaddr = "23.226.230.47";
-    hex_pubkey = QByteArray("A09162D68618E742FFBCA1C2C70385E6679604B2D80EA6E84AD0996A1AC8A074");
-    pubkey = QByteArray::fromHex(hex_pubkey);
-    bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
-    qDebug()<<bret<<ipaddr<<hex_pubkey;
+        ipaddr = "205.185.116.116";
+        hex_pubkey = QByteArray("A179B09749AC826FF01F37A9613F6B57118AE014D4196A0E1105A98F93A54702");
+        pubkey = QByteArray::fromHex(hex_pubkey);
+        bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        qDebug()<<bret<<ipaddr<<hex_pubkey;
 
+        ipaddr = "23.226.230.47";
+        hex_pubkey = QByteArray("A09162D68618E742FFBCA1C2C70385E6679604B2D80EA6E84AD0996A1AC8A074");
+        pubkey = QByteArray::fromHex(hex_pubkey);
+        bret = tox_bootstrap(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
+        qDebug()<<bret<<ipaddr<<hex_pubkey;
+    }
 }
 
 
@@ -300,8 +343,10 @@ static void makeTox(QToxKit *qtox)
     tox_callback_self_connection_status(tox, on_self_connection_status, qtox);
     tox_callback_friend_connection_status(tox, on_friend_connection_status, qtox);
     tox_callback_friend_request(tox, on_friend_request, qtox);
-    tox_callback_friend_message(tox, on_friend_message, qtox);
     tox_callback_friend_status(tox, on_friend_status, qtox);
+    tox_callback_friend_message(tox, on_friend_message, qtox);
+    tox_callback_friend_lossy_packet(tox, on_friend_lossy_packet, qtox);
+    tox_callback_friend_lossless_packet(tox, on_friend_lossless_packet, qtox);
 
     ////// some tests
     uint8_t toxaddr[TOX_ADDRESS_SIZE];
@@ -326,12 +371,19 @@ static void itimeout(QToxKit *qtox)
 static void _quick_save_data(QToxKit *toxkit)
 {
     int sz = tox_get_savedata_size(toxkit->m_tox);
+#if __GNUC__ >= 5
+    uint8_t savedata[sz] = {0};
+    tox_get_savedata(toxkit->m_tox, savedata);
+    QByteArray qsavedata((char*)savedata, sz);
+    toxkit->m_sets->saveData(qsavedata);
+#else
     uint8_t *savedata = (uint8_t*)calloc(1, sz);
     memset(savedata, 0, sz);
     tox_get_savedata(toxkit->m_tox, savedata);
     QByteArray qsavedata((char*)savedata, sz);
     toxkit->m_sets->saveData(qsavedata);
     free(savedata);
+#endif
 }
 
 uint32_t QToxKit::friendAdd(QString friendId, QString requestMessage)
@@ -385,6 +437,43 @@ void QToxKit::friendSendMessage(QString friendId, QByteArray data)
                                              (uint8_t*)data.data(), data.length(), NULL);
     // qDebug()<<friend_number<<msgid<<data.length();
 }
+
+bool QToxKit::friendSendLossyPacket(QString friendId, QByteArray data)
+{
+   Tox *tox = this->m_tox;
+
+    QByteArray raw_friend_id = QByteArray::fromHex(friendId.toLatin1());
+    uint32_t friend_number = tox_friend_by_public_key(tox, (uint8_t*)raw_friend_id.data(), NULL);
+
+    TOX_ERR_FRIEND_CUSTOM_PACKET err;
+    unsigned char firstByte = 234;  // 200 - 254
+    data.prepend(firstByte);
+    bool bret = tox_friend_send_lossy_packet(tox, friend_number,
+                                             (uint8_t*)data.data(), data.length(), &err);
+    if (err != TOX_ERR_FRIEND_CUSTOM_PACKET_OK) {
+        qDebug()<<err<<friend_number<<friendId;
+    }
+    return bret;
+}
+
+bool QToxKit::friendSendLosslessPacket(QString friendId, QByteArray data)
+{
+   Tox *tox = this->m_tox;
+
+    QByteArray raw_friend_id = QByteArray::fromHex(friendId.toLatin1());
+    uint32_t friend_number = tox_friend_by_public_key(tox, (uint8_t*)raw_friend_id.data(), NULL);
+
+    TOX_ERR_FRIEND_CUSTOM_PACKET err;
+    unsigned char firstByte = 185;  // 160 - 191
+    data.prepend(firstByte);
+    bool bret = tox_friend_send_lossless_packet(tox, friend_number,
+                                                (uint8_t*)data.data(), data.length(), &err);
+    if (err != TOX_ERR_FRIEND_CUSTOM_PACKET_OK) {
+        qDebug()<<err;
+    }
+    return bret;
+}
+
 
 void QToxKit::run()
 {
