@@ -33,11 +33,14 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
     QToxKit *toxkit = tunc->m_toxkit;
 
     // ToxTunChannel *chan = tunc->m_enpeer_chans[enpeer];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = tunc->peerLastChan(enpeer);
     // qDebug()<<bufferCount<<toxkit<<enpeer<<chan;
 
     if (enpeer == NULL) {}
-    if (chan == NULL) {}
+    if (chan == NULL) {
+        qDebug()<<"maybe connect packet."<<enpeer;
+    }
 
     size_t sentLength = 0;
     QString friendId = QString(address->toxid);
@@ -257,7 +260,8 @@ void Tunnelc::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
 {
     qDebug()<<enhost<<enpeer<<data;
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = peerLastChan(enpeer);
     emit chan->m_sock->readyRead();
 
     if (false) {
@@ -275,7 +279,8 @@ void Tunnelc::onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer)
 {
     qDebug()<<enhost<<enpeer<<enpeer->connectID;
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = peerLastChan(enpeer);
     chan->enet_closed = true;
 
     if (!chan->sock_closed) {
@@ -294,7 +299,8 @@ void Tunnelc::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int c
     }
 
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = peerLastChan(enpeer);
 
     if (chan == NULL) {
         qDebug()<<"error: chan null:"<<enpeer;
@@ -351,10 +357,8 @@ void Tunnelc::onNewTcpConnection()
     chan->m_host = "127.0.0.1";
     chan->m_port = rec.m_remote_port;
     chan->m_conid = nextConid();
-    
-    this->m_sock_chans[sock] = chan;
-    // this->m_enpeer_chans[peer] = chan;
 
+    
     //
     ENetAddress eaddr = {0};
     enet_address_set_host(&eaddr, "127.0.0.1");  // tunip: 10.0.5.x
@@ -375,13 +379,23 @@ void Tunnelc::onNewTcpConnection()
     peer->timeoutLimit *= 10;
     peer->timeoutMinimum *= 10;
     peer->timeoutMaximum *= 10;
-    
-    if (peer->toxchan != NULL) {
-        qDebug()<<"warning, maybe enet peer not freed correctly";
+
+    if (peer->toxchans == NULL) {
+        peer->toxchans = new QVector<ToxTunChannel*>();
     }
-    peer->toxchan = chan;
+    if (peerChansCount(peer) > 0) {
+        qDebug()<<peer->incomingPeerID;
+        ToxTunChannel *tchan = peerLastChan(peer);
+        qDebug()<<tchan<<tchan->m_conid
+                <<tchan->sock_closed<<tchan->peer_sock_closed<<tchan->enet_closed;
+        promiseChannelCleanup(tchan);
+        assert(peerChansCount(peer) == 0);
+        // assert(1 == 2);
+    }
+    peerAddChan(peer, chan);
     
     chan->m_enpeer = peer;
+    this->m_sock_chans[sock] = chan;
     // this->m_enpeer_chans[peer] = chan;
     this->m_conid_chans[chan->m_conid] = chan;
 }
@@ -457,7 +471,7 @@ void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
         QVariant vchan = QVariant::fromValue((void*)chan);
         chan->m_close_timer->setProperty("chan", vchan);
         QObject::connect(chan->m_close_timer, &QTimer::timeout, this, &Tunnelc::promiseCleanupTimeout);
-        chan->m_close_timer->start(11234);
+        // chan->m_close_timer->start(11234);
 
         enet_peer_disconnect_later(chan->m_enpeer, qrand());
         return;
@@ -486,8 +500,9 @@ void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
     QTcpSocket *sock = chan->m_sock;
     ENetPeer *enpeer = chan->m_enpeer;
 
-    enpeer->toxchan = NULL; // cleanup
-
+    // enpeer->toxchan = NULL; // cleanup
+    peerRemoveChan(enpeer, chan);
+    
     this->m_sock_chans.remove(sock);
     // this->m_enpeer_chans.remove(enpeer);
     this->m_conid_chans.remove(chan->m_conid);

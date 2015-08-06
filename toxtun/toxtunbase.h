@@ -3,6 +3,8 @@
 
 #include <QtCore>
 
+#include "enet/enet.h"
+
 class ToxTunChannel;
 
 class ToxTunBase : public QObject
@@ -11,7 +13,11 @@ class ToxTunBase : public QObject
     
 public:
     uint32_t nextConid();
-
+    ToxTunChannel *peerLastChan(ENetPeer *enpeer);
+    int peerChansCount(ENetPeer *enpeer);
+    int peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan);
+    int peerAddChan(ENetPeer *enpeer, ToxTunChannel *chan);
+    
 public:
     uint32_t m_conid = 7;
     QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]

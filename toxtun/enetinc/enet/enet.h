@@ -264,7 +264,7 @@ typedef struct _ENetPeer
    enet_uint8    incomingSessionID;
    ENetAddress   address;            /**< Internet address of the peer */
     char        toxid[77];
-    void *      toxchan;
+    void *      toxchans;
    void *        data;               /**< Application private data, may be freely modified */
    ENetPeerState state;
    ENetChannel * channels;

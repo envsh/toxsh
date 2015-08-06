@@ -38,17 +38,22 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
     QToxKit *toxkit = tund->m_toxkit;    
     // ToxTunChannel *chan = tund->m_enpeer_chans[enpeer];
     // ToxTunChannel *chan = tund->m_conid_chans[(uint32_t)(enpeer->data)];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+        ToxTunChannel *chan = tund->peerLastChan(enpeer);
     // qDebug()<<bufferCount<<toxkit<<enpeer<<chan;
 
     if (enpeer == NULL) {}
-    if (chan == NULL) {}
+    if (chan == NULL) {
+        qDebug()<<"maybe connect packet."<<enpeer;
+    }
     
     size_t sentLength = 0;
     // QString friendId = "451843FCB684FC779B302C08EA33DDB447B61402B075C8AF3E84BEE5FB41C738928615BCDCE4";
     QString friendId = QString(address->toxid);
     int idsrc = 0;
     if (chan != NULL) { // connected state
+        // qDebug()<<chan;
+        // qDebug()<<chan->m_peer_pubkey;
         friendId = chan->m_peer_pubkey;
         idsrc = 1;
     } else { // not connected state
@@ -281,10 +286,26 @@ void Tunneld::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
     chan->m_port = data;  // connect to port
     chan->m_conid = this->nextConid();
 
-    if (enpeer->toxchan != 0) {
-        qDebug()<<"warning maybe not freed peer correctly:"<<enpeer->toxchan;
+
+    if (enpeer->toxchans == NULL) {
+        enpeer->toxchans = new QVector<ToxTunChannel*>();
     }
-    enpeer->toxchan = chan;
+    if (peerChansCount(enpeer) > 0) {
+        int cc0 = peerChansCount(enpeer);
+        qDebug()<<enpeer->incomingPeerID<<cc0;
+        ToxTunChannel *tchan = peerLastChan(enpeer);
+        qDebug()<<tchan<<tchan->m_conid
+                <<tchan->sock_closed<<tchan->peer_sock_closed<<tchan->enet_closed;
+        promiseChannelCleanup(tchan);
+        int cc1 = peerChansCount(enpeer);
+        if (cc1 != 0) {
+            qDebug()<<enpeer->incomingPeerID<<cc0;            
+        }
+        assert(peerChansCount(enpeer) == 0);
+        // assert(1 == 2);
+    }
+    peerAddChan(enpeer, chan);
+
 
     this->m_sock_chans[sock] = chan;
     // this->m_enpeer_chans[enpeer] = chan;
@@ -300,7 +321,8 @@ void Tunneld::onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer)
     qDebug()<<enhost<<enpeer;
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
     // ToxTunChannel *chan = this->m_conid_chans[uint32_t(enpeer->data)];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = peerLastChan(enpeer);
     chan->enet_closed = true;
     // this->promiseChannelCleanup(chan);
 }
@@ -309,7 +331,8 @@ void Tunneld::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int c
 {
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
     // ToxTunChannel *chan = this->m_conid_chans[(enpeer->data)];
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
+    ToxTunChannel *chan = peerLastChan(enpeer);
 
     if (packet.length() > 50) {
         // qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet.left(20)<<"..."<<packet.right(20);
@@ -430,16 +453,17 @@ void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
         QVariant vchan = QVariant::fromValue((void*)chan);
         chan->m_close_timer->setProperty("chan", vchan);
         QObject::connect(chan->m_close_timer, &QTimer::timeout, this, &Tunneld::promiseCleanupTimeout);
-        chan->m_close_timer->start(11234);
+        // chan->m_close_timer->start(11234);
 
-        enet_peer_disconnect_later(chan->m_enpeer, qrand());
+        // enet_peer_disconnect_later(chan->m_enpeer, qrand());
+        
         return;
     }
 
     QHash<QString, bool> promise_results;
 
     promise_results["sock_closed"] = chan->sock_closed;
-    promise_results["enet_closed"] = chan->enet_closed;
+    // promise_results["enet_closed"] = chan->enet_closed;
     promise_results["peer_sock_closed"] = chan->peer_sock_closed;
 
     bool promise_result = true;
@@ -460,7 +484,8 @@ void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
     QTcpSocket *sock = chan->m_sock;
     ENetPeer *enpeer = chan->m_enpeer;
 
-    enpeer->toxchan = NULL;  // cleanup
+    // enpeer->toxchan = NULL;  // cleanup
+    peerRemoveChan(enpeer, chan);
     
     this->m_sock_chans.remove(sock);
     // this->m_enpeer_chans.remove(enpeer);
