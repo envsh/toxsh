@@ -296,7 +296,24 @@ void Tunneld::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
         ToxTunChannel *tchan = peerLastChan(enpeer);
         qDebug()<<tchan<<tchan->m_conid
                 <<tchan->sock_closed<<tchan->peer_sock_closed<<tchan->enet_closed;
-        promiseChannelCleanup(tchan);
+        // promiseChannelCleanup(tchan);
+
+        // 无条件把相关联的chan清理掉
+        if (tchan->sock_closed == true && tchan->peer_sock_closed == false) {
+            qDebug()<<"need force cleanup:"<<tchan->m_conid;
+            tchan->peer_sock_closed = true;
+            tchan->force_closed = true;
+            promiseChannelCleanup(tchan); 
+        }
+        else
+        if (tchan->sock_closed == false && tchan->peer_sock_closed == false) {
+            qDebug()<<"need force cleanup:"<<tchan->m_conid;
+            tchan->peer_sock_closed = true;
+            tchan->sock_closed = true;
+            tchan->force_closed = true;
+            promiseChannelCleanup(tchan); 
+        }
+
         int cc1 = peerChansCount(enpeer);
         if (cc1 != 0) {
             qDebug()<<enpeer->incomingPeerID<<cc0;            
@@ -323,7 +340,13 @@ void Tunneld::onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer)
     // ToxTunChannel *chan = this->m_conid_chans[uint32_t(enpeer->data)];
     // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
     ToxTunChannel *chan = peerLastChan(enpeer);
-    chan->enet_closed = true;
+
+    if (chan != NULL) {
+        qDebug()<<"warning why chan not null:"<<chan->m_conid;
+    } else {
+        assert(chan == NULL);
+    }
+    // chan->enet_closed = true;
     // this->promiseChannelCleanup(chan);
 }
 
@@ -438,27 +461,10 @@ void Tunneld::onTcpReadyRead()
     // m_rudp->sendto(ba, QString("127.0.0.1:6789"));
 }
 
+
 void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
 {
     qDebug()<<chan;
-
-    if (chan->peer_sock_closed && chan->sock_closed && chan->enet_closed == false
-        && chan->m_close_timer == NULL) {
-        qDebug()<<"disconnect long run enet:"<<chan->m_conid;
-        // enet_peer_disconnect_now(chan->m_enpeer, qrand());
-        // chan->enet_closed = true;
-        // if (chan->m_close_timer != NULL) return;
-        
-        chan->m_close_timer = new QTimer();
-        QVariant vchan = QVariant::fromValue((void*)chan);
-        chan->m_close_timer->setProperty("chan", vchan);
-        QObject::connect(chan->m_close_timer, &QTimer::timeout, this, &Tunneld::promiseCleanupTimeout);
-        // chan->m_close_timer->start(11234);
-
-        // enet_peer_disconnect_later(chan->m_enpeer, qrand());
-        
-        return;
-    }
 
     QHash<QString, bool> promise_results;
 
@@ -477,22 +483,47 @@ void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
         qDebug()<<"promise nooooot satisfied:"<<promise_results<<chan->m_conid;
         return;
     }
-    chan->m_close_timer->stop();
+
     qDebug()<<"promise satisfied."<<chan->m_conid;
 
     ///// do cleanup
     QTcpSocket *sock = chan->m_sock;
     ENetPeer *enpeer = chan->m_enpeer;
-
+    bool force_closed = chan->force_closed;
+    
     // enpeer->toxchan = NULL;  // cleanup
     peerRemoveChan(enpeer, chan);
     
     this->m_sock_chans.remove(sock);
     // this->m_enpeer_chans.remove(enpeer);
     this->m_conid_chans.remove(chan->m_conid);
-    
+
+    delete chan;
+    sock->disconnect();
     sock->deleteLater();
     qDebug()<<"curr chan size:"<<this->m_sock_chans.count()<<this->m_conid_chans.count();
+
+    if (force_closed) {
+        return;
+    }
+
+    // 延时关闭enet_peer
+    auto later_close_timeout = [enpeer]() {
+            qDebug()<<enpeer<<enpeer->state;
+            if (enpeer->state != ENET_PEER_STATE_CONNECTED) {
+                qDebug()<<"warning, peer currently not connected:"<<enpeer->incomingPeerID;
+            }
+
+            if (! (enet_list_empty (& enpeer -> outgoingReliableCommands) &&
+                   enet_list_empty (& enpeer -> outgoingUnreliableCommands) && 
+                   enet_list_empty (& enpeer -> sentReliableCommands))) {
+                qDebug()<<"warning, maybe has unsent packet:"<<enpeer->incomingPeerID;
+            }
+
+            enet_peer_disconnect_now(enpeer, qrand());
+            // enet_peer_disconnect_later(enpeer, qrand());
+    };
+    QTimer::singleShot(5678, later_close_timeout);
 }
 
 //////////////////
