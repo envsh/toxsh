@@ -20,7 +20,8 @@ public:
     
 public:
     uint32_t m_conid = 7;
-    QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
+    // QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
+    QHash<QString, QQueue<QByteArray> > m_inpkts;  // friendId => [pkt1/2/3]
     QMutex m_pkts_mutex;
 
 protected:

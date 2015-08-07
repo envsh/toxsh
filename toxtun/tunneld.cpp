@@ -101,7 +101,7 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
     if (event->peer == NULL) {}
     if (chan == NULL) {}
     QMutexLocker mtlck(&tund->m_pkts_mutex);
-    if (tund->m_pkts.count() == 0) {
+    if (tund->m_inpkts.count() == 0) {
         return 0;
     }
 
@@ -110,15 +110,16 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
     }
     
     struct sockaddr_in sin = {0};
-    QString pubkey = tund->m_pkts.begin().key();
+    QString pubkey = tund->m_inpkts.begin().key();
 
-    if (tund->m_pkts[pubkey].count() > 0) {
+    if (tund->m_inpkts[pubkey].count() > 0) {
         // qDebug()<<tund<<socket<<bufferCount;
         
         int recvLength = 0;
         // QByteArray pkt = tund->m_pkts[pubkey].takeAt(0);
-        QByteArray pkt = tund->m_pkts[pubkey].at(0);
-        tund->m_pkts[pubkey].remove(0);
+        // QByteArray pkt = tund->m_pkts[pubkey].at(0);
+        // tund->m_pkts[pubkey].remove(0);
+        QByteArray pkt = tund->m_inpkts[pubkey].dequeue();
         
         // deserialize
         recvLength = deserialize_packet(pkt, address, &buffers[0]);
@@ -192,6 +193,9 @@ void Tunneld::init()
 
 
     m_enpoll->addENetHost(ensrv);
+
+    QObject::connect(this, &Tunneld::testRunThread, m_enpoll, &ENetPoll::testRunThread);
+    emit(this->testRunThread());
 }
 
 static int g_conn_stat = 0;
@@ -259,11 +263,11 @@ void Tunneld::onToxnetFriendMessage(QString pubkey, int type, QByteArray message
     }
     QMutexLocker mtlck(&m_pkts_mutex);
     // put buffers
-    if (!m_pkts.contains(pubkey)) {
-        m_pkts[pubkey] = QVector<QByteArray>();
+    if (!m_inpkts.contains(pubkey)) {
+        m_inpkts[pubkey] = QQueue<QByteArray>();
     }
 
-    m_pkts[pubkey].append(message);
+    m_inpkts[pubkey].append(message);
 }
 
 //////////////////
@@ -426,7 +430,8 @@ void Tunneld::onTcpDisconnected()
     
         uint8_t chanid = 1;
         ENetPeer *enpeer = chan->m_enpeer;
-        enet_peer_send(enpeer, chanid, packet);
+        // enet_peer_send(enpeer, chanid, packet);
+        m_enpoll->sendPacket(enpeer, chanid, packet);
     }
 
     this->promiseChannelCleanup(chan);
@@ -455,7 +460,8 @@ void Tunneld::onTcpReadyRead()
     
             uint8_t chanid = 0;
             ENetPeer *enpeer = chan->m_enpeer;
-            enet_peer_send(enpeer, chanid, packet);
+            // enet_peer_send(enpeer, chanid, packet);
+            m_enpoll->sendPacket(enpeer, chanid, packet);
         }
     }
 

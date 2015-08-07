@@ -48,6 +48,9 @@ private slots:
 
 private:
     void promiseChannelCleanup(ToxTunChannel *chan);
+
+signals:
+    void testRunThread();
     
 private:
 public:

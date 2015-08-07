@@ -63,13 +63,13 @@ int ToxTunBase::peerAddChan(ENetPeer *enpeer, ToxTunChannel *chan)
 void ToxTunBase::onToxnetFriendLossyPacket(QString friendId, QByteArray packet)
 {
     // qDebug()<<friendId<<packet.length();
-
+    QMutexLocker mtlck(&m_pkts_mutex);
     // put buffers
-    if (!m_pkts.contains(friendId)) {
-        m_pkts[friendId] = QVector<QByteArray>();
+    if (!m_inpkts.contains(friendId)) {
+        m_inpkts[friendId] = QQueue<QByteArray>();
     }
 
-    m_pkts[friendId].append(packet);
+    m_inpkts[friendId].enqueue(packet);
     // qDebug()<<friendId<<packet.length();
 }
 

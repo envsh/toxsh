@@ -93,7 +93,7 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
     if (chan == NULL) {}
 
     QMutexLocker mtlck(&tunc->m_pkts_mutex);
-    if (tunc->m_pkts.count() == 0) {
+    if (tunc->m_inpkts.count() == 0) {
         return 0;
     }
 
@@ -102,15 +102,16 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
     }
     
     struct sockaddr_in sin = {0};
-    QString pubkey = tunc->m_pkts.begin().key();
+    QString pubkey = tunc->m_inpkts.begin().key();
 
-    if (tunc->m_pkts[pubkey].count() > 0) {
+    if (tunc->m_inpkts[pubkey].count() > 0) {
         // qDebug()<<tunc<<socket<<bufferCount;
         
         int recvLength = 0;
         // QByteArray pkt = tunc->m_pkts[pubkey].takeAt(0);
-        QByteArray pkt = tunc->m_pkts[pubkey].at(0);
-        tunc->m_pkts[pubkey].remove(0);
+        // QByteArray pkt = tunc->m_pkts[pubkey].at(0);
+        // tunc->m_pkts[pubkey].remove(0);
+        QByteArray pkt = tunc->m_inpkts[pubkey].dequeue();
         
         // deserialize
         recvLength = deserialize_packet(pkt, address, &buffers[0]);
@@ -251,11 +252,11 @@ void Tunnelc::onToxnetFriendMessage(QString pubkey, int type, QByteArray message
     }
     QMutexLocker mtlck(&m_pkts_mutex);
     // put buffers
-    if (!m_pkts.contains(pubkey)) {
-        m_pkts[pubkey] = QVector<QByteArray>();
+    if (!m_inpkts.contains(pubkey)) {
+        m_inpkts[pubkey] = QQueue<QByteArray>();
     }
 
-    m_pkts[pubkey].append(message);
+    m_inpkts[pubkey].enqueue(message);
 }
 
 
@@ -275,7 +276,8 @@ void Tunnelc::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
         strcpy((char*)&packet->data[9], "foo");
     
         uint8_t chanid = 0;
-        enet_peer_send(enpeer, chanid, packet);
+        // enet_peer_send(enpeer, chanid, packet);
+        m_enpoll->sendPacket(enpeer, chanid, packet);
     }
 }
 
@@ -442,7 +444,8 @@ void Tunnelc::onTcpReadyRead()
     
             uint8_t chanid = 0;
             ENetPeer *enpeer = chan->m_enpeer;
-            enet_peer_send(enpeer, chanid, packet);
+            // enet_peer_send(enpeer, chanid, packet);
+            m_enpoll->sendPacket(enpeer, chanid, packet);
         }
     }
     
@@ -469,7 +472,8 @@ void Tunnelc::onTcpDisconnected()
     
         uint8_t chanid = 1;
         ENetPeer *enpeer = chan->m_enpeer;
-        enet_peer_send(enpeer, chanid, packet);
+        // enet_peer_send(enpeer, chanid, packet);
+        m_enpoll->sendPacket(enpeer, chanid, packet);
     }
 
     this->promiseChannelCleanup(chan);

@@ -5,6 +5,21 @@
 
 #include "enet/enet.h"
 
+class PacketElement
+{
+public:
+    PacketElement(ENetPeer *enpeer, uint8_t chanid, ENetPacket *pkt)
+    {
+        m_enpeer = enpeer;
+        m_chanid = chanid;
+        m_pkt = pkt;
+    }
+
+    ENetPeer *m_enpeer;
+    uint8_t m_chanid;
+    ENetPacket *m_pkt;
+};
+
 class ENetPoll : public QThread
 {
     Q_OBJECT;
@@ -16,10 +31,16 @@ public:
     void runInlineThread();
     void addENetHost(ENetHost *enhost);
     void removeENetHost(ENetHost *enhost);
-
+    void sendPacket(ENetPeer *enpeer, uint8_t chanid, ENetPacket *pkt);
+                     
+public slots:
+    void testRunThread();
+    
 public:
     QHash<ENetHost*, int> m_enhosts;
     QTimer *m_timer = NULL;
+    QQueue<PacketElement> m_outpkts;
+    QMutex m_outpkts_mutex;
 
 signals:
     void connected(ENetHost *enhost, ENetPeer *enpeer, quint32 data);

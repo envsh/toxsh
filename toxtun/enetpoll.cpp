@@ -9,9 +9,9 @@ ENetPoll::ENetPoll(QObject* parent)
 {
     m_timer = new QTimer();
     m_timer->setInterval(ENET_POLL_INTVAL);
-    m_timer->setInterval(1);
+    m_timer->setInterval(10);
     QObject::connect(m_timer, &QTimer::timeout, this, &ENetPoll::runInlineThread, Qt::QueuedConnection);
-    m_timer->start();
+    // m_timer->start();
 }
 
 ENetPoll::~ENetPoll()
@@ -20,7 +20,7 @@ ENetPoll::~ENetPoll()
 
 void ENetPoll::run()
 {
-    // this->runInlineThread();
+    this->runInlineThread();
     // this->exec();
 }
 
@@ -34,18 +34,27 @@ void ENetPoll::runInlineThread()
     
     while (true) {
         if (m_enhosts.count() == 0) {
-            break;
+            // break;
             this->msleep(ENET_POLL_INTVAL);
             continue;
         }
         
+        ///////////////
+        m_outpkts_mutex.lock();
+        while (!this->m_outpkts.isEmpty()) {
+            PacketElement pe = this->m_outpkts.dequeue();
+            enet_peer_send(pe.m_enpeer, pe.m_chanid, pe.m_pkt);
+        }
+        m_outpkts_mutex.unlock();
+        
+        ///////////////
         interval = ENET_POLL_INTVAL / m_enhosts.count();
         for (auto it = m_enhosts.begin(); it != m_enhosts.end(); it++) {
             ENetHost *enhost = it.key();
             bool enable = it.value() == 1;
             // rc = enet_host_service(enhost, &event, 1000);
             // rc = enet_host_service(enhost, &event, interval);
-            rc = enet_host_service(enhost, &event, 0);
+            rc = enet_host_service(enhost, &event, 10);
             // qDebug()<<rc;
             if (rc == -1) {
             }
@@ -88,10 +97,15 @@ void ENetPoll::runInlineThread()
                 emit disconnected(enhost, event.peer);
             }
         }
-        break;
+        // break;
     }
 
 
+}
+
+void ENetPoll::testRunThread()
+{
+    qDebug()<<"here";
 }
 
 void ENetPoll::addENetHost(ENetHost *enhost)
@@ -105,6 +119,12 @@ void ENetPoll::removeENetHost(ENetHost *enhost)
     m_enhosts.remove(enhost);
 }
 
+void ENetPoll::sendPacket(ENetPeer *enpeer, uint8_t chanid, ENetPacket *pkt)
+{
+    QMutexLocker mtlck(&m_outpkts_mutex);
+    PacketElement pe(enpeer, chanid, pkt);
+    this->m_outpkts.enqueue(pe);
+}
 
 /////////////
 int enet_host_used_peer_size(ENetHost *host)
@@ -172,4 +192,5 @@ void enet_simple_destroy(void * context)
 {
     qDebug()<<"";
 }
+
 
