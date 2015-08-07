@@ -100,7 +100,7 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
 
     if (event->peer == NULL) {}
     if (chan == NULL) {}
-
+    QMutexLocker mtlck(&tund->m_pkts_mutex);
     if (tund->m_pkts.count() == 0) {
         return 0;
     }
@@ -116,7 +116,10 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
         // qDebug()<<tund<<socket<<bufferCount;
         
         int recvLength = 0;
-        QByteArray pkt = tund->m_pkts[pubkey].takeAt(0);
+        // QByteArray pkt = tund->m_pkts[pubkey].takeAt(0);
+        QByteArray pkt = tund->m_pkts[pubkey].at(0);
+        tund->m_pkts[pubkey].remove(0);
+        
         // deserialize
         recvLength = deserialize_packet(pkt, address, &buffers[0]);
         if (address != NULL) {
@@ -175,7 +178,7 @@ void Tunneld::init()
     enet_address_set_host(&enaddr, "127.0.0.1");
     ENetHost *ensrv = NULL;
 
-    m_ensrv = ensrv = enet_host_create(&enaddr, 132, 2, 0, 0);
+    m_ensrv = ensrv = enet_host_create(&enaddr, 932, 2, 0, 0);
     // ensrv->mtu = 1271; // 在这设置无效  // ENET_HOST_DEFAULT_MTU=1400
     // m_ensrv = ensrv = enet_host_create(&enaddr, 0, 2, 0, 0);
     qDebug()<<ensrv<<ensrv->peerCount;
@@ -254,7 +257,7 @@ void Tunneld::onToxnetFriendMessage(QString pubkey, int type, QByteArray message
     if (type == TOX_MESSAGE_TYPE_ACTION) {
         return;
     }
-
+    QMutexLocker mtlck(&m_pkts_mutex);
     // put buffers
     if (!m_pkts.contains(pubkey)) {
         m_pkts[pubkey] = QVector<QByteArray>();

@@ -9,6 +9,7 @@ ENetPoll::ENetPoll(QObject* parent)
 {
     m_timer = new QTimer();
     m_timer->setInterval(ENET_POLL_INTVAL);
+    m_timer->setInterval(1);
     QObject::connect(m_timer, &QTimer::timeout, this, &ENetPoll::runInlineThread, Qt::QueuedConnection);
     m_timer->start();
 }
@@ -19,6 +20,8 @@ ENetPoll::~ENetPoll()
 
 void ENetPoll::run()
 {
+    // this->runInlineThread();
+    // this->exec();
 }
 
 
@@ -32,8 +35,8 @@ void ENetPoll::runInlineThread()
     while (true) {
         if (m_enhosts.count() == 0) {
             break;
-            // this->msleep(ENET_POLL_INTVAL);
-            // continue;
+            this->msleep(ENET_POLL_INTVAL);
+            continue;
         }
         
         interval = ENET_POLL_INTVAL / m_enhosts.count();
@@ -44,6 +47,8 @@ void ENetPoll::runInlineThread()
             // rc = enet_host_service(enhost, &event, interval);
             rc = enet_host_service(enhost, &event, 0);
             // qDebug()<<rc;
+            if (rc == -1) {
+            }
 
             switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT:
@@ -86,7 +91,7 @@ void ENetPoll::runInlineThread()
         break;
     }
 
-    // this->exec();
+
 }
 
 void ENetPoll::addENetHost(ENetHost *enhost)

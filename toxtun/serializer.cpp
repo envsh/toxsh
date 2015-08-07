@@ -48,6 +48,29 @@ QByteArray serialize_packet_dep(const ENetAddress * address, const ENetBuffer * 
     // return sentLength;
 }
 
+static bool test_deserialize_packet(const QByteArray pkt)
+{
+    // deserialize
+    struct sockaddr_in sin = {0};
+    const char *pktdata = pkt.constData();
+    memcpy(&sin, pktdata, sizeof(struct sockaddr_in));
+    size_t length = 0;
+    memcpy(&length, pktdata + sizeof(struct sockaddr_in), sizeof(size_t));
+    int recvLength = 0;
+    recvLength = length;
+    
+    // qDebug()<<pkt.length()<<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
+    if (pkt.length() != (sizeof(struct sockaddr_in) + sizeof(size_t) + length)) {
+        qDebug()<<"warning size not match excepted:"
+                <<pkt.length()<<(sizeof(struct sockaddr_in) + sizeof(size_t) + length)
+                <<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
+        return false;
+    } else  {
+        return true;
+    }
+    
+    return false;
+}
 
 QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffers, size_t bufferCount)
 {
@@ -90,20 +113,28 @@ QByteArray serialize_packet(const ENetAddress* address, const ENetBuffer* buffer
         qDebug()<<"warning, exceed tox max message length:"<<sentLength<<maxlen;
     }
 
+    test_deserialize_packet(data);
+
     return data;    
 }
+
 
 size_t deserialize_packet(QByteArray pkt, ENetAddress *address, ENetBuffer *buffer)
 {
     // deserialize
     struct sockaddr_in sin = {0};
-    char *pktdata = pkt.data();
+    const char *pktdata = pkt.constData();
     memcpy(&sin, pktdata, sizeof(struct sockaddr_in));
     size_t length = 0;
     memcpy(&length, pktdata + sizeof(struct sockaddr_in), sizeof(size_t));
     int recvLength = 0;
     
     // qDebug()<<pkt.length()<<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
+    if (pkt.length() != (sizeof(struct sockaddr_in) + sizeof(size_t) + length)) {
+        qDebug()<<"warning size not match excepted:"
+                <<pkt.length()<<(sizeof(struct sockaddr_in) + sizeof(size_t) + length)
+                <<sizeof(struct sockaddr_in)<<sizeof(size_t)<<length;
+    }
     memcpy(buffer->data, pktdata + sizeof(struct sockaddr_in) + sizeof(size_t), length);
     buffer->dataLength = length;
     recvLength = length;
