@@ -59,7 +59,10 @@ public:
     QDateTime sock_close_time;
     QDateTime enet_close_time;
     QDateTime peer_sock_close_time;
+    QDateTime promise_close_time;
 
+    QDateTime last_recv_peer_pkt_time;
+    
     QTimer *m_close_timer = NULL;
 
 };

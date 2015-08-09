@@ -193,4 +193,9 @@ void enet_simple_destroy(void * context)
     qDebug()<<"";
 }
 
+uint32_t enetx_time_diff(uint32_t oldtime, uint32_t newtime)
+{
+    return newtime - oldtime;
+}
+
 

@@ -46,8 +46,8 @@ private slots:
     void onTcpDisconnected();
     void onTcpReadyRead();
 
-private:
-    void promiseChannelCleanup(ToxTunChannel *chan);
+public slots:
+    void promiseChannelCleanup(ToxTunChannel *chan = NULL);
 
 signals:
     void testRunThread();

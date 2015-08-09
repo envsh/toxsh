@@ -39,7 +39,8 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
 
     if (enpeer == NULL) {}
     if (chan == NULL) {
-        qDebug()<<"maybe connect packet."<<enpeer;
+        qDebug()<<"maybe connect/ping/disconnect."<<enpeer
+                <<"i/o:"<<enpeer->incomingPeerID<<enpeer->outgoingPeerID;
     }
 
     size_t sentLength = 0;
@@ -267,6 +268,13 @@ void Tunnelc::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
     // ToxTunChannel *chan = this->m_enpeer_chans[enpeer];
     // ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchan;
     ToxTunChannel *chan = peerLastChan(enpeer);
+    // enet_peer_ping_interval()
+    // enet_peer_ping(
+    enet_peer_timeout(enpeer, UINT32_MAX/*ENET_PEER_TIMEOUT_LIMIT * 0xfffff*/,
+                      UINT32_MAX/*ENET_PEER_TIMEOUT_MINIMUM * 0xffff*/,
+                      UINT32_MAX/*ENET_PEER_TIMEOUT_MAXIMUM * 0xffff*/);
+    enet_peer_ping_interval(enpeer, UINT32_MAX/*ENET_PEER_PING_INTERVAL * 0xfffff*/);
+    
     emit chan->m_sock->readyRead();
 
     if (false) {
@@ -336,7 +344,7 @@ void Tunnelc::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int c
         return;
     }
 
-
+    chan->last_recv_peer_pkt_time = QDateTime::currentDateTime();
     QTcpSocket *sock = chan->m_sock;
     int wrlen = sock->write(packet);
 }
@@ -383,12 +391,14 @@ void Tunnelc::onNewTcpConnection()
     qDebug()<<peer<<peer->connectID
             <<"tol:"<<peer->timeoutLimit<<"tomin:"<<peer->timeoutMinimum
             <<"tomax:"<<peer->timeoutMaximum;
-    peer->timeoutLimit *= 10;
-    peer->timeoutMinimum *= 10;
-    peer->timeoutMaximum *= 10;
+    // peer->timeoutLimit *= 10;
+    // peer->timeoutMinimum *= 10;
+    // peer->timeoutMaximum *= 10;
+    enet_peer_timeout(peer, ENET_PEER_TIMEOUT_LIMIT, ENET_PEER_TIMEOUT_MINIMUM, ENET_PEER_TIMEOUT_MAXIMUM);
+    enet_peer_ping_interval(peer, ENET_PEER_PING_INTERVAL);
 
     if (peer->toxchans == NULL) {
-        peer->toxchans = new QVector<ToxTunChannel*>();
+        // peer->toxchans = new QVector<ToxTunChannel*>();
     }
     if (peerChansCount(peer) > 0) {
         qDebug()<<peer->incomingPeerID;
@@ -482,8 +492,29 @@ void Tunnelc::onTcpDisconnected()
 
 void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
 {
-    qDebug()<<chan;
+    qDebug()<<chan<<sender();
+    QObject *snderobj = (QObject*)sender();
+    QTimer *repeat_timer = NULL;
 
+    qDebug()<<snderobj->objectName()<<snderobj->metaObject()->className();
+    if (chan == NULL) {
+        repeat_timer = (QTimer*)snderobj;
+        assert(repeat_timer != NULL);
+        int conid = repeat_timer->property("conid").toInt();
+        if (!m_conid_chans.contains(conid)) {
+            qDebug()<<"maybe too late repeat check self sock close timer event";
+            repeat_timer->deleteLater();
+            return;
+        }
+        chan = m_conid_chans[conid];
+        assert(chan != NULL);
+    } else {
+        // snderobj is ENetPoll or QTcpSocket
+    }
+    QTcpSocket *sock = chan->m_sock;
+    ENetPeer *enpeer = chan->m_enpeer;
+
+    ////////////
     QHash<QString, bool> promise_results;
 
     promise_results["sock_closed"] = chan->sock_closed;
@@ -497,15 +528,56 @@ void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
         promise_result = promise_result && val;
     }
 
+    if (true) {
+        // 检测对方最近的回包情况
+        if (!promise_result && repeat_timer == NULL
+            && promise_results["peer_sock_closed"] && !promise_results["sock_closed"]) {
+            qDebug()<<"here";
+            if (chan->last_recv_peer_pkt_time == QDateTime()) {
+                qDebug()<<"maybe can close socket right now, because recv nothing forever";
+            }
+            
+            QTimer *t = new QTimer();
+            t->setInterval(500);
+            t->setSingleShot(true);
+            t->setProperty("conid", QVariant(chan->m_conid));
+            // // QObject::connect(t, &QTimer::timeout, this, &Tunneld::promiseChannelCleanup, Qt::QueuedConnection);
+            QObject::connect(t, SIGNAL(timeout()), this, SLOT(promiseChannelCleanup()), Qt::QueuedConnection);
+            qDebug()<<"start repeat check sock close timer:";
+            t->start();
+        }
+        if (!promise_result && repeat_timer != NULL
+            && promise_results["peer_sock_closed"] && !promise_results["sock_closed"]) {
+            //
+            QDateTime now_time = QDateTime::currentDateTime();
+            uint32_t last_recv_to_now_time = chan->last_recv_peer_pkt_time.msecsTo(now_time);
+            qDebug()<<"here:"<<last_recv_to_now_time<<enpeer->lastReceiveTime;
+            if (last_recv_to_now_time > 7000) {
+                qDebug()<<"last recv to now, force close self socket:"<<last_recv_to_now_time
+                        <<enpeer->incomingPeerID<<enpeer->outgoingPeerID;
+                // 不能直接关闭，要在当前函数执行完后，即下一次事件的时候开始执行。
+                QTimer::singleShot(1, sock, &QTcpSocket::close);
+                // QTimer *t = new QTimer();
+                // t->setSingleShot(true);
+                // QObject::connect(t, &QTimer::timeout, sock, &QTcpSocket::close, Qt::QueuedConnection);
+                // t->start(1);
+                
+                repeat_timer->deleteLater();
+            } else {
+                repeat_timer->start();
+            }
+        }
+    }
+
     if (!promise_result) {
         qDebug()<<"promise nooooot satisfied:"<<promise_results<<chan->m_conid;
         return;
     }
-
+    
+    chan->promise_close_time = QDateTime::currentDateTime();
     qDebug()<<"promise satisfied."<<chan->m_conid;
+    
     ///// do cleanup
-    QTcpSocket *sock = chan->m_sock;
-    ENetPeer *enpeer = chan->m_enpeer;
     bool force_closed = chan->force_closed;
     
     // enpeer->toxchan = NULL; // cleanup
@@ -518,6 +590,7 @@ void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
     delete chan;
     sock->disconnect();
     sock->deleteLater();
+    if (repeat_timer != NULL) repeat_timer->deleteLater();
     qDebug()<<"curr chan size:"<<this->m_sock_chans.count()<<this->m_conid_chans.count();
 
     if (force_closed) {
@@ -526,21 +599,32 @@ void Tunnelc::promiseChannelCleanup(ToxTunChannel *chan)
     
     // 延时关闭enet_peer
     auto later_close_timeout = [enpeer]() {
-            qDebug()<<enpeer<<enpeer->state;
-            if (enpeer->state != ENET_PEER_STATE_CONNECTED) {
-                qDebug()<<"warning, peer currently not connected:"<<enpeer->incomingPeerID;
-            }
+        qDebug()<<enpeer<<enpeer->state;
+        if (enpeer->state != ENET_PEER_STATE_CONNECTED) {
+            qDebug()<<"warning, peer currently not connected:"<<enpeer->incomingPeerID;
+        }
 
-            if (! (enet_list_empty (& enpeer -> outgoingReliableCommands) &&
-                   enet_list_empty (& enpeer -> outgoingUnreliableCommands) && 
-                   enet_list_empty (& enpeer -> sentReliableCommands))) {
-                qDebug()<<"warning, maybe has unsent packet:"<<enpeer->incomingPeerID;
-                // 这也有可能是ping包啊，真是不好处理
-            }
+        if (! (enet_list_empty (& enpeer -> outgoingReliableCommands) &&
+               enet_list_empty (& enpeer -> outgoingUnreliableCommands) && 
+               enet_list_empty (& enpeer -> sentReliableCommands))) {
+            qDebug()<<"warning, maybe has unsent packet:"<<enpeer->incomingPeerID;
+            // 这也有可能是ping包啊，真是不好处理
+        }
 
-            enet_peer_disconnect_now(enpeer, qrand());
-            // enet_peer_disconnect_later(enpeer, qrand());
+        qDebug()<<"last recv time:"<<enpeer->incomingPeerID
+        <<enetx_time_diff(enpeer->lastReceiveTime, enet_time_get());
+
+        qDebug()<<"restore peer timeout, ping interval";
+        enet_peer_timeout(enpeer, ENET_PEER_TIMEOUT_LIMIT*2,
+                          ENET_PEER_TIMEOUT_MINIMUM*2, ENET_PEER_TIMEOUT_MAXIMUM*2);
+        enet_peer_ping_interval(enpeer, ENET_PEER_PING_INTERVAL*2);
+            
+        // enet_peer_disconnect_now(enpeer, qrand());
+        enet_peer_disconnect_later(enpeer, qrand());
     };
+
+    qDebug()<<"last recv time:"<<enpeer->incomingPeerID
+            <<enetx_time_diff(enpeer->lastReceiveTime, enet_time_get());
     QTimer::singleShot(5678, later_close_timeout);
 }
 

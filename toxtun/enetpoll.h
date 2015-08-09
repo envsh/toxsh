@@ -55,4 +55,6 @@ size_t enet_simple_compress(void * context, const ENetBuffer * inBuffers, size_t
 size_t enet_simple_decompress(void * context, const enet_uint8 * inData, size_t inLimit, enet_uint8 * outData, size_t outLimit);
 void enet_simple_destroy(void * context);
 
+uint32_t enetx_time_diff(uint32_t oldtime, uint32_t newtime);
+
 #endif /* ENETPOLL_H */

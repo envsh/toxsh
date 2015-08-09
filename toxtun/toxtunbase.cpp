@@ -13,6 +13,9 @@ uint32_t ToxTunBase::nextConid()
  */
 ToxTunChannel *ToxTunBase::peerLastChan(ENetPeer *enpeer)
 {
+    ToxTunChannel *chan0 = (ToxTunChannel*)enpeer->toxchans;
+    return chan0;
+    return 0;
     QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
     if (chans == NULL) return NULL;
 
@@ -25,12 +28,21 @@ ToxTunChannel *ToxTunBase::peerLastChan(ENetPeer *enpeer)
 
 int ToxTunBase::peerChansCount(ENetPeer *enpeer)
 {
+    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchans;
+    if (chan != NULL) return 1;
+    return 0;
+    
     QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
     return chans->count();
 }
 
 int ToxTunBase::peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan)
 {
+    ToxTunChannel *tchan0 = (ToxTunChannel*)enpeer->toxchans;
+    assert(tchan0 == chan);
+    enpeer->toxchans = NULL;
+    return 0;
+    //
     QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
     int idx = -1;
     ToxTunChannel *tchan = NULL;
@@ -55,6 +67,11 @@ int ToxTunBase::peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan)
 
 int ToxTunBase::peerAddChan(ENetPeer *enpeer, ToxTunChannel *chan)
 {
+    ToxTunChannel* tchan = (ToxTunChannel*)enpeer->toxchans;
+    assert(tchan == NULL);
+    enpeer->toxchans = chan;
+    return 1;
+    //
     QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
     chans->append(chan);
     return chans->count();

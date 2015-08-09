@@ -17,7 +17,11 @@ int main(int argc, char **argv)
     if (argc >= 3) {
         config_file = QString(argv[2]);
     }
-    
+
+    // preinit
+    enet_initialize();
+
+    //
     if (argc >= 2 && strcmp(argv[1], "server") == 0) {
         Tunneld *tund = new Tunneld(config_file);
         tund->init();
