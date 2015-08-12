@@ -194,7 +194,7 @@ void Tunneld::init()
     // ensrv->compressor.compress = enet_simple_compress;
     // ensrv->compressor.decompress = enet_simple_decompress;
     // ensrv->compressor.destroy = enet_simple_destroy;
-
+    // enet_host_compress(ensrv, this->createCompressor());
 
     m_enpoll->addENetHost(ensrv);
 
@@ -381,6 +381,9 @@ void Tunneld::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int c
         } else {
             qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet;
         }
+        qDebug()<<"drop crash packet, be careful, be true";
+        return;
+        // 这个断言在外网还是出现比较频繁的。
         assert(1 == 2);
     }
     

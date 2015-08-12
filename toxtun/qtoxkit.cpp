@@ -292,8 +292,8 @@ static void bootDht(QToxKit *qtox)
     // // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     // qDebug()<<bret<<ipaddr<<hex_pubkey;
 
-    // bool localrun = false;
-    bool localrun = true;
+    bool localrun = false;
+    // bool localrun = true;
 
     if (!localrun) {
         ipaddr = "192.210.149.121";

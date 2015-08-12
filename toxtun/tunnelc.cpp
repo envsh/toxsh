@@ -168,6 +168,7 @@ void Tunnelc::init()
     // encli->compressor.compress = enet_simple_compress;
     // encli->compressor.decompress = enet_simple_decompress;
     // encli->compressor.destroy = enet_simple_destroy;
+    // enet_host_compress(encli, this->createCompressor());
 
     m_enpoll->addENetHost(encli);
 
@@ -324,6 +325,9 @@ void Tunnelc::onENetPeerPacketReceived(ENetHost *enhost, ENetPeer *enpeer, int c
         } else {
             qDebug()<<enhost<<enpeer<<chanid<<packet.length()<<packet;
         }
+        qDebug()<<"drop crash packet, be careful, be true";
+        return;
+        // 这个断言在外网还是出现比较频繁的。
         assert(1 == 2);
     }
 
