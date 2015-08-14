@@ -62,6 +62,7 @@ add_library(enet STATIC
         protocol.c
         unix.c
         win32.c
+        bilayer.c
     )
 ######################
 
@@ -78,14 +79,14 @@ add_executable(tunnel
   main.cpp
   ../libtroh/debugoutput.cpp
   tunneld.cpp
-#  toxnet.cpp
-tunnelc.cpp
-toxtunbase.cpp
-#  socksd.cpp
-#  srudp.cpp
+  #  toxnet.cpp
+  tunnelc.cpp
+  toxtunbase.cpp
+  #  socksd.cpp
+  #  srudp.cpp
 
-serializer.cpp
-enetpoll.cpp
+  serializer.cpp
+  enetpoll.cpp
   toxtunutils.cpp
   qtoxkit.cpp
 

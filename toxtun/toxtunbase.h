@@ -6,6 +6,7 @@
 #include "enet/enet.h"
 
 class ToxTunChannel;
+class QToxKit;
 
 class ToxTunBase : public QObject
 {
@@ -17,14 +18,17 @@ public:
     int peerChansCount(ENetPeer *enpeer);
     int peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan);
     int peerAddChan(ENetPeer *enpeer, ToxTunChannel *chan);
-    ENetCompressor *createCompressor();
+    const ENetCompressor *createCompressor();
+    const ENetTransport *createToxTransport();
     
 public:
+    QToxKit *m_toxkit = NULL;
     uint32_t m_conid = 7;
     // QHash<QString, QVector<QByteArray> > m_pkts;  // friendId => [pkt1/2/3]
     QHash<QString, QQueue<QByteArray> > m_inpkts;  // friendId => [pkt1/2/3]
     QMutex m_pkts_mutex;
     ENetCompressor *m_enziper = NULL;
+    ENetTransport m_transport;
 
 protected:
     virtual void promiseChannelCleanup(ToxTunChannel *chan) = 0;

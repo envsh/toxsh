@@ -58,7 +58,7 @@ public:
     QHash<QTcpServer*, int> m_tcpsrvs;
     // QTcpServer *m_tcpsrv = NULL;
 
-    QToxKit *m_toxkit = NULL;
+    // QToxKit *m_toxkit = NULL;
     ENetHost *m_encli = NULL;
 
     ENetPoll *m_enpoll = NULL;

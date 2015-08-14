@@ -59,7 +59,7 @@ public:
     ToxTunConfig *m_cfg = NULL;
 
     QTcpSocket *m_sock = NULL;
-    QToxKit *m_toxkit = NULL;
+    // QToxKit *m_toxkit = NULL;
     ENetHost *m_ensrv = NULL;
     ENetPoll *m_enpoll = NULL;
     

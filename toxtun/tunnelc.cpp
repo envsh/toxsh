@@ -2,6 +2,7 @@
 // #include "srudp.h"
 
 #include "enet/enet.h"
+#include "bilayer.h"
 
 #include "qtoxkit.h"
 #include "serializer.h"
@@ -170,6 +171,15 @@ void Tunnelc::init()
     // encli->compressor.destroy = enet_simple_destroy;
     // enet_host_compress(encli, this->createCompressor());
 
+    
+    // transport
+    const ENetTransport *transport = this->createToxTransport();
+    // m_transport.send = toxenet_socket_send;
+    // m_transport.recv = toxenet_socket_receive;
+    m_transport.enet_transport_send = toxenet_socket_send;
+    m_transport.enet_transport_recv = toxenet_socket_receive;
+    enet_host_transport(encli, transport);
+    
     m_enpoll->addENetHost(encli);
 
     int idx = 0;
@@ -377,7 +387,6 @@ void Tunnelc::onNewTcpConnection()
     chan->m_port = rec.m_remote_port;
     chan->m_conid = nextConid();
 
-    
     //
     ENetAddress eaddr = {0};
     enet_address_set_host(&eaddr, "127.0.0.1");  // tunip: 10.0.5.x

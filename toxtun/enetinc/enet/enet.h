@@ -338,7 +338,36 @@ typedef enet_uint32 (ENET_CALLBACK * ENetChecksumCallback) (const ENetBuffer * b
 
 /** Callback for intercepting received raw UDP packets. Should return 1 to intercept, 0 to ignore, or -1 to propagate an error. */
 typedef int (ENET_CALLBACK * ENetInterceptCallback) (struct _ENetHost * host, struct _ENetEvent * event);
- 
+
+
+typedef enum _ENetTransportType
+{
+   /** no event occurred within the specified time limit */
+   ENET_TRANSPORT_TYPE_NONE       = 0,
+   ENET_TRANSPORT_TYPE_SOCKET     = 1,
+   ENET_TRANSPORT_TYPE_CUSTOM     = 2,
+} ENetTransportType;
+  
+typedef struct _ENetTransport
+{
+    ENetTransportType type;
+    void *context;
+    union {
+        ENetSocket socket;
+        void *nosocket;
+    } handle;
+
+    int (*enet_transport_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, ENetPeer *, void *);
+    int (*enet_transport_recv) (ENetSocket, ENetAddress *, ENetBuffer *, size_t, struct _ENetEvent *, void *);
+
+    int (*send2) (struct _ENetTransport *, const ENetAddress *, const ENetBuffer *, size_t, ENetPeer *, void *);
+    int (*recv2) (struct _ENetTransport *, ENetAddress *, ENetBuffer *, size_t, struct _ENetEvent *, void *);
+    
+    void (*send)();
+    void (*recv)();
+} ENetTransport;
+
+
 /** An ENet host for communicating with peers.
   *
   * No fields should be modified unless otherwise stated.
@@ -360,7 +389,7 @@ typedef struct _ENetHost
     void *toxkit;
     int (*enet_socket_send) (ENetSocket, const ENetAddress *, const ENetBuffer *, size_t, ENetPeer *, void *);
     int (*enet_socket_receive) (ENetSocket, ENetAddress *, ENetBuffer *, size_t, struct _ENetEvent *, void *);
-    
+    ENetTransport       transport;
    ENetSocket           socket;
    ENetAddress          address;                     /**< Internet address of the host */
    enet_uint32          incomingBandwidth;           /**< downstream bandwidth of the host */

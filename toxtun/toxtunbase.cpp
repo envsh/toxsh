@@ -129,7 +129,7 @@ static void enet_simple_destroy(void * context)
 }
 
 
-ENetCompressor *ToxTunBase::createCompressor()
+const ENetCompressor *ToxTunBase::createCompressor()
 {
     if (m_enziper == NULL) {
         m_enziper = (ENetCompressor*)calloc(1, sizeof(ENetCompressor));
@@ -142,6 +142,20 @@ ENetCompressor *ToxTunBase::createCompressor()
 
     return m_enziper;
 }
+
+const ENetTransport* ToxTunBase::createToxTransport()
+{
+    memset(&m_transport, 0, sizeof(ENetTransport));
+    m_transport.type = ENET_TRANSPORT_TYPE_CUSTOM;
+    m_transport.context = this;
+    m_transport.handle.nosocket = m_toxkit;
+
+    m_transport.send = 0;
+    m_transport.recv = 0;
+
+    return &m_transport;
+}
+
 
 void ToxTunBase::onToxnetFriendLossyPacket(QString friendId, QByteArray packet)
 {
