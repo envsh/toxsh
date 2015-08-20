@@ -45,13 +45,15 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
     }
 
     size_t sentLength = 0;
-    QString friendId = QString(address->toxid);
+    // QString friendId = QString(address->toxid);
+    QString friendId = toxkit->friendGetPublicKey(address->vaddr);
     int idsrc = 0;
     if (chan != NULL) { // connected state
         friendId = chan->m_peer_pubkey;
         idsrc = 1;
     } else { // not connected state
-        friendId = QString(address->toxid);
+        // friendId = QString(address->toxid);
+        friendId = toxkit->friendGetPublicKey(address->vaddr);
         idsrc = 2;
     }
     // qDebug()<<"sending to:"<<friendId<<QString(enpeer->toxid)<<idsrc;
@@ -156,9 +158,11 @@ void Tunnelc::init()
 
     ENetAddress enaddr = {ENET_HOST_ANY, 7766};
     enet_address_set_host(&enaddr, "127.0.0.1");
+    enaddr.vaddr = SELF_FRIEND_NUMBER;
     ENetHost *encli = NULL;
 
-    m_encli = encli = enet_host_create(&enaddr, 932, 2, 0, 0);
+    // m_encli = encli = enet_host_create(&enaddr, 932, 2, 0, 0);
+    m_encli = encli = enet_host_create_notp(&enaddr, 932, 2, 0, 0);
     // encli->mtu = 1261;  // 在这设置无效 // ENET_HOST_DEFAULT_MTU=1400
     // m_encli = encli = enet_host_create(NULL, 1, 2, 0, 0);
     qDebug()<<encli<<encli->peerCount<<encli->mtu;
@@ -410,9 +414,6 @@ void Tunnelc::onNewTcpConnection()
     enet_peer_timeout(peer, ENET_PEER_TIMEOUT_LIMIT, ENET_PEER_TIMEOUT_MINIMUM, ENET_PEER_TIMEOUT_MAXIMUM);
     enet_peer_ping_interval(peer, ENET_PEER_PING_INTERVAL);
 
-    if (peer->toxchans == NULL) {
-        // peer->toxchans = new QVector<ToxTunChannel*>();
-    }
     if (peerChansCount(peer) > 0) {
         qDebug()<<peer->incomingPeerID;
         ToxTunChannel *tchan = peerLastChan(peer);

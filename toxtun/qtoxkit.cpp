@@ -292,8 +292,8 @@ static void bootDht(QToxKit *qtox)
     // // bret = tox_add_tcp_relay(tox, ipaddr, 33445, (uint8_t*)pubkey.data(), NULL);
     // qDebug()<<bret<<ipaddr<<hex_pubkey;
 
-    bool localrun = false;
-    // bool localrun = true;
+    // bool localrun = false;
+    bool localrun = true;
 
     if (!localrun) {
         ipaddr = "192.210.149.121";
@@ -473,6 +473,28 @@ bool QToxKit::friendSendLosslessPacket(QString friendId, QByteArray data)
     }
     return bret;
 }
+
+uint32_t QToxKit::friendByPublicKey(QString friendId)
+{
+   Tox *tox = this->m_tox;
+
+   QByteArray raw_friend_id = QByteArray::fromHex(friendId.toLatin1());
+   TOX_ERR_FRIEND_BY_PUBLIC_KEY err;
+   uint32_t friend_number = tox_friend_by_public_key(tox, (uint8_t*)raw_friend_id.data(), &err);
+   return friend_number;
+}
+
+QString QToxKit::friendGetPublicKey(uint32_t friendNumber)
+{
+    Tox *tox = this->m_tox;
+    
+    TOX_ERR_FRIEND_GET_PUBLIC_KEY err;
+    uint8_t public_key[TOX_PUBLIC_KEY_SIZE] = {0};
+    bool bret = tox_friend_get_public_key(tox, friendNumber, public_key, &err);
+    QByteArray hex_pubkey = QByteArray((char*)public_key, TOX_PUBLIC_KEY_SIZE).toHex().toUpper();
+    return QString(hex_pubkey);
+}
+
 
 
 void QToxKit::run()

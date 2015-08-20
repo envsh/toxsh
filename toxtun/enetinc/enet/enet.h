@@ -90,7 +90,8 @@ typedef struct _ENetAddress
 {
    enet_uint32 host;
    enet_uint16 port;
-   char toxid[77];
+    enet_uint32 vaddr;
+    // char toxid[77];
 } ENetAddress;
 
 /**
@@ -263,8 +264,8 @@ typedef struct _ENetPeer
    enet_uint8    outgoingSessionID;
    enet_uint8    incomingSessionID;
    ENetAddress   address;            /**< Internet address of the peer */
-    char        toxid[77];
-    void *      toxchans;
+    // char        toxid[77];
+    // void *      toxchans;
    void *        data;               /**< Application private data, may be freely modified */
    ENetPeerState state;
    ENetChannel * channels;

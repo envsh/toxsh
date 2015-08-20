@@ -1202,6 +1202,7 @@ static int
 enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
 {
     int packets;
+    ENetTransport *transport = &host->transport;
 
     for (packets = 0; packets < 256; ++ packets)
     {
@@ -1211,8 +1212,12 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
        buffer.data = host -> packetData [0];
        buffer.dataLength = sizeof (host -> packetData [0]);
 
+       /*
        receivedLength = host->enet_socket_receive(host->socket, &host->receivedAddress,
                                                   &buffer, 1, event, host->toxkit);
+       */
+       receivedLength = transport->enet_transport_recv(host->socket, &host->receivedAddress,
+                                                       &buffer, 1, event, host->toxkit);
        // printf("enet recv: %d, len=%d\n", host->socket, receivedLength);
        
        /*
@@ -1259,7 +1264,8 @@ enet_protocol_receive_incoming_commands (ENetHost * host, ENetEvent * event)
        int ic = enet_protocol_handle_incoming_commands (host, event);
        if (event->peer != NULL) {
            printf("here:%s:%d, peer=%p,\n", __FILE__, __LINE__, event->peer);
-           strcpy(event->peer->toxid, host->receivedAddress.toxid);
+           // strcpy(event->peer->toxid, host->receivedAddress.toxid);
+           event->peer->address = host->receivedAddress;
        }
        switch (ic)
        {
@@ -1620,6 +1626,7 @@ enet_protocol_send_outgoing_commands (ENetHost * host, ENetEvent * event, int ch
     ENetPeer * currentPeer;
     int sentLength;
     size_t shouldCompress = 0;
+    ENetTransport *transport = &host->transport;
  
     host -> continueSending = 1;
 
@@ -1751,8 +1758,13 @@ enet_protocol_send_outgoing_commands (ENetHost * host, ENetEvent * event, int ch
         /* printf("here: %p, %d, :%d, bc:%d, stlen: %d\n", host->toxkit, host->socket, */
         /*        currentPeer->address.port, host->bufferCount, sentLength); */
 
+        /*
         sentLength = host->enet_socket_send(host -> socket, & currentPeer -> address,
                                             host -> buffers, host -> bufferCount, currentPeer, host->toxkit);
+        */
+        sentLength = transport->enet_transport_send(host -> socket, & currentPeer -> address,
+                                                    host -> buffers, host -> bufferCount, currentPeer, host->toxkit);
+        
         /*printf("here: %p, %d, :%d, bc:%d, slen:%d\n", host->toxkit, host->socket,
           currentPeer->address.port, host->bufferCount, sentLength);*/
 

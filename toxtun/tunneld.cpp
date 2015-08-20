@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 
 #include "enet/enet.h"
+#include "bilayer.h"
 
 #include "qtoxkit.h"
 #include "serializer.h"
@@ -15,7 +16,6 @@
 #include "toxtunutils.h"
 
 #include "tunneld.h"
-
 
 
 ////////////////////////
@@ -50,7 +50,8 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
     
     size_t sentLength = 0;
     // QString friendId = "451843FCB684FC779B302C08EA33DDB447B61402B075C8AF3E84BEE5FB41C738928615BCDCE4";
-    QString friendId = QString(address->toxid);
+    // QString friendId = QString(address->toxid);
+    QString friendId = toxkit->friendGetPublicKey(address->vaddr);
     int idsrc = 0;
     if (chan != NULL) { // connected state
         // qDebug()<<chan;
@@ -58,7 +59,8 @@ static int toxenet_socket_send (ENetSocket socket, const ENetAddress * address,
         friendId = chan->m_peer_pubkey;
         idsrc = 1;
     } else { // not connected state
-        friendId = QString(address->toxid);
+        // friendId = QString(address->toxid);
+        friendId = toxkit->friendGetPublicKey(address->vaddr);
         idsrc = 2;
     }
     // qDebug()<<"sending to:"<<friendId<<QString(enpeer->toxid)<<idsrc;
@@ -128,6 +130,8 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
         // deserialize
         recvLength = deserialize_packet(pkt, address, &buffers[0]);
         if (address != NULL) {
+            address->vaddr = toxkit->friendByPublicKey(pubkey);
+            /*
             if (strlen(address->toxid) == 0 || strcmp(address->toxid, pubkey.toLatin1().data()) != 0) {
                 qDebug()<<"need reset unsame toxid:"
                         <<address->toxid<<"->"<<pubkey;
@@ -135,6 +139,7 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
             } else {
                 // strcpy(address->toxid, pubkey.toLatin1().data());
             }
+            */
         }
         // qDebug()<<tund<<socket<<bufferCount<<recvLength;
         return recvLength;
@@ -181,9 +186,11 @@ void Tunneld::init()
     
     ENetAddress enaddr = {ENET_HOST_ANY, 7767};
     enet_address_set_host(&enaddr, "127.0.0.1");
+    enaddr.vaddr = SELF_FRIEND_NUMBER;
     ENetHost *ensrv = NULL;
 
-    m_ensrv = ensrv = enet_host_create(&enaddr, 932, 2, 0, 0);
+    // m_ensrv = ensrv = enet_host_create(&enaddr, 932, 2, 0, 0);
+    m_ensrv = ensrv = enet_host_create_notp(&enaddr, 932, 2, 0, 0);
     // ensrv->mtu = 1271; // 在这设置无效  // ENET_HOST_DEFAULT_MTU=1400
     // m_ensrv = ensrv = enet_host_create(&enaddr, 0, 2, 0, 0);
     qDebug()<<ensrv<<ensrv->peerCount;
@@ -196,6 +203,16 @@ void Tunneld::init()
     // ensrv->compressor.destroy = enet_simple_destroy;
     // enet_host_compress(ensrv, this->createCompressor());
 
+
+    // transport
+    const ENetTransport *transport = this->createToxTransport();
+    // m_transport.send = toxenet_socket_send;
+    // m_transport.recv = toxenet_socket_receive;
+    m_transport.enet_transport_send = toxenet_socket_send;
+    m_transport.enet_transport_recv = toxenet_socket_receive;
+    enet_host_transport(ensrv, transport);
+
+    
     m_enpoll->addENetHost(ensrv);
 
     QObject::connect(this, &Tunneld::testRunThread, m_enpoll, &ENetPoll::testRunThread);
@@ -277,7 +294,7 @@ void Tunneld::onToxnetFriendMessage(QString pubkey, int type, QByteArray message
 //////////////////
 void Tunneld::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 data)
 {
-    qDebug()<<enhost<<enpeer<<enpeer->toxid<<data<<".";
+    qDebug()<<enhost<<enpeer<<enpeer->address.vaddr<<data<<".";
 
     QTcpSocket *sock = new QTcpSocket();
     QObject::connect(sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead, Qt::QueuedConnection);
@@ -292,15 +309,13 @@ void Tunneld::onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 da
     chan->m_enpeer = enpeer;
     chan->m_enhost = enhost;
     chan->m_peer_pubkey = "";
-    chan->m_peer_pubkey = QString(enpeer->toxid);
+    // chan->m_peer_pubkey = QString(enpeer->toxid);
+    chan->m_peer_pubkey = m_toxkit->friendGetPublicKey(enpeer->address.vaddr);
     chan->m_host = "127.0.0.1";
     chan->m_port = data;  // connect to port
     chan->m_conid = this->nextConid();
 
 
-    if (enpeer->toxchans == NULL) {
-        // enpeer->toxchans = new QVector<ToxTunChannel*>();
-    }
     if (peerChansCount(enpeer) > 0) {
         int cc0 = peerChansCount(enpeer);
         qDebug()<<enpeer->incomingPeerID<<cc0;

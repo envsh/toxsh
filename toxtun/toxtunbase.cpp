@@ -8,15 +8,16 @@ uint32_t ToxTunBase::nextConid()
     return this->m_conid ++;
 }
 
+#define ENET_PEER_TOXCHAN data
 /*
   QVector<ToxTunChannel*>* enpeer->toxchans
  */
 ToxTunChannel *ToxTunBase::peerLastChan(ENetPeer *enpeer)
 {
-    ToxTunChannel *chan0 = (ToxTunChannel*)enpeer->toxchans;
+    ToxTunChannel *chan0 = (ToxTunChannel*)enpeer->ENET_PEER_TOXCHAN;
     return chan0;
     return 0;
-    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
+    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->ENET_PEER_TOXCHAN;
     if (chans == NULL) return NULL;
 
     int idx = chans->count();
@@ -28,22 +29,22 @@ ToxTunChannel *ToxTunBase::peerLastChan(ENetPeer *enpeer)
 
 int ToxTunBase::peerChansCount(ENetPeer *enpeer)
 {
-    ToxTunChannel *chan = (ToxTunChannel*)enpeer->toxchans;
+    ToxTunChannel *chan = (ToxTunChannel*)enpeer->ENET_PEER_TOXCHAN;
     if (chan != NULL) return 1;
     return 0;
     
-    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
+    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->ENET_PEER_TOXCHAN;
     return chans->count();
 }
 
 int ToxTunBase::peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan)
 {
-    ToxTunChannel *tchan0 = (ToxTunChannel*)enpeer->toxchans;
+    ToxTunChannel *tchan0 = (ToxTunChannel*)enpeer->ENET_PEER_TOXCHAN;
     assert(tchan0 == chan);
-    enpeer->toxchans = NULL;
+    enpeer->ENET_PEER_TOXCHAN = NULL;
     return 0;
     //
-    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
+    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->ENET_PEER_TOXCHAN;
     int idx = -1;
     ToxTunChannel *tchan = NULL;
     
@@ -67,12 +68,12 @@ int ToxTunBase::peerRemoveChan(ENetPeer *enpeer, ToxTunChannel *chan)
 
 int ToxTunBase::peerAddChan(ENetPeer *enpeer, ToxTunChannel *chan)
 {
-    ToxTunChannel* tchan = (ToxTunChannel*)enpeer->toxchans;
+    ToxTunChannel* tchan = (ToxTunChannel*)enpeer->ENET_PEER_TOXCHAN;
     assert(tchan == NULL);
-    enpeer->toxchans = chan;
+    enpeer->ENET_PEER_TOXCHAN = chan;
     return 1;
     //
-    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->toxchans;
+    QVector<ToxTunChannel*>* chans = (QVector<ToxTunChannel*>*)enpeer->ENET_PEER_TOXCHAN;
     chans->append(chan);
     return chans->count();
 }

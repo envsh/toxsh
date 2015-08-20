@@ -22,6 +22,8 @@ public:
     void friendSendMessage(QString friendId, QByteArray data);
     bool friendSendLossyPacket(QString friendId, QByteArray data);
     bool friendSendLosslessPacket(QString friendId, QByteArray data);
+    uint32_t friendByPublicKey(QString friendId);
+    QString friendGetPublicKey(uint32_t friendNumber);
 
 signals:
     void selfConnectionStatus(int status);

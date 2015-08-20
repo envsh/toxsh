@@ -70,7 +70,7 @@ void ENetPoll::runInlineThread()
                         event.peer -> address.port);
                 */
                 /* Store any relevant client information here. */
-                event.peer -> data = (void*)"Client information";
+                // event.peer -> data = (void*)"Client information";
                 emit connected(enhost, event.peer, event.data);
                 break;
 
@@ -93,7 +93,7 @@ void ENetPoll::runInlineThread()
                 // printf ("%s disconnected.\n", event.peer -> data);
                 qDebug()<<event.peer -> data<<event.data<<event.peer->connectID<<" disconnected.";
                 /* Reset the peer's client information. */
-                event.peer -> data = NULL;
+                // event.peer -> data = NULL;
                 emit disconnected(enhost, event.peer);
             }
         }

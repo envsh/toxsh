@@ -30,6 +30,8 @@ public:
     ENetCompressor *m_enziper = NULL;
     ENetTransport m_transport;
 
+    static const uint32_t SELF_FRIEND_NUMBER = UINT32_MAX/2;
+    
 protected:
     virtual void promiseChannelCleanup(ToxTunChannel *chan) = 0;
                                                
