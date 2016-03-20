@@ -407,10 +407,8 @@ void Tunnelc::onNewTcpConnection()
 
 void Tunnelc::onTcpReadyRead()
 {
-    qDebug()<<"";
     QTcpSocket *sock = (QTcpSocket*)(sender());
     ToxTunChannel *chan = this->m_sock_chans[sock];
-    qDebug()<<chan<<chan->m_enpeer->state<<chan->m_enpeer->connectID;
 
     if (chan->m_enpeer->state == ENET_PEER_STATE_CONNECTED) {
         while (sock->bytesAvailable() > 0) {

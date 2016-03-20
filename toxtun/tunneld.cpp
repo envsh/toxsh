@@ -149,7 +149,7 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
 void Tunneld::init()
 {
     QString tkname = this->m_cfg->m_srvname;
-    qDebug()<<tkname;
+    qDebug()<<"Listen toxtun server as:"<<tkname;
     // m_toxkit = new QToxKit("whtun", true);
     m_toxkit = new QToxKit(tkname, true);
     QObject::connect(m_toxkit, &QToxKit::selfConnectionStatus, this,
@@ -420,11 +420,8 @@ void Tunneld::onTcpDisconnected()
 
 void Tunneld::onTcpReadyRead()
 {
-    qDebug()<<"";
     QTcpSocket *sock = (QTcpSocket*)sender();
     ToxTunChannel *chan = this->m_sock_chans[sock];
-
-    qDebug()<<chan<<chan->m_enpeer->state;
 
     if (chan->m_enpeer->state == ENET_PEER_STATE_CONNECTED) {
         while (sock->bytesAvailable() > 0) {

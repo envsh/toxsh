@@ -1,3 +1,4 @@
+#include <assert.h>
 
 #include "enetpoll.h"
 
@@ -48,15 +49,20 @@ void ENetPoll::runInlineThread()
         m_outpkts_mutex.unlock();
         
         ///////////////
+        QDateTime forbtime = QDateTime::currentDateTime();
+        bool forevt = false;
         interval = ENET_POLL_INTVAL / m_enhosts.count();
         for (auto it = m_enhosts.begin(); it != m_enhosts.end(); it++) {
             ENetHost *enhost = it.key();
             bool enable = it.value() == 1;
             // rc = enet_host_service(enhost, &event, 1000);
             // rc = enet_host_service(enhost, &event, interval);
+            QDateTime svcbtime = QDateTime::currentDateTime();
+            QDateTime svcetime;
             rc = enet_host_service(enhost, &event, 10);
-            // qDebug()<<rc;
             if (rc == -1) {
+                qDebug()<<rc;
+                assert(rc != -1);
             }
 
             switch (event.type) {
@@ -95,12 +101,33 @@ void ENetPoll::runInlineThread()
                 /* Reset the peer's client information. */
                 // event.peer -> data = NULL;
                 emit disconnected(enhost, event.peer);
+                break;
+            case ENET_EVENT_TYPE_NONE:
+                // TODO maybe enet_host_service has a bug, not really block 10 timeout
+                svcetime = QDateTime::currentDateTime();
+                if (svcbtime.msecsTo(svcetime) < 10) {
+                    qDebug()<<"serve time:"<<svcbtime.msecsTo(svcetime);
+                    assert(1==2);
+                }
+                break;
+            default:
+                assert(1==2);
             }
+
+            if (event.type > 0) {
+                forevt = true;
+            }
+        } // end for
+
+        // detect
+        // TODO maybe enet_host_service has a bug, not really block 10 timeout
+        QDateTime foretime = QDateTime::currentDateTime();
+        if (forevt == false && forbtime.msecsTo(foretime) < 10) {
+            qDebug()<<"for use time:"<<forbtime.msecsTo(foretime)<<forevt;
+            assert(1==2);
         }
         // break;
-    }
-
-
+    } // end while
 }
 
 void ENetPoll::testRunThread()

@@ -1,3 +1,23 @@
+### 文件可能损坏
+
+目前没有发现。
+
+### 下载文件中断
+
+已经测试到：curl: (18) transfer closed with 20933752 bytes remaining to read
+
+### 内存漏泄
+
+特别是server端严重，可能是ENetPacket没有释放吧。
+
+好像没有内存泄漏，上到一个值就不再涨了？
+
+
+
+### ENetPoll死循环
+
+### 进程崩溃
+
 *** Error in `./tunnel': malloc(): memory corruption (fast): 0x00007fffe8043f7f ***
 
 *** toxenet_socket_send (socket=6, address=0x64f5cc, buffers=0x64ba78, bufferCount=2, enpeer=0x64f5a8, user_data=0x6460d0)
