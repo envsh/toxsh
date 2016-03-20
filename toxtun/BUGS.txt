@@ -1,0 +1,28 @@
+*** Error in `./tunnel': malloc(): memory corruption (fast): 0x00007fffe8043f7f ***
+
+*** toxenet_socket_send (socket=6, address=0x64f5cc, buffers=0x64ba78, bufferCount=2, enpeer=0x64f5a8, user_data=0x6460d0)
+    at ./tunnelc.cpp:43
+
+*** 0x000000000041259a in write (data=..., this=<error reading variable: Cannot access memory at address 0x0>)
+
+*** Program received signal SIGSEGV, Segmentation fault.
+Tunnelc::onENetPeerDisconnected (this=0x6470d0, enhost=0x64c3a0, enpeer=0x64ef70)
+    at ./tunnelc.cpp:279
+279         chan->enet_closed = true;
+
+*** Error receiving incoming packets: 资源暂时不可用
+
+*** (gdb) bt
+#0  0x00007ffff6644b68 in __memcpy_avx_unaligned () from /usr/lib/libc.so.6
+#1  0x00007ffff721a964 in QByteArray::reallocData(unsigned int, QFlags<QArrayData::AllocationOption>) ()
+   from /usr/lib/libQt5Core.so.5
+#2  0x000000000041c780 in detach (this=this@entry=0x7ffff07fbbf0) at /usr/include/qt/QtCore/qbytearray.h:485
+#3  data (this=this@entry=0x7ffff07fbbf0) at /usr/include/qt/QtCore/qbytearray.h:479
+#4  deserialize_packet (pkt=..., address=address@entry=0x652ed8, buffer=buffer@entry=0x7ffff07fbcc0)
+    at /home/gzleo/opensource/toxsh/toxtun/serializer.cpp:100
+
+
+*** serializer.cpp:108 deserialize_packet - warning size not match excepted: 32767 34 16 8 10
+
+
+*** Error in `./tunnel': double free or corruption (fasttop): 0x00000000021bf140 ***
