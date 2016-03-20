@@ -1,7 +1,4 @@
 
-// #include "toxnet.h"
-// #include "srudp.h"
-
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -151,14 +148,6 @@ static int toxenet_socket_receive(ENetSocket socket, ENetAddress *address,
 
 void Tunneld::init()
 {
-    
-    // m_net = new ToxNet;
-//     m_rudp = new Srudp(m_net);
-
-//     QObject::connect(m_net, &ToxNet::peerConnected, this, &Tunneld::onPeerConnected);
-//     QObject::connect(m_net, &ToxNet::peerDisconnected, this, &Tunneld::onPeerDisconnected);
-//     QObject::connect(m_rudp, &Srudp::readyRead, this, &Tunneld::onPeerReadyRead);
-
     QString tkname = this->m_cfg->m_srvname;
     qDebug()<<tkname;
     // m_toxkit = new QToxKit("whtun", true);
@@ -217,46 +206,6 @@ void Tunneld::init()
 
     QObject::connect(this, &Tunneld::testRunThread, m_enpoll, &ENetPoll::testRunThread);
     emit(this->testRunThread());
-}
-
-static int g_conn_stat = 0;
-void Tunneld::onPeerConnected(int friendId)
-{
-    qDebug()<<friendId;
-
-    if (g_conn_stat == 0) {
-        g_conn_stat = 1;
-    } else {
-        return;
-    }
-
-    m_sock = new QTcpSocket();
-
-    QObject::connect(m_sock, &QTcpSocket::readyRead, this, &Tunneld::onTcpReadyRead, Qt::QueuedConnection);
-    QObject::connect(m_sock, &QTcpSocket::disconnected, this, &Tunneld::onTcpDisconnected, Qt::QueuedConnection);
-
-    m_sock->connectToHost("127.0.0.1", 22);
-    m_sock->waitForConnected();
-}
-
-void Tunneld::onPeerDisconnected(int friendId)
-{
-    qDebug()<<friendId;
-}
-
-void Tunneld::onPeerReadyRead()
-{
-    qDebug()<<"";
-
-    QHostAddress addr;
-    quint16 port;
-
-    // while (m_rudp->hasPendingDatagrams()) {
-    //     QByteArray ba = m_rudp->readDatagram(addr, port);
-    //     qDebug()<<"read balen:"<<ba.length();
-
-    //     m_sock->write(ba);
-    // }
 }
 
 void Tunneld::onToxnetSelfConnectionStatus(int status)
@@ -497,11 +446,7 @@ void Tunneld::onTcpReadyRead()
         }
     }
 
-    
-    // QByteArray ba = m_sock->readAll();
-    // m_rudp->sendto(ba, QString("127.0.0.1:6789"));
 }
-
 
 void Tunneld::promiseChannelCleanup(ToxTunChannel *chan)
 {

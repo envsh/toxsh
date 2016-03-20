@@ -8,13 +8,10 @@
 
 #include "toxtunbase.h"
 
-// class ToxNet;
-// class Srudp;
 class QToxKit;
 class ToxTunChannel;
 class ToxTunConfig;
 class ENetPoll;
-
 
 
 class Tunnelc : public ToxTunBase
@@ -27,10 +24,6 @@ public:
     void init();
 
 public slots:
-    void onTunnelConnected();
-    void onTunnelDisconnected();
-    void onTunnelReadyRead();
-
     ///////
     void onToxnetSelfConnectionStatus(int status);
     void onToxnetFriendConnectionStatus(QString pubkey, int status);
@@ -51,8 +44,6 @@ public slots:
     
 private:
 public:
-    // ToxNet *m_net = NULL;
-    // Srudp *m_rudp = NULL;
     ToxTunConfig *m_cfg = NULL;
 
     QHash<QTcpServer*, int> m_tcpsrvs;

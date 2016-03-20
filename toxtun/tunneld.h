@@ -9,8 +9,6 @@
 #include "toxtunbase.h"
 
 
-// class ToxNet;
-// class Srudp;
 class QToxKit;
 class ToxTunChannel;
 class ToxTunConfig;
@@ -27,16 +25,12 @@ public:
     void init();
 
 public slots:
-    void onPeerConnected(int friendId);
-    void onPeerDisconnected(int friendId);
-    void onPeerReadyRead();
-
     ///////
     void onToxnetSelfConnectionStatus(int status);
     void onToxnetFriendConnectionStatus(QString pubkey, int status);
     void onToxnetFriendRequest(QString pubkey, QString reqmsg);
     void onToxnetFriendMessage(QString pubkey, int type, QByteArray message);
-                                                                           
+
 private slots:
     void onENetPeerConnected(ENetHost *enhost, ENetPeer *enpeer, quint32 data);
     void onENetPeerDisconnected(ENetHost *enhost, ENetPeer *enpeer);
@@ -54,8 +48,6 @@ signals:
     
 private:
 public:
-    // ToxNet *m_net = NULL;
-    // Srudp *m_rudp = NULL;
     ToxTunConfig *m_cfg = NULL;
 
     QTcpSocket *m_sock = NULL;
