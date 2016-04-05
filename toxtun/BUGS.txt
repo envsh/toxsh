@@ -16,6 +16,21 @@
 
 ### ENetPoll死循环
 
+###
+[2016-03-25 10:03:14] T(6861) tunnelc.cpp:367 Tunnelc::onNewTcpConnection - 0x7effddcb91e8 2129549489 tol: 32 tomin: 5000 tomax: 30000
+here:/home/gzleo/oss/toxsh/toxtun/protocol.c:1266, peer=0x7effddcb91e8,
+[2016-03-25 10:03:14] T(6863) enetpoll.cpp:70 ENetPoll::runInlineThread - A new client connected from:  16777343 7767 0
+[2016-03-25 10:03:14] T(6861) tunnelc.cpp:241 Tunnelc::onENetPeerConnected - 0x9d8740 0x7effddcb91e8 0
+peer 2: 2.932373%+-4.694077% packet loss, 691+-78 ms round trip time, 1.000000% throttle, 0/0 outgoing, 0/0 incoming
+peer 3: 1.133392%+-1.545837% packet loss, 816+-296 ms round trip time, 0.750000% throttle, 0/0 outgoing, 62/0 incoming
+peer 11: 0.743347%+-1.300262% packet loss, 2773+-1331 ms round trip time, 1.000000% throttle, 0/0 outgoing, 134/0 incoming
+[2016-03-25 10:03:22] T(6863) enetpoll.cpp:100 ENetPoll::runInlineThread - 0x9dc810 0 0  disconnected.
+[2016-03-25 10:03:22] T(6861) tunnelc.cpp:268 Tunnelc::onENetPeerDisconnected - 0x9d8740 0x7effddcb9010 0
+[2016-03-25 10:03:22] T(6861) tunnelc.cpp:274 Tunnelc::onENetPeerDisconnected - warning why chan not null: 293
+[2016-03-25 02:03:23] T(6863) enetpoll.cpp:109 ENetPoll::runInlineThread - serve time: -28799990
+tunnel: /home/gzleo/oss/toxsh/toxtun/enetpoll.cpp:110：void ENetPoll::runInlineThread(): 假设 ‘1==2’ 失败。
+
+
 ### 进程崩溃
 
 *** Error in `./tunnel': malloc(): memory corruption (fast): 0x00007fffe8043f7f ***
